@@ -1,0 +1,8 @@
+{
+  "name": "KnightScope",
+  "description": "Chess game analysis, tactical puzzles, opening insights, and friendly matches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

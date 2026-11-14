@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">KnightScope</string>
+    <string name="tab_analyse">Analyse</string>
+    <string name="tab_puzzles">Puzzles</string>
+    <string name="tab_friends">Friends</string>
+    <string name="tab_history">History</string>
+    <string name="analyse_title">Analyse a game</string>
+    <string name="analyse_subtitle">Paste a PGN from Chess.com or Lichess to find mistakes and see stronger moves.</string>
+    <string name="puzzles_title">Puzzles</string>
+    <string name="puzzles_subtitle">Train tactics, climb the levels and track your rating.</string>
+    <string name="friends_title">Play a friend</string>
+    <string name="friends_subtitle">No login. Play locally over Wi-Fi or side-by-side on one device.</string>
+    <string name="history_title">Analysed History</string>
+    <string name="history_subtitle">Games you have analysed on this device.</string>
+    <string name="about_title">About KnightScope</string>
+</resources>
