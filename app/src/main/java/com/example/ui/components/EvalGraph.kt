@@ -37,6 +37,9 @@ fun EvalGraph(
     modifier: Modifier = Modifier
 ) {
     val totalPlies = (evals.size - 1).coerceAtLeast(1)
+    val mutedColor = TextMuted
+    val cyanColor = StudioCyan
+    val greenColor = AccentGreen
 
     Canvas(
         modifier = modifier
@@ -64,7 +67,7 @@ fun EvalGraph(
 
         // Subtle baseline
         drawLine(
-            color = TextMuted.copy(alpha = 0.4f),
+            color = mutedColor.copy(alpha = 0.4f),
             start = Offset(0f, midY),
             end = Offset(w, midY),
             strokeWidth = 1.dp.toPx()
@@ -92,14 +95,14 @@ fun EvalGraph(
                 path = fillPath,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        StudioCyan.copy(alpha = 0.28f),
-                        AccentGreen.copy(alpha = 0.14f)
+                        cyanColor.copy(alpha = 0.28f),
+                        greenColor.copy(alpha = 0.14f)
                     )
                 )
             )
             drawPath(
                 linePath,
-                color = StudioCyan,
+                color = cyanColor,
                 style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round)
             )
 

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.*
 import com.example.data.KnightScopeRepository
+import com.example.service.LichessOpenInvite
+import com.example.service.LichessOpenServices
 import com.example.ui.theme.BoardTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +33,12 @@ enum class FriendMode {
     PASS_AND_PLAY
 }
 
+data class InviteTimeControl(
+    val label: String,
+    val limitSec: Int,
+    val incrementSec: Int
+)
+
 data class FriendsUiState(
     val myName: String = "",
     val opponentNameInput: String = "Friend",
@@ -41,6 +49,13 @@ data class FriendsUiState(
     val statusMessage: String? = null,
     val isError: Boolean = false,
     val isConnecting: Boolean = false,
+
+    // Online Lichess Open Challenge invite (zero-login)
+    val inviteTimeLimitSec: Int = 300,
+    val inviteIncrementSec: Int = 3,
+    val isCreatingOnlineInvite: Boolean = false,
+    val onlineInvite: LichessOpenInvite? = null,
+    val onlineInviteError: String? = null,
 
     // Active Game State
     val inGame: Boolean = false,
@@ -56,6 +71,7 @@ data class FriendsUiState(
     val legalTargets: Map<String, Boolean> = emptyMap(),
     val lastMoveSquares: List<String> = emptyList(),
     val lastMoveSan: String = "",
+    val moveCount: Int = 0,
     val isGameOver: Boolean = false,
     val resultString: String = "*",
     val endMessage: String = "",
@@ -65,6 +81,7 @@ data class FriendsUiState(
     val linkStatus: String = "",
     val canReconnect: Boolean = false,
     val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val animateMoves: Boolean = true,
     val pendingPromotion: Pair<String, String>? = null
 )
 
@@ -72,6 +89,11 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
 
     companion object {
         const val DEFAULT_PORT = 8766
+        val TIME_CONTROLS = listOf(
+            InviteTimeControl("3+2 Blitz", 180, 2),
+            InviteTimeControl("5+3 Blitz", 300, 3),
+            InviteTimeControl("10+0 Rapid", 600, 0)
+        )
     }
 
     private val _uiState = MutableStateFlow(FriendsUiState())
@@ -96,6 +118,11 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                 _uiState.update { it.copy(boardTheme = t) }
             }
         }
+        viewModelScope.launch {
+            repo.pieceAnimationsFlow.collect { anim ->
+                _uiState.update { it.copy(animateMoves = anim) }
+            }
+        }
     }
 
     fun updateMyName(name: String) {
@@ -108,6 +135,59 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
 
     fun selectColorChoice(choice: ColorChoice) {
         _uiState.update { it.copy(colorChoice = choice) }
+    }
+
+    fun selectTimeControl(limitSec: Int, incrementSec: Int) {
+        _uiState.update {
+            it.copy(
+                inviteTimeLimitSec = limitSec,
+                inviteIncrementSec = incrementSec,
+                onlineInviteError = null
+            )
+        }
+    }
+
+    fun createOnlineInvite() {
+        val s = _uiState.value
+        if (s.isCreatingOnlineInvite) return
+        val hostLabel = s.myName.trim().ifBlank { "KnightScope" }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isCreatingOnlineInvite = true,
+                    onlineInviteError = null
+                )
+            }
+            val result = LichessOpenServices.createOpenInvite(
+                clockLimitSec = s.inviteTimeLimitSec,
+                clockIncrementSec = s.inviteIncrementSec,
+                rated = false,
+                name = "$hostLabel — Friendly Match"
+            )
+            result.fold(
+                onSuccess = { invite ->
+                    _uiState.update {
+                        it.copy(
+                            isCreatingOnlineInvite = false,
+                            onlineInvite = invite,
+                            onlineInviteError = null
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    _uiState.update {
+                        it.copy(
+                            isCreatingOnlineInvite = false,
+                            onlineInviteError = err.message ?: "Could not create online invite link."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearOnlineInvite() {
+        _uiState.update { it.copy(onlineInvite = null, onlineInviteError = null) }
     }
 
     fun updateJoinAddress(addr: String) {
@@ -143,6 +223,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                 legalTargets = emptyMap(),
                 lastMoveSquares = emptyList(),
                 lastMoveSan = "",
+                moveCount = 0,
                 isGameOver = false,
                 resultString = "*",
                 endMessage = "",
@@ -169,7 +250,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
         if (ip == null) {
             _uiState.update {
                 it.copy(
-                    statusMessage = "No Wi-Fi/LAN address detected. Use Pass & Play or connect both devices to the same Wi-Fi network.",
+                    statusMessage = "No Wi-Fi/LAN address detected. Use Pass & Play or Online Invite Link.",
                     isError = true
                 )
             }
@@ -396,6 +477,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                 legalTargets = emptyMap(),
                 lastMoveSquares = emptyList(),
                 lastMoveSan = "",
+                moveCount = 0,
                 isGameOver = false,
                 resultString = "*",
                 endMessage = "",
@@ -515,6 +597,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                 legalTargets = emptyMap(),
                 lastMoveSquares = listOf(lastMove.fromName, lastMove.toName),
                 lastMoveSan = board.sanHistory().lastOrNull() ?: "",
+                moveCount = board.moveHistoryCount(),
                 drawState = "",
                 isGameOver = over,
                 resultString = res,
@@ -607,6 +690,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                     legalTargets = emptyMap(),
                     lastMoveSquares = emptyList(),
                     lastMoveSan = "",
+                    moveCount = 0,
                     isGameOver = false,
                     resultString = "*",
                     endMessage = "",

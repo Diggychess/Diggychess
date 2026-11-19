@@ -7,6 +7,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,10 +26,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -33,6 +40,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.chess.*
 import com.example.ui.theme.*
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 data class BoardArrow(
@@ -117,11 +125,13 @@ fun ChessBoardView(
     flipped: Boolean = false,
     selectedSquare: String? = null,
     lastMoveSquares: List<String> = emptyList(),
+    correctMoveSquares: List<String> = emptyList(),
     wrongMoveSquares: List<String> = emptyList(),
     hintSquares: List<String> = emptyList(),
     legalTargets: Map<String, Boolean> = emptyMap(), // square -> isCapture
     arrows: List<BoardArrow> = emptyList(),
     moveBadge: SquareMoveBadge? = null,
+    animateMoves: Boolean = LocalPieceAnimations.current,
     onSquareClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -132,13 +142,27 @@ fun ChessBoardView(
             if (ks >= 0) squareName(ks) else null
         } else null
     }
+    val isCheckmate = remember(fen) { chess.inCheckmate() }
 
     var lastRenderedFen by remember { mutableStateOf(fen) }
     var activeSlides by remember { mutableStateOf<List<SlidingPiece>>(emptyList()) }
     val slideProgress = remember { Animatable(1f) }
 
-    LaunchedEffect(fen) {
-        val slides = computeSlidingPieces(lastRenderedFen, fen, lastMoveSquares)
+    // Drag-and-drop state
+    var draggedFromSq by remember { mutableStateOf<String?>(null) }
+    var draggedPiece by remember { mutableStateOf<ChessPiece?>(null) }
+    var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
+    var hoveredDropSq by remember { mutableStateOf<String?>(null) }
+    var suppressNextAnimation by remember { mutableStateOf(false) }
+
+    val currentOnSquareClick by rememberUpdatedState(onSquareClick)
+    val currentSelectedSquare by rememberUpdatedState(selectedSquare)
+
+    LaunchedEffect(fen, animateMoves) {
+        val slides = if (animateMoves && !suppressNextAnimation) {
+            computeSlidingPieces(lastRenderedFen, fen, lastMoveSquares)
+        } else emptyList()
+        suppressNextAnimation = false
         lastRenderedFen = fen
         if (slides.isNotEmpty()) {
             activeSlides = slides
@@ -166,241 +190,365 @@ fun ChessBoardView(
     ) {
         val boardSize = maxWidth
         val cellDp = boardSize / 8f
+        val density = LocalDensity.current
+        val boardPx = with(density) { boardSize.toPx() }
+        val cellPx = boardPx / 8f
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            for (dr in 0 until 8) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    for (df in 0 until 8) {
-                        val r = if (flipped) 7 - dr else dr
-                        val f = if (flipped) 7 - df else df
-                        val sqIdx = r * 8 + f
-                        val sqName = squareName(sqIdx)
-                        val isLight = (r + f) % 2 == 0
-                        val baseColor = if (isLight) boardTheme.lightSquare else boardTheme.darkSquare
-                        val labelColor = if (isLight) boardTheme.darkSquare else boardTheme.lightSquare
-                        val piece = chess.board[sqIdx]
-                        val isSelected = sqName == selectedSquare
-                        val isLast = sqName in lastMoveSquares
-                        val isWrong = sqName in wrongMoveSquares
-                        val isHint = sqName in hintSquares
-                        val isCheck = sqName == checkSquare
-                        val captureTarget = legalTargets[sqName]
+        fun sqNameAt(pos: Offset): String? {
+            if (cellPx <= 0f) return null
+            val col = (pos.x / cellPx).toInt()
+            val row = (pos.y / cellPx).toInt()
+            if (col !in 0..7 || row !in 0..7) return null
+            val f = if (flipped) 7 - col else col
+            val r = if (flipped) 7 - row else row
+            return squareName(r * 8 + f)
+        }
 
-                        val squareDesc = buildString {
-                            append(sqName)
-                            if (piece != null) {
-                                append(" ${piece.color.name.lowercase()} ${piece.type.pieceName}")
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (onSquareClick != null) {
+                        Modifier.pointerInput(fen, flipped) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val startSq = sqNameAt(down.position) ?: return@awaitEachGesture
+                                val sqIdx = parseSquare(startSq) ?: return@awaitEachGesture
+                                val piece = chess.board[sqIdx] ?: return@awaitEachGesture
+                                if (piece.color != chess.turn) return@awaitEachGesture
+
+                                val dragStart = awaitTouchSlopOrCancellation(down.id) { change, _ ->
+                                    change.consume()
+                                } ?: return@awaitEachGesture
+
+                                draggedFromSq = startSq
+                                draggedPiece = piece
+                                dragOffsetPx = dragStart.position
+                                hoveredDropSq = sqNameAt(dragStart.position)
+                                if (currentSelectedSquare != startSq) {
+                                    currentOnSquareClick?.invoke(startSq)
+                                }
+
+                                try {
+                                    drag(dragStart.id) { change ->
+                                        change.consume()
+                                        dragOffsetPx = change.position
+                                        hoveredDropSq = sqNameAt(change.position)
+                                    }
+                                    val dropSq = hoveredDropSq
+                                    if (dropSq != null && dropSq != startSq) {
+                                        suppressNextAnimation = true
+                                        currentOnSquareClick?.invoke(dropSq)
+                                    }
+                                } finally {
+                                    draggedFromSq = null
+                                    draggedPiece = null
+                                    hoveredDropSq = null
+                                }
                             }
                         }
+                    } else Modifier
+                )
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                for (dr in 0 until 8) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        for (df in 0 until 8) {
+                            val r = if (flipped) 7 - dr else dr
+                            val f = if (flipped) 7 - df else df
+                            val sqIdx = r * 8 + f
+                            val sqName = squareName(sqIdx)
+                            val isLight = (r + f) % 2 == 0
+                            val baseColor = if (isLight) boardTheme.lightSquare else boardTheme.darkSquare
+                            val labelColor = if (isLight) boardTheme.darkSquare else boardTheme.lightSquare
+                            val piece = chess.board[sqIdx]
+                            val isSelected = sqName == selectedSquare
+                            val isLast = sqName in lastMoveSquares
+                            val isCorrect = sqName in correctMoveSquares
+                            val isWrong = sqName in wrongMoveSquares
+                            val isHint = sqName in hintSquares
+                            val isCheck = sqName == checkSquare
+                            val isDropHover = sqName == hoveredDropSq && draggedFromSq != null && sqName != draggedFromSq
+                            val captureTarget = legalTargets[sqName]
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (isSelected) HighlightSelected else baseColor)
-                                .then(
-                                    if (onSquareClick != null) {
-                                        Modifier
-                                            .clickable { onSquareClick(sqName) }
-                                            .testTag("sq_$sqName")
-                                    } else Modifier
-                                )
-                                .semantics { contentDescription = squareDesc },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isLast && !isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(HighlightLastMove)
-                                )
+                            val squareDesc = buildString {
+                                append(sqName)
+                                if (piece != null) {
+                                    append(" ${piece.color.name.lowercase()} ${piece.type.pieceName}")
+                                }
                             }
-                            if (isWrong) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(HighlightWrong)
-                                )
-                            }
-                            if (isHint) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(HighlightHint)
-                                )
-                            }
-                            if (isCheck) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.radialGradient(
-                                                colors = listOf(CheckGlow, Color.Transparent)
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .background(if (isSelected) HighlightSelected else baseColor)
+                                    .then(
+                                        if (onSquareClick != null) {
+                                            Modifier
+                                                .clickable { onSquareClick(sqName) }
+                                                .testTag("sq_$sqName")
+                                        } else Modifier
+                                    )
+                                    .semantics { contentDescription = squareDesc },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isLast && !isSelected && !isCorrect && !isWrong) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(HighlightLastMove)
+                                    )
+                                }
+                                if (isCorrect) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(HighlightCorrect)
+                                            .border(2.dp, ClassBest)
+                                    )
+                                }
+                                if (isWrong) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(HighlightWrong)
+                                            .border(2.dp, ClassBlunder)
+                                    )
+                                }
+                                if (isHint && !isCorrect && !isWrong) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(HighlightHint)
+                                    )
+                                }
+                                if (isCheck) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.radialGradient(
+                                                    colors = listOf(CheckGlow, Color.Transparent)
+                                                )
                                             )
+                                    )
+                                }
+                                if (isDropHover) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .border(2.5.dp, HighlightDragTarget)
+                                    )
+                                }
+
+                                // Coordinate labels
+                                if (df == 7) {
+                                    Text(
+                                        text = "${8 - r}",
+                                        color = labelColor.copy(alpha = 0.92f),
+                                        fontSize = if (boardSize < 260.dp) 8.sp else 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(top = 1.dp, end = 3.dp)
+                                    )
+                                }
+                                if (dr == 7) {
+                                    Text(
+                                        text = "${'a' + f}",
+                                        color = labelColor.copy(alpha = 0.92f),
+                                        fontSize = if (boardSize < 260.dp) 8.sp else 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomStart)
+                                            .padding(start = 3.dp, bottom = 1.dp)
+                                    )
+                                }
+
+                                // Static piece (hidden while sliding in or currently dragged)
+                                if (piece != null && sqIdx !in animatingTargets && sqName != draggedFromSq) {
+                                    ChessPieceIcon(
+                                        piece = piece,
+                                        modifier = Modifier.fillMaxSize(0.90f)
+                                    )
+                                }
+
+                                // Legal move indicator
+                                if (captureTarget != null) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        if (captureTarget) {
+                                            drawCircle(
+                                                color = Color(0x47141E0A),
+                                                radius = size.minDimension * 0.44f,
+                                                style = Stroke(width = size.minDimension * 0.09f)
+                                            )
+                                        } else {
+                                            drawCircle(
+                                                color = Color(0x3D141E0A),
+                                                radius = size.minDimension * 0.16f
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Checkmate badge on defeated king square
+                                if (isCheck && isCheckmate) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(2.dp)
+                                            .size(if (boardSize < 260.dp) 15.dp else 18.dp)
+                                            .clip(CircleShape)
+                                            .background(ClassBlunder)
+                                            .border(1.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "#",
+                                            color = Color.White,
+                                            fontSize = if (boardSize < 260.dp) 8.sp else 10.sp,
+                                            fontWeight = FontWeight.ExtraBold
                                         )
-                                )
-                            }
+                                    }
+                                }
 
-                            // Coordinate labels
-                            if (df == 7) {
-                                Text(
-                                    text = "${8 - r}",
-                                    color = labelColor.copy(alpha = 0.92f),
-                                    fontSize = if (boardSize < 260.dp) 8.sp else 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = 1.dp, end = 3.dp)
-                                )
-                            }
-                            if (dr == 7) {
-                                Text(
-                                    text = "${'a' + f}",
-                                    color = labelColor.copy(alpha = 0.92f),
-                                    fontSize = if (boardSize < 260.dp) 8.sp else 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(start = 3.dp, bottom = 1.dp)
-                                )
-                            }
-
-                            // Static piece (hidden only during active slide into this square)
-                            if (piece != null && sqIdx !in animatingTargets) {
-                                ChessPieceIcon(
-                                    piece = piece,
-                                    modifier = Modifier.fillMaxSize(0.90f)
-                                )
-                            }
-
-                            // Legal move indicator
-                            if (captureTarget != null) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    if (captureTarget) {
-                                        drawCircle(
-                                            color = Color(0x47141E0A),
-                                            radius = size.minDimension * 0.44f,
-                                            style = Stroke(width = size.minDimension * 0.09f)
-                                        )
-                                    } else {
-                                        drawCircle(
-                                            color = Color(0x3D141E0A),
-                                            radius = size.minDimension * 0.16f
+                                // Move classification badge (!!, !, ★, ?!, ?, ??, ✖)
+                                if (moveBadge != null && moveBadge.square == sqName) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(1.dp)
+                                            .size(if (boardSize < 260.dp) 15.dp else 18.dp)
+                                            .clip(CircleShape)
+                                            .background(moveBadge.color)
+                                            .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = moveBadge.glyph,
+                                            color = Color.White,
+                                            fontSize = if (boardSize < 260.dp) 8.sp else 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            lineHeight = 9.sp
                                         )
                                     }
                                 }
                             }
-
-                            // Chess.com-style destination square classification badge (!!, !, ★, ?!, ?, ??, ✖)
-                            if (moveBadge != null && moveBadge.square == sqName) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(1.dp)
-                                        .size(if (boardSize < 260.dp) 15.dp else 18.dp)
-                                        .clip(CircleShape)
-                                        .background(moveBadge.color)
-                                        .border(1.dp, Color.White.copy(alpha = 0.85f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = moveBadge.glyph,
-                                        color = Color.White,
-                                        fontSize = if (boardSize < 260.dp) 8.sp else 9.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        lineHeight = 9.sp
-                                    )
-                                }
-                            }
                         }
                     }
                 }
             }
-        }
 
-        // Smooth sliding piece overlay
-        if (activeSlides.isNotEmpty()) {
-            val t = slideProgress.value
-            val flightScale = 1f + 0.08f * sin(t * Math.PI).toFloat()
-            for (slide in activeSlides) {
-                val fr = slide.fromSq / 8
-                val ff = slide.fromSq % 8
-                val tr = slide.toSq / 8
-                val tf = slide.toSq % 8
+            // Smooth sliding piece overlay
+            if (activeSlides.isNotEmpty()) {
+                val t = slideProgress.value
+                val flightScale = 1f + 0.08f * sin(t * Math.PI).toFloat()
+                for (slide in activeSlides) {
+                    val fr = slide.fromSq / 8
+                    val ff = slide.fromSq % 8
+                    val tr = slide.toSq / 8
+                    val tf = slide.toSq % 8
 
-                val fromCol = if (flipped) 7 - ff else ff
-                val fromRow = if (flipped) 7 - fr else fr
-                val toCol = if (flipped) 7 - tf else tf
-                val toRow = if (flipped) 7 - tr else tr
+                    val fromCol = if (flipped) 7 - ff else ff
+                    val fromRow = if (flipped) 7 - fr else fr
+                    val toCol = if (flipped) 7 - tf else tf
+                    val toRow = if (flipped) 7 - tr else tr
 
-                val curX = lerp(cellDp * fromCol, cellDp * toCol, t)
-                val curY = lerp(cellDp * fromRow, cellDp * toRow, t)
+                    val curX = lerp(cellDp * fromCol, cellDp * toCol, t)
+                    val curY = lerp(cellDp * fromRow, cellDp * toRow, t)
 
+                    Box(
+                        modifier = Modifier
+                            .offset(x = curX, y = curY)
+                            .size(cellDp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ChessPieceIcon(
+                            piece = slide.piece,
+                            modifier = Modifier
+                                .fillMaxSize(0.90f)
+                                .graphicsLayer {
+                                    scaleX = flightScale
+                                    scaleY = flightScale
+                                }
+                        )
+                    }
+                }
+            }
+
+            // Floating lifted dragged piece
+            val activeDragPiece = draggedPiece
+            if (activeDragPiece != null) {
+                val halfCell = cellPx / 2f
+                val maxOffset = (boardPx - cellPx).coerceAtLeast(0f)
+                val pxX = (dragOffsetPx.x - halfCell).coerceIn(0f, maxOffset)
+                val pxY = (dragOffsetPx.y - halfCell).coerceIn(0f, maxOffset)
                 Box(
                     modifier = Modifier
-                        .offset(x = curX, y = curY)
+                        .offset { IntOffset(pxX.roundToInt(), pxY.roundToInt()) }
                         .size(cellDp),
                     contentAlignment = Alignment.Center
                 ) {
                     ChessPieceIcon(
-                        piece = slide.piece,
+                        piece = activeDragPiece,
                         modifier = Modifier
-                            .fillMaxSize(0.90f)
+                            .fillMaxSize(0.95f)
                             .graphicsLayer {
-                                scaleX = flightScale
-                                scaleY = flightScale
+                                scaleX = 1.22f
+                                scaleY = 1.22f
                             }
                     )
                 }
             }
-        }
 
-        // Arrow overlay
-        if (arrows.isNotEmpty()) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val cell = size.width / 8f
-                for (arrow in arrows) {
-                    val fromSq = parseSquare(arrow.from) ?: continue
-                    val toSq = parseSquare(arrow.to) ?: continue
-                    val fr = fromSq / 8
-                    val ff = fromSq % 8
-                    val tr = toSq / 8
-                    val tf = toSq % 8
-                    val x1 = ((if (flipped) 7 - ff else ff) + 0.5f) * cell
-                    val y1 = ((if (flipped) 7 - fr else fr) + 0.5f) * cell
-                    val x2 = ((if (flipped) 7 - tf else tf) + 0.5f) * cell
-                    val y2 = ((if (flipped) 7 - tr else tr) + 0.5f) * cell
+            // Arrow overlay
+            if (arrows.isNotEmpty()) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val cell = size.width / 8f
+                    for (arrow in arrows) {
+                        val fromSq = parseSquare(arrow.from) ?: continue
+                        val toSq = parseSquare(arrow.to) ?: continue
+                        val fr = fromSq / 8
+                        val ff = fromSq % 8
+                        val tr = toSq / 8
+                        val tf = toSq % 8
+                        val x1 = ((if (flipped) 7 - ff else ff) + 0.5f) * cell
+                        val y1 = ((if (flipped) 7 - fr else fr) + 0.5f) * cell
+                        val x2 = ((if (flipped) 7 - tf else tf) + 0.5f) * cell
+                        val y2 = ((if (flipped) 7 - tr else tr) + 0.5f) * cell
 
-                    val dx = x2 - x1
-                    val dy = y2 - y1
-                    val len = hypot(dx.toDouble(), dy.toDouble()).toFloat()
-                    if (len < 1f) continue
-                    val ux = dx / len
-                    val uy = dy / len
-                    val headLen = cell * 0.42f
-                    val bx = x2 - ux * headLen
-                    val by = y2 - uy * headLen
+                        val dx = x2 - x1
+                        val dy = y2 - y1
+                        val len = hypot(dx.toDouble(), dy.toDouble()).toFloat()
+                        if (len < 1f) continue
+                        val ux = dx / len
+                        val uy = dy / len
+                        val headLen = cell * 0.42f
+                        val bx = x2 - ux * headLen
+                        val by = y2 - uy * headLen
 
-                    drawLine(
-                        color = arrow.color,
-                        start = Offset(x1, y1),
-                        end = Offset(bx, by),
-                        strokeWidth = cell * 0.17f,
-                        cap = StrokeCap.Round
-                    )
+                        drawLine(
+                            color = arrow.color,
+                            start = Offset(x1, y1),
+                            end = Offset(bx, by),
+                            strokeWidth = cell * 0.17f,
+                            cap = StrokeCap.Round
+                        )
 
-                    val headWidth = cell * 0.24f
-                    val path = Path().apply {
-                        moveTo(x2, y2)
-                        lineTo(bx - uy * headWidth, by + ux * headWidth)
-                        lineTo(bx + uy * headWidth, by - ux * headWidth)
-                        close()
+                        val headWidth = cell * 0.24f
+                        val path = Path().apply {
+                            moveTo(x2, y2)
+                            lineTo(bx - uy * headWidth, by + ux * headWidth)
+                            lineTo(bx + uy * headWidth, by - ux * headWidth)
+                            close()
+                        }
+                        drawPath(path, arrow.color)
                     }
-                    drawPath(path, arrow.color)
                 }
             }
         }

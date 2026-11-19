@@ -53,6 +53,7 @@ data class PuzzlesUiState(
     val attempts: List<PuzzleAttempt> = emptyList(),
     val dailyGoal: Int = 5,
     val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val animateMoves: Boolean = true,
     val menuError: String? = null,
     val importStatus: String? = null,
 
@@ -69,9 +70,17 @@ data class PuzzlesUiState(
     val selectedSquare: String? = null,
     val legalTargets: Map<String, Boolean> = emptyMap(),
     val lastMoveSquares: List<String> = emptyList(),
+    val correctMoveSquares: List<String> = emptyList(),
     val isWrongMove: Boolean = false,
     val hintLevel: Int = 0,
     val hintSquares: List<String> = emptyList(),
+    val showHintModal: Boolean = false,
+    val hintPieceName: String = "",
+    val hintFromSquare: String = "",
+    val hintToSquare: String = "",
+    val hintSanMove: String = "",
+    val hintThemeLabel: String = "",
+    val hintTacticalCue: String = "",
     val solStepIndex: Int = 0,
     val isFinished: Boolean = false,
     val isTimedExpired: Boolean = false,
@@ -79,6 +88,7 @@ data class PuzzlesUiState(
     val timedSolvedCount: Int = 0,
     val feedbackText: String = "",
     val feedbackOk: Boolean? = null,
+    val solutionExplanation: String = "",
     val lastResultOk: Boolean? = null,
     val lastEloDelta: Int? = null,
     val showSkipDialog: Boolean = false,
@@ -141,6 +151,11 @@ class PuzzlesViewModel(
         viewModelScope.launch {
             repo.boardThemeFlow.collect { t ->
                 _uiState.update { it.copy(boardTheme = t) }
+            }
+        }
+        viewModelScope.launch {
+            repo.pieceAnimationsFlow.collect { anim ->
+                _uiState.update { it.copy(animateMoves = anim) }
             }
         }
         viewModelScope.launch {
@@ -258,6 +273,19 @@ class PuzzlesViewModel(
     fun startPractice() {
         val list = filteredPracticePool().shuffled()
         beginSession(PuzzleMode.SET, list)
+    }
+
+    fun startQuickDifficulty(tier: String) {
+        val list = when (tier) {
+            "easy" -> allPuzzles.filter { it.rating in 0..1299 }
+            "medium" -> allPuzzles.filter { it.rating in 1300..1850 }
+            else -> allPuzzles.filter { it.rating > 1850 }
+        }.shuffled()
+        if (list.isEmpty()) {
+            startPractice()
+        } else {
+            beginSession(PuzzleMode.SET, list)
+        }
     }
 
     fun startDaily() {
@@ -415,13 +443,22 @@ class PuzzlesViewModel(
                 selectedSquare = null,
                 legalTargets = emptyMap(),
                 lastMoveSquares = emptyList(),
+                correctMoveSquares = emptyList(),
                 isWrongMove = false,
                 hintLevel = 0,
                 hintSquares = emptyList(),
+                showHintModal = false,
+                hintPieceName = "",
+                hintFromSquare = "",
+                hintToSquare = "",
+                hintSanMove = "",
+                hintThemeLabel = "",
+                hintTacticalCue = "",
                 solStepIndex = 0,
                 isFinished = false,
                 feedbackText = "",
                 feedbackOk = null,
+                solutionExplanation = "",
                 lastResultOk = if (keepOutcome) it.lastResultOk else null,
                 lastEloDelta = if (keepOutcome) it.lastEloDelta else null,
                 pendingPromotion = null
@@ -441,6 +478,8 @@ class PuzzlesViewModel(
                 it.copy(
                     currentFen = board.toFen(),
                     isWrongMove = false,
+                    correctMoveSquares = emptyList(),
+                    showHintModal = false,
                     lastMoveSquares = prevLastMoveSquares,
                     feedbackText = "Back to the puzzle position.",
                     feedbackOk = null
@@ -511,7 +550,9 @@ class PuzzlesViewModel(
                     selectedSquare = null,
                     legalTargets = emptyMap(),
                     lastMoveSquares = listOf(from, to),
+                    correctMoveSquares = emptyList(),
                     isWrongMove = true,
+                    showHintModal = false,
                     feedbackOk = false,
                     feedbackText = "Incorrect move — try again. Tap Undo, or any square, to go back."
                 )
@@ -524,17 +565,24 @@ class PuzzlesViewModel(
             val clean = recordedOutcome == null
             recordOutcome(true)
             val newSolved = if (s.mode == PuzzleMode.TIMED && clean) s.timedSolvedCount + 1 else s.timedSolvedCount
+            val explanation = buildPuzzleExplanation(cur)
             _uiState.update {
                 it.copy(
                     currentFen = board.toFen(),
                     selectedSquare = null,
                     legalTargets = emptyMap(),
                     lastMoveSquares = listOf(from, to),
+                    correctMoveSquares = listOf(from, to),
+                    isWrongMove = false,
+                    showHintModal = false,
+                    hintLevel = 0,
+                    hintSquares = emptyList(),
                     solStepIndex = nextStep,
                     isFinished = true,
                     timedSolvedCount = newSolved,
                     feedbackOk = true,
-                    feedbackText = if (clean) "Correct! Solved on the first try." else "Solved! Keep practising."
+                    feedbackText = if (clean) "Correct! Solved on the first try." else "Solved! Keep practising.",
+                    solutionExplanation = explanation
                 )
             }
             if (s.mode != PuzzleMode.DAILY) {
@@ -555,11 +603,20 @@ class PuzzlesViewModel(
                 selectedSquare = null,
                 legalTargets = emptyMap(),
                 lastMoveSquares = listOf(from, to),
+                correctMoveSquares = listOf(from, to),
+                isWrongMove = false,
+                showHintModal = false,
                 solStepIndex = nextStep,
                 hintLevel = 0,
                 hintSquares = emptyList(),
+                hintPieceName = "",
+                hintFromSquare = "",
+                hintToSquare = "",
+                hintSanMove = "",
+                hintThemeLabel = "",
+                hintTacticalCue = "",
                 feedbackOk = true,
-                feedbackText = "Correct. Keep going…"
+                feedbackText = "Correct! Keep going…"
             )
         }
 
@@ -573,6 +630,7 @@ class PuzzlesViewModel(
                 it.copy(
                     currentFen = board.toFen(),
                     lastMoveSquares = listOf(rMove.fromName, rMove.toName),
+                    correctMoveSquares = emptyList(),
                     solStepIndex = nextStep + 1
                 )
             }
@@ -640,6 +698,8 @@ class PuzzlesViewModel(
                 it.copy(
                     currentFen = board.toFen(),
                     isWrongMove = false,
+                    correctMoveSquares = emptyList(),
+                    showHintModal = false,
                     lastMoveSquares = prevLastMoveSquares,
                     selectedSquare = null,
                     legalTargets = emptyMap(),
@@ -659,6 +719,16 @@ class PuzzlesViewModel(
                         solStepIndex = s.solStepIndex - n,
                         isFinished = false,
                         lastMoveSquares = emptyList(),
+                        correctMoveSquares = emptyList(),
+                        hintLevel = 0,
+                        hintSquares = emptyList(),
+                        showHintModal = false,
+                        hintPieceName = "",
+                        hintFromSquare = "",
+                        hintToSquare = "",
+                        hintSanMove = "",
+                        hintThemeLabel = "",
+                        hintTacticalCue = "",
                         selectedSquare = null,
                         legalTargets = emptyMap(),
                         feedbackText = "",
@@ -676,25 +746,148 @@ class PuzzlesViewModel(
         if (s.isWrongMove) {
             board.undo()
         }
-        recordOutcome(false)
-        val nextHint = (s.hintLevel + 1).coerceAtMost(2)
-        val exp = cur.solution.getOrNull(s.solStepIndex)
-        val squares = buildList {
-            if (exp != null && exp.length >= 4) {
-                add(exp.substring(0, 2))
-                if (nextHint >= 2) add(exp.substring(2, 4))
+
+        if (s.hintLevel >= 1 && s.hintFromSquare.isNotEmpty()) {
+            _uiState.update {
+                it.copy(
+                    currentFen = board.toFen(),
+                    isWrongMove = false,
+                    correctMoveSquares = emptyList(),
+                    lastMoveSquares = if (s.isWrongMove) prevLastMoveSquares else s.lastMoveSquares,
+                    showHintModal = true
+                )
             }
+            return
         }
+
+        recordOutcome(false)
+        val exp = cur.solution.getOrNull(s.solStepIndex)
+        val fromSq = if (exp != null && exp.length >= 4) exp.substring(0, 2) else ""
+        val toSq = if (exp != null && exp.length >= 4) exp.substring(2, 4) else ""
+        val pieceName = parseSquare(fromSq)
+            ?.let { board.pieceAt(it)?.type?.pieceName?.replaceFirstChar { c -> c.uppercaseChar() } }
+            ?: "Piece"
+        val sanMove = if (exp != null) {
+            val temp = ChessBoard(board.toFen())
+            val mv = temp.makeUciMove(exp)
+            temp.sanHistory().lastOrNull() ?: mv?.uci ?: exp
+        } else ""
+        val primaryTheme = cur.themes
+            .firstOrNull { !Regex("^(opening|middlegame|endgame|short|long|veryLong|oneMove)$").matches(it) }
+        val themeLabel = when {
+            primaryTheme != null -> formatThemeLabel(primaryTheme)
+            cur.isMate -> "Checkmate"
+            else -> "Tactical Motif"
+        }
+        val tacticalCue = buildTacticalCue(cur, pieceName, fromSq)
+
         _uiState.update {
             it.copy(
                 currentFen = board.toFen(),
                 isWrongMove = false,
-                hintLevel = nextHint,
-                hintSquares = squares,
+                correctMoveSquares = emptyList(),
+                lastMoveSquares = if (s.isWrongMove) prevLastMoveSquares else s.lastMoveSquares,
+                selectedSquare = null,
+                legalTargets = emptyMap(),
+                hintLevel = 1,
+                hintSquares = if (fromSq.isNotEmpty()) listOf(fromSq) else emptyList(),
+                showHintModal = true,
+                hintPieceName = pieceName,
+                hintFromSquare = fromSq,
+                hintToSquare = toSq,
+                hintSanMove = sanMove,
+                hintThemeLabel = themeLabel,
+                hintTacticalCue = tacticalCue,
                 feedbackOk = null,
-                feedbackText = if (nextHint == 1) "Hint: look at the highlighted piece." else "Hint: this is the destination square."
+                feedbackText = if (fromSq.isNotEmpty()) "Hint: inspect your $pieceName on $fromSq." else "Hint active."
             )
         }
+    }
+
+    fun revealDestinationHint() {
+        val s = _uiState.value
+        val cur = s.currentPuzzle ?: return
+        if (s.isFinished || s.isTimedExpired) return
+        recordOutcome(false)
+        val exp = cur.solution.getOrNull(s.solStepIndex)
+        val fromSq = s.hintFromSquare.ifEmpty { if (exp != null && exp.length >= 4) exp.substring(0, 2) else "" }
+        val toSq = s.hintToSquare.ifEmpty { if (exp != null && exp.length >= 4) exp.substring(2, 4) else "" }
+        val squares = listOfNotNull(fromSq.takeIf { it.isNotEmpty() }, toSq.takeIf { it.isNotEmpty() })
+        _uiState.update {
+            it.copy(
+                hintLevel = 2,
+                hintSquares = squares,
+                hintFromSquare = fromSq,
+                hintToSquare = toSq,
+                showHintModal = true,
+                feedbackOk = null,
+                feedbackText = if (fromSq.isNotEmpty() && toSq.isNotEmpty()) {
+                    "Target revealed: move $fromSq → $toSq."
+                } else {
+                    "Hint: move the highlighted piece to the target square."
+                },
+                solutionExplanation = buildPuzzleExplanation(cur)
+            )
+        }
+    }
+
+    fun dismissHintModal() {
+        _uiState.update { it.copy(showHintModal = false) }
+    }
+
+    private fun buildTacticalCue(puzzle: Puzzle, pieceName: String, fromSq: String): String {
+        val sqLabel = if (fromSq.isNotEmpty()) " on ${fromSq.uppercase()}" else ""
+        return when {
+            puzzle.isMate || puzzle.themes.any { it.contains("mate", ignoreCase = true) } ->
+                "Your $pieceName$sqLabel sets up a forcing checkmate net against the enemy king."
+            puzzle.themes.any { it.equals("fork", ignoreCase = true) } ->
+                "Look for how your $pieceName$sqLabel can attack two valuable targets at once."
+            puzzle.themes.any { it.equals("pin", ignoreCase = true) } ->
+                "Your $pieceName$sqLabel exploits an alignment along a file, rank, or diagonal."
+            puzzle.themes.any { it.equals("skewer", ignoreCase = true) } ->
+                "Your $pieceName$sqLabel can drive away a key defender to capture what sits behind it."
+            puzzle.themes.any { it.contains("discovered", ignoreCase = true) } ->
+                "Moving your $pieceName$sqLabel clears the line for a hidden threat behind it."
+            puzzle.themes.any { it.equals("hangingPiece", ignoreCase = true) } ->
+                "Your $pieceName$sqLabel targets an undefended piece or decisive material gain."
+            puzzle.themes.any { it.equals("sacrifice", ignoreCase = true) } ->
+                "Consider a bold forcing sacrifice with your $pieceName$sqLabel to crack the defense."
+            else ->
+                "Look for forcing checks, captures, or threats starting with your $pieceName$sqLabel."
+        }
+    }
+
+    private fun buildPuzzleExplanation(puzzle: Puzzle): String {
+        val temp = ChessBoard(puzzle.fen)
+        val sanTokens = mutableListOf<String>()
+        for ((idx, uci) in puzzle.solution.withIndex()) {
+            val mv = temp.makeUciMove(uci) ?: break
+            val san = temp.sanHistory().lastOrNull() ?: mv.uci
+            if (idx % 2 == 0) {
+                sanTokens.add("${idx / 2 + 1}. $san")
+            } else {
+                sanTokens.add(san)
+            }
+        }
+        val lineStr = sanTokens.joinToString(" ")
+        val themeHint = when {
+            puzzle.isMate || puzzle.themes.any { it.contains("mate", ignoreCase = true) } ->
+                "Forces checkmate with a precise attacking sequence."
+            puzzle.themes.any { it.equals("fork", ignoreCase = true) } ->
+                "Double attack (fork) — hits two valuable targets at once."
+            puzzle.themes.any { it.equals("pin", ignoreCase = true) } ->
+                "Exploits a pin so the defending piece cannot move safely."
+            puzzle.themes.any { it.equals("skewer", ignoreCase = true) } ->
+                "Skewer — attacks a high-value piece to win what sits behind it."
+            puzzle.themes.any { it.contains("discovered", ignoreCase = true) } ->
+                "Discovered attack — moving one piece unleashes another behind it."
+            puzzle.themes.any { it.equals("hangingPiece", ignoreCase = true) } ->
+                "Wins an undefended piece cleanly."
+            puzzle.themes.any { it.equals("sacrifice", ignoreCase = true) } ->
+                "Tactical sacrifice that breaks open the king's shelter."
+            else -> "Calculates the strongest forcing continuation."
+        }
+        return if (lineStr.isNotEmpty()) "Line: $lineStr — $themeHint" else themeHint
     }
 
     fun requestNextPuzzle() {
@@ -747,7 +940,14 @@ class PuzzlesViewModel(
         autoReplyJob?.cancel()
         solutionAnimJob?.cancel()
         playToken++
-        _uiState.update { it.copy(inPlay = false, showSkipDialog = false) }
+        _uiState.update {
+            it.copy(
+                inPlay = false,
+                showSkipDialog = false,
+                showHintModal = false,
+                correctMoveSquares = emptyList()
+            )
+        }
     }
 
     fun importCsvText(csvText: String) {

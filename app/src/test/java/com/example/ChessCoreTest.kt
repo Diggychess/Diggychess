@@ -175,4 +175,46 @@ class ChessCoreTest {
         assertTrue(res.plies.all { it.coachHeadline.isNotBlank() && it.badgeGlyph.isNotBlank() })
         assertTrue(res.keyMistakes.any { it.san == "Nf6" })
     }
+
+    @Test
+    fun chessLessons_allCurriculumStepsHaveLegalFenAndValidSolutionMoves() {
+        val curriculum = com.example.ui.viewmodel.ChessLessonsViewModel.CURRICULUM
+        assertEquals(6, curriculum.size)
+        curriculum.forEach { lesson ->
+            assertTrue("${lesson.id} has empty steps", lesson.steps.isNotEmpty())
+            lesson.steps.forEach { step ->
+                val board = ChessBoard(step.fen)
+                val move = board.makeUciMove(step.solutionUci)
+                assertNotNull("Invalid solution ${step.solutionUci} in lesson ${lesson.id} / ${step.title}", move)
+            }
+        }
+    }
+
+    @Test
+    fun openingTrainer_allRepertoireLinesReplayCleanlyAndMatchMoveNotes() {
+        val repertoires = com.example.ui.viewmodel.OpeningTrainerViewModel.REPERTOIRES
+        assertTrue(repertoires.size >= 8)
+        repertoires.forEach { rep ->
+            assertEquals("Mismatch notes vs moves in ${rep.id}", rep.sanMoves.size, rep.moveNotes.size)
+            val board = ChessBoard()
+            rep.sanMoves.forEach { san ->
+                assertNotNull("Illegal book move $san in ${rep.id}", board.makeSanMove(san))
+            }
+        }
+    }
+
+    @Test
+    fun lichessOpenServices_offlineExplorerFallbackProvidesOpeningMovesAndEco() {
+        val board = ChessBoard()
+        board.makeSanMove("e4")
+        board.makeSanMove("e5")
+        val entry = OpeningBook.lookup(board.toFen())
+        assertNotNull(entry)
+        assertEquals("C20", entry?.eco)
+    }
+
+    @Test
+    fun contactSender_isOptionalWithoutSecrets() {
+        assertFalse(com.example.service.ContactSender.hasAnyProvider())
+    }
 }

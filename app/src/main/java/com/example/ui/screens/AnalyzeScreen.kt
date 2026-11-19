@@ -1,18 +1,13 @@
 package com.example.ui.screens
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -29,7 +24,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,7 +47,6 @@ fun AnalyzeScreen(
     onSharePgn: () -> Unit,
     onShareAnalysis: () -> Unit,
     onDismissShare: () -> Unit,
-    onUpdateSettings: (ReviewSettings) -> Unit,
     onOpenRecent: (SavedGameEntry) -> Unit,
     onGoToPly: (Int, Boolean) -> Unit,
     onToggleBestMove: () -> Unit,
@@ -85,7 +78,6 @@ fun AnalyzeScreen(
     onCloseDrill: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var settingsExpanded by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Column(
@@ -314,44 +306,6 @@ fun AnalyzeScreen(
             }
         }
 
-        // Expandable Engine & Review Settings Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { settingsExpanded = !settingsExpanded }
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                        .testTag("settings_toggle"),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Engine & review settings",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
-                    )
-                    Icon(
-                        imageVector = if (settingsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (settingsExpanded) "Collapse settings" else "Expand settings",
-                        tint = TextMuted
-                    )
-                }
-
-                AnimatedVisibility(visible = settingsExpanded) {
-                    ReviewSettingsPanel(
-                        settings = state.settings,
-                        engineLabel = state.result?.engineLabel ?: "Stockfish Multi-PV API + On-device Engine",
-                        onUpdate = onUpdateSettings
-                    )
-                }
-            }
-        }
-
         // Recent Games (when no analysis result is open)
         if (state.result == null) {
             if (state.recentGames.isNotEmpty()) {
@@ -493,131 +447,6 @@ fun AnalyzeScreen(
 }
 
 private val ColorErrorText = Color(0xFFFF8A80)
-
-@Composable
-private fun ReviewSettingsPanel(
-    settings: ReviewSettings,
-    engineLabel: String,
-    onUpdate: (ReviewSettings) -> Unit
-) {
-    var t1Text by remember(settings.inaccuracyThreshold) { mutableStateOf(settings.inaccuracyThreshold.toString()) }
-    var t2Text by remember(settings.mistakeThreshold) { mutableStateOf(settings.mistakeThreshold.toString()) }
-    var t3Text by remember(settings.blunderThreshold) { mutableStateOf(settings.blunderThreshold.toString()) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(
-            text = "Engine: $engineLabel",
-            style = MaterialTheme.typography.bodySmall,
-            color = AccentGreen
-        )
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Analysis depth:", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-            listOf(4, 6, 8, 10).forEach { d ->
-                FilterChip(
-                    selected = settings.depth == d,
-                    onClick = { onUpdate(settings.copy(depth = d)) },
-                    label = { Text("$d") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
-                        selectedLabelColor = AccentGreenHover
-                    )
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onUpdate(settings.copy(forceReanalyze = !settings.forceReanalyze)) },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = settings.forceReanalyze,
-                onCheckedChange = { onUpdate(settings.copy(forceReanalyze = it)) },
-                colors = CheckboxDefaults.colors(checkedColor = AccentGreen, checkmarkColor = OnAccentDark)
-            )
-            Text(
-                text = "Always re-analyse with device engine (ignore PGN evals)",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextPrimary
-            )
-        }
-
-        Text(
-            text = "EVALUATION-LOSS THRESHOLDS",
-            style = MaterialTheme.typography.labelSmall,
-            color = TextMuted
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ThresholdBox("Inaccuracy", t1Text, Modifier.weight(1f)) { valStr ->
-                t1Text = valStr
-                valStr.toIntOrNull()?.let { v ->
-                    if (v in 2 until settings.mistakeThreshold) {
-                        onUpdate(settings.copy(inaccuracyThreshold = v))
-                    }
-                }
-            }
-            ThresholdBox("Mistake", t2Text, Modifier.weight(1f)) { valStr ->
-                t2Text = valStr
-                valStr.toIntOrNull()?.let { v ->
-                    if (v in (settings.inaccuracyThreshold + 1) until settings.blunderThreshold) {
-                        onUpdate(settings.copy(mistakeThreshold = v))
-                    }
-                }
-            }
-            ThresholdBox("Blunder", t3Text, Modifier.weight(1f)) { valStr ->
-                t3Text = valStr
-                valStr.toIntOrNull()?.let { v ->
-                    if (v in (settings.mistakeThreshold + 1)..99) {
-                        onUpdate(settings.copy(blunderThreshold = v))
-                    }
-                }
-            }
-        }
-
-        Text(
-            text = "Loss = win-probability points (0–100) given up by a move. Defaults: 5 / 10 / 20.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextMuted
-        )
-    }
-}
-
-@Composable
-private fun ThresholdBox(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { s -> if (s.length <= 2 && s.all { it.isDigit() }) onValueChange(s) },
-        label = { Text(label, fontSize = 11.sp) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = SurfaceDark,
-            unfocusedContainerColor = SurfaceDark,
-            focusedBorderColor = AccentGreen,
-            unfocusedBorderColor = BorderSubtle
-        )
-    )
-}
 
 @Composable
 fun ShareTextDialog(

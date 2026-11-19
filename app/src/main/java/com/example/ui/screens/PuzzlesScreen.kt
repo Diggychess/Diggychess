@@ -46,6 +46,7 @@ fun PuzzlesScreen(
     onToggleCategory: (PuzzleCategory) -> Unit,
     onSelectTheme: (String) -> Unit,
     onStartPractice: () -> Unit,
+    onStartQuickDifficulty: (String) -> Unit,
     onStartDaily: () -> Unit,
     onStartRandom: () -> Unit,
     onStartTimed: () -> Unit,
@@ -59,6 +60,8 @@ fun PuzzlesScreen(
     onRestartPuzzle: () -> Unit,
     onUndoPuzzle: () -> Unit,
     onHintPuzzle: () -> Unit,
+    onRevealHintDestination: () -> Unit,
+    onDismissHintModal: () -> Unit,
     onNextPuzzle: () -> Unit,
     onConfirmSkip: () -> Unit,
     onDismissSkip: () -> Unit,
@@ -75,6 +78,8 @@ fun PuzzlesScreen(
             onRestart = onRestartPuzzle,
             onUndo = onUndoPuzzle,
             onHint = onHintPuzzle,
+            onRevealHintDestination = onRevealHintDestination,
+            onDismissHintModal = onDismissHintModal,
             onNext = onNextPuzzle,
             onConfirmSkip = onConfirmSkip,
             onDismissSkip = onDismissSkip,
@@ -188,6 +193,46 @@ fun PuzzlesScreen(
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Start rated puzzles", fontWeight = FontWeight.Bold)
+                }
+
+                Text("QUICK DIFFICULTY DRILLS", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onStartQuickDifficulty("easy") },
+                        enabled = !state.isLoadingPool,
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("puzzle_quick_easy")
+                    ) {
+                        Text("Easy", color = AccentGreenHover, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        onClick = { onStartQuickDifficulty("medium") },
+                        enabled = !state.isLoadingPool,
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("puzzle_quick_medium")
+                    ) {
+                        Text("Medium", color = StudioCyan, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        onClick = { onStartQuickDifficulty("hard") },
+                        enabled = !state.isLoadingPool,
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("puzzle_quick_hard")
+                    ) {
+                        Text("Hard", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -599,6 +644,7 @@ private fun StatBox(value: String, label: String, modifier: Modifier = Modifier)
 
 @Composable
 private fun RatingSparkline(history: List<Pair<Long, Int>>) {
+    val lineColor = AccentGreen
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -614,13 +660,14 @@ private fun RatingSparkline(history: List<Pair<Long, Int>>) {
             val y = size.height - 6f - ((v - minV) / span) * (size.height - 12f)
             if (idx == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, color = AccentGreen, style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(path, color = lineColor, style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round))
     }
 }
 
 @Composable
 private fun DailyBarChart(counts: List<Int>) {
     val maxC = maxOf(1, counts.maxOrNull() ?: 1)
+    val barColor = AccentGreen
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -634,7 +681,7 @@ private fun DailyBarChart(counts: List<Int>) {
             val y = size.height - h
             if (h > 0f) {
                 drawRoundRect(
-                    color = AccentGreen,
+                    color = barColor,
                     topLeft = Offset(x, y),
                     size = Size(barW, h),
                     cornerRadius = CornerRadius(4f, 4f)

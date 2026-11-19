@@ -161,7 +161,7 @@ fun HistoryScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "Games you analyse will appear here and sync to your account.",
+                            text = "Games you analyse will appear here, saved locally on this device.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                             textAlign = TextAlign.Center

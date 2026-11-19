@@ -47,6 +47,10 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_PLAY_SHOW_EVAL = booleanPreferencesKey("ks_play_eval")
         private val KEY_USER_PROFILE = stringPreferencesKey("ks_profile")
         private val KEY_CONTACT_EMAIL = stringPreferencesKey("ks_contact_email")
+        private val KEY_DARK_MODE = booleanPreferencesKey("ks_dark_mode")
+        private val KEY_PIECE_ANIMATIONS = booleanPreferencesKey("ks_piece_anims")
+        private val KEY_OPENING_STREAK = stringPreferencesKey("ks_opening_streak")
+        private val KEY_COMPLETED_LESSONS = stringPreferencesKey("ks_completed_lessons")
 
         val STARTER_PUZZLES = listOf(
             Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "KnightScope"),
@@ -234,6 +238,47 @@ class KnightScopeRepository(private val context: Context) {
 
     val contactEmailFlow: Flow<String> = context.knightScopeDataStore.data.map { prefs ->
         prefs[KEY_CONTACT_EMAIL] ?: ""
+    }
+
+    val darkModeFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+        prefs[KEY_DARK_MODE] ?: true
+    }
+
+    suspend fun setDarkMode(enabled: Boolean) {
+        context.knightScopeDataStore.edit { it[KEY_DARK_MODE] = enabled }
+    }
+
+    val pieceAnimationsFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+        prefs[KEY_PIECE_ANIMATIONS] ?: true
+    }
+
+    suspend fun setPieceAnimations(enabled: Boolean) {
+        context.knightScopeDataStore.edit { it[KEY_PIECE_ANIMATIONS] = enabled }
+    }
+
+    val openingStreakFlow: Flow<Int> = context.knightScopeDataStore.data.map { prefs ->
+        prefs[KEY_OPENING_STREAK]?.toIntOrNull() ?: 0
+    }
+
+    suspend fun updateOpeningStreak(correct: Boolean) {
+        context.knightScopeDataStore.edit { prefs ->
+            val cur = prefs[KEY_OPENING_STREAK]?.toIntOrNull() ?: 0
+            prefs[KEY_OPENING_STREAK] = (if (correct) cur + 1 else 0).toString()
+        }
+    }
+
+    val completedLessonsFlow: Flow<Set<String>> = context.knightScopeDataStore.data.map { prefs ->
+        val raw = prefs[KEY_COMPLETED_LESSONS].orEmpty()
+        if (raw.isBlank()) emptySet() else raw.split(',').filter { it.isNotBlank() }.toSet()
+    }
+
+    suspend fun markLessonCompleted(lessonId: String) {
+        context.knightScopeDataStore.edit { prefs ->
+            val raw = prefs[KEY_COMPLETED_LESSONS].orEmpty()
+            val set = raw.split(',').filter { it.isNotBlank() }.toMutableSet()
+            set.add(lessonId)
+            prefs[KEY_COMPLETED_LESSONS] = set.joinToString(",")
+        }
     }
 
     suspend fun updateProfileDisplayName(displayName: String) {
