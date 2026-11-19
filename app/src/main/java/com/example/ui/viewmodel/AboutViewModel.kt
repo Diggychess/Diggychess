@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.*
 import com.example.data.KnightScopeRepository
+import com.example.data.UserProfile
+import com.example.service.ContactSender
+import com.example.service.ContactSubmission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +23,13 @@ data class SelfTestRow(
 data class AboutUiState(
     val isTesting: Boolean = false,
     val testResults: List<SelfTestRow> = emptyList(),
-    val backupMessage: String? = null
+    val backupMessage: String? = null,
+    val userProfile: UserProfile = UserProfile(),
+    val contactEmail: String = "",
+    val isSendingContact: Boolean = false,
+    val contactStatus: String? = null,
+    val contactIsError: Boolean = false,
+    val contactConfigured: Boolean = ContactSender.hasAnyProvider()
 )
 
 class AboutViewModel(
@@ -30,6 +39,111 @@ class AboutViewModel(
 
     private val _uiState = MutableStateFlow(AboutUiState())
     val uiState: StateFlow<AboutUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repo.userProfileFlow.collect { profile ->
+                _uiState.update { it.copy(userProfile = profile) }
+            }
+        }
+        viewModelScope.launch {
+            repo.contactEmailFlow.collect { email ->
+                _uiState.update { it.copy(contactEmail = email) }
+            }
+        }
+    }
+
+    fun sendContactMessage(
+        name: String,
+        email: String,
+        subject: String,
+        message: String,
+        onClearMessage: () -> Unit
+    ) {
+        if (!ContactSender.hasAnyProvider()) {
+            _uiState.update {
+                it.copy(
+                    contactStatus = "Contact delivery is unavailable because no email provider is configured.",
+                    contactIsError = true
+                )
+            }
+            return
+        }
+
+        val cleanName = name.trim()
+        val cleanEmail = email.trim()
+        val cleanSubject = subject.trim().ifBlank { "KnightScope Feedback" }
+        val cleanMessage = message.trim()
+
+        if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
+            _uiState.update {
+                it.copy(
+                    contactStatus = "Please enter a valid email address.",
+                    contactIsError = true
+                )
+            }
+            return
+        }
+        if (cleanMessage.length < 5) {
+            _uiState.update {
+                it.copy(
+                    contactStatus = "Please enter a short message (at least 5 characters).",
+                    contactIsError = true
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSendingContact = true,
+                    contactStatus = null,
+                    contactIsError = false
+                )
+            }
+            repo.updateContactEmail(cleanEmail)
+            val result = ContactSender.send(
+                ContactSubmission(
+                    senderName = cleanName.ifBlank { "KnightScope Player" },
+                    senderEmail = cleanEmail,
+                    subject = cleanSubject,
+                    message = cleanMessage
+                )
+            )
+            result.fold(
+                onSuccess = { msg ->
+                    onClearMessage()
+                    _uiState.update {
+                        it.copy(
+                            isSendingContact = false,
+                            contactStatus = msg,
+                            contactIsError = false
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    _uiState.update {
+                        it.copy(
+                            isSendingContact = false,
+                            contactStatus = err.message ?: "Failed to send message.",
+                            contactIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearContactNotice() {
+        _uiState.update {
+            it.copy(
+                contactStatus = null,
+                contactIsError = false,
+                backupMessage = null
+            )
+        }
+    }
 
     fun runSelfTest() {
         if (_uiState.value.isTesting) return

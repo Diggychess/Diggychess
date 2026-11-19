@@ -64,13 +64,13 @@ fun parseSquare(name: String): Int? {
     return r * 8 + f
 }
 
-enum class MoveClass(val label: String, val color: Color) {
-    BEST("Best", ClassBest),
-    GOOD("Good", ClassGood),
-    INACCURACY("Inaccuracy", ClassInaccuracy),
-    MISTAKE("Mistake", ClassMistake),
-    BLUNDER("Blunder", ClassBlunder),
-    BRILLIANT("Brilliant", ClassBrilliant)
+enum class MoveClass(val label: String, val color: Color, val glyph: String) {
+    BEST("Best", ClassBest, "★"),
+    GOOD("Good", ClassGood, "✓"),
+    INACCURACY("Inaccuracy", ClassInaccuracy, "?!"),
+    MISTAKE("Mistake", ClassMistake, "?"),
+    BLUNDER("Blunder", ClassBlunder, "??"),
+    BRILLIANT("Brilliant", ClassBrilliant, "!!")
 }
 
 data class ParsedPly(
@@ -88,13 +88,44 @@ data class ParsedGame(
     val plies: List<ParsedPly>
 )
 
+data class EngineVariation(
+    val rank: Int,
+    val cp: Double, // In pawns from White's POV
+    val mate: Int? = null,
+    val firstUci: String,
+    val firstSan: String,
+    val pvUci: List<String> = emptyList(),
+    val pvSan: List<String> = emptyList(),
+    val depth: Int = 0
+)
+
 data class EngineEval(
     val cp: Double, // In pawns from White's POV, clamped [-99.0, 99.0]
     val mate: Int? = null, // Mate in N moves from White's POV (+ White mates, - Black mates)
     val pvUci: List<String> = emptyList(),
     val depth: Int = 0,
-    val bestUci: String? = null
+    val bestUci: String? = null,
+    val sourceLabel: String = "On-device Engine",
+    val candidateMoves: List<String> = emptyList(),
+    val topLines: List<EngineVariation> = emptyList()
 )
+
+enum class EngineDifficulty(
+    val id: String,
+    val label: String,
+    val description: String,
+    val apiDepth: Int,
+    val localDepth: Int,
+    val thinkingTimeMs: Int
+) {
+    EASY("easy", "Easy", "Casual (~900) · relaxed tactical depth", 2, 2, 15),
+    MEDIUM("medium", "Medium", "Club (~1400) · balanced middlegame play", 6, 4, 45),
+    HARD("hard", "Hard", "Master (~2000+) · deep tactical calculation", 12, 6, 95);
+
+    companion object {
+        fun fromId(id: String?): EngineDifficulty = entries.find { it.id == id } ?: MEDIUM
+    }
+}
 
 data class AnalyzedPly(
     val index: Int, // 0-based ply index
@@ -115,7 +146,16 @@ data class AnalyzedPly(
     val bestTo: String?,
     val pvUci: List<String>,
     val explanation: String,
-    val bestExplanation: String
+    val bestExplanation: String,
+    val topLines: List<EngineVariation> = emptyList(),
+    val coachHeadline: String = "",
+    val badgeLabel: String = moveClass.label,
+    val badgeGlyph: String = moveClass.glyph,
+    val badgeColor: Color = moveClass.color,
+    val tacticalTags: List<String> = emptyList(),
+    val winProbSwing: Double = 0.0,
+    val isGreatMove: Boolean = false,
+    val isMissedWin: Boolean = false
 )
 
 data class OpeningEntry(

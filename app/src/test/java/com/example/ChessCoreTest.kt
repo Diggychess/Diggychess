@@ -97,4 +97,82 @@ class ChessCoreTest {
         assertTrue(start.depth > 0)
         assertTrue(kotlin.math.abs(start.cp) < 1.5)
     }
+
+    @Test
+    fun engine_multiPvReturnsUpToThreeDistinctLinesWithValidSan() = runBlocking {
+        val engine = ChessEngine()
+        val ev = engine.evaluateMultiPv(
+            fen = ChessBoard.START_FEN,
+            depth = 2,
+            multiPv = 3,
+            timeLimitMs = 1500,
+            allowCloud = false
+        )
+        assertEquals(3, ev.topLines.size)
+        assertEquals(listOf(1, 2, 3), ev.topLines.map { it.rank })
+        val firstMoves = ev.topLines.map { it.firstUci }.toSet()
+        assertEquals(3, firstMoves.size)
+        ev.topLines.forEach { line ->
+            assertTrue(line.firstSan.isNotBlank())
+            assertTrue(line.pvUci.isNotEmpty())
+            assertTrue(line.pvSan.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun moveExplainer_buildsCoachInsightsAndTacticalTags() {
+        val fenBefore = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
+        val b = ChessBoard(fenBefore)
+        val move = b.makeSanMove("Qxf7#")!!
+        val fenAfter = b.toFen()
+        val insights = MoveExplainer.buildCoachInsights(
+            plyIdx = 6,
+            san = "Qxf7#",
+            move = move,
+            fenBefore = fenBefore,
+            fenAfter = fenAfter,
+            moveClass = MoveClass.BEST,
+            isBook = false,
+            isGreatMove = false,
+            isMissedWin = false,
+            opening = null,
+            bestSan = "Qxf7#",
+            topLines = listOf(EngineVariation(1, 99.0, 1, "h5f7", "Qxf7#", listOf("h5f7"), listOf("Qxf7#"), 4))
+        )
+        assertTrue(insights.headline.contains("Qxf7#"))
+        assertTrue("Checkmate" in insights.tacticalTags)
+        assertTrue("Capture" in insights.tacticalTags)
+    }
+
+    @Test
+    fun gameAnalyzer_producesMultiPvAndCoachReviewFields() = runBlocking {
+        val pgn = """
+            [Event "Studio Test"]
+            [White "Player1"]
+            [Black "Player2"]
+            [Result "1-0"]
+
+            1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0
+        """.trimIndent()
+        val analyzer = GameAnalyzer(ChessEngine())
+        val res = analyzer.analyze(
+            pgnText = pgn,
+            settings = ReviewSettings(depth = 4, forceReanalyze = false),
+            savedEntry = SavedGameEntry(
+                id = "test_saved",
+                title = "Player1 vs Player2",
+                timestamp = 0L,
+                plies = 7,
+                moves = 4,
+                pgn = pgn,
+                evals = listOf(0.2, 0.3, -0.5, -0.4, 0.0, 99.0, 99.0),
+                bestMoves = listOf("e4", "e5", "Nf3", "Nc6", "Bc4", "g6", "Qxf7#"),
+                report = null,
+                mistakes = emptyList()
+            )
+        )
+        assertEquals(7, res.plies.size)
+        assertTrue(res.plies.all { it.coachHeadline.isNotBlank() && it.badgeGlyph.isNotBlank() })
+        assertTrue(res.keyMistakes.any { it.san == "Nf6" })
+    }
 }

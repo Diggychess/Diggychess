@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -34,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.R
-import com.example.chess.ReviewSettings
+import com.example.chess.*
+import com.example.ui.components.MistakeDrillDialog
+import com.example.ui.components.PlatformImporterSheet
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AnalyzeUiState
 import java.text.SimpleDateFormat
@@ -51,11 +54,35 @@ fun AnalyzeScreen(
     onShareAnalysis: () -> Unit,
     onDismissShare: () -> Unit,
     onUpdateSettings: (ReviewSettings) -> Unit,
-    onOpenRecent: (com.example.chess.SavedGameEntry) -> Unit,
+    onOpenRecent: (SavedGameEntry) -> Unit,
     onGoToPly: (Int, Boolean) -> Unit,
     onToggleBestMove: () -> Unit,
     onToggleFlip: () -> Unit,
     onBoardThemeChange: (BoardTheme) -> Unit,
+    onOpenImporter: () -> Unit,
+    onCloseImporter: () -> Unit,
+    onSelectImportPlatform: (ChessPlatform) -> Unit,
+    onImportUsernameChange: (String) -> Unit,
+    onFetchPlatformGames: () -> Unit,
+    onSpeedFilter: (ImportSpeedFilter) -> Unit,
+    onResultFilter: (ImportResultFilter) -> Unit,
+    onColorFilter: (ImportColorFilter) -> Unit,
+    onAnalyzeImportedGame: (ImportedGameSummary) -> Unit,
+    onBoardSquareClick: (String) -> Unit,
+    onSelectVariationPromotion: (PieceType) -> Unit,
+    onDismissVariationPromotion: () -> Unit,
+    onPlayEngineLineMove: (EngineVariation, Int) -> Unit,
+    onStepVariation: (Int) -> Unit,
+    onUndoVariation: () -> Unit,
+    onExitVariation: () -> Unit,
+    onPracticeMistakes: (Int?) -> Unit,
+    onDrillSquareClick: (String) -> Unit,
+    onDrillPromotion: (PieceType) -> Unit,
+    onDismissDrillPromotion: () -> Unit,
+    onDrillHint: () -> Unit,
+    onDrillRetry: () -> Unit,
+    onDrillNext: () -> Unit,
+    onCloseDrill: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var settingsExpanded by remember { mutableStateOf(false) }
@@ -82,9 +109,68 @@ fun AnalyzeScreen(
             )
         }
 
+        // UnCappio Studio Username Importer CTA Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CardSurfaceElevated),
+            border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.45f)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Chess.com & Lichess Studio Import",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = StudioCyan
+                    )
+                    val prof = state.platformProfile
+                    val sub = if (prof != null) {
+                        val topStat = prof.stats.firstOrNull()
+                        "${prof.username} (${prof.platform.label})" +
+                            (topStat?.let { " · ${it.mode} ${it.rating}" } ?: "")
+                    } else {
+                        "Fetch ratings & recent games by username, filter & review in 1 tap."
+                    }
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Button(
+                    onClick = onOpenImporter,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = StudioCyan,
+                        contentColor = OnAccentDark
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("open_importer_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Import", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         // PGN Input Card
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
             border = BorderStroke(1.dp, LineSubtle),
             shape = RoundedCornerShape(14.dp)
         ) {
@@ -98,7 +184,7 @@ fun AnalyzeScreen(
                 OutlinedTextField(
                     value = state.pgnText,
                     onValueChange = onPgnChange,
-                    placeholder = { Text("Paste PGN here", color = TextMuted) },
+                    placeholder = { Text("Paste PGN here or import by username above", color = TextMuted) },
                     textStyle = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = JetBrainsMonoFontFamily,
                         color = TextPrimary,
@@ -106,7 +192,7 @@ fun AnalyzeScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 120.dp, max = 180.dp)
+                        .heightIn(min = 110.dp, max = 180.dp)
                         .testTag("pgn_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = SurfaceDark,
@@ -182,14 +268,14 @@ fun AnalyzeScreen(
                             val total = state.progressTotal.coerceAtLeast(1)
                             val frac = (state.progressDone.toFloat() / total).coerceIn(0f, 1f)
                             Text(
-                                text = "Analysing game… position ${state.progressDone} / $total",
+                                text = "Analysing game… position ${state.progressDone} / $total (3-line eval)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextPrimary
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { frac },
-                                color = AccentGreen,
+                                color = StudioCyan,
                                 trackColor = BorderSubtle,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -230,7 +316,7 @@ fun AnalyzeScreen(
 
         // Expandable Engine & Review Settings Card
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
             border = BorderStroke(1.dp, LineSubtle),
             shape = RoundedCornerShape(14.dp)
         ) {
@@ -259,7 +345,7 @@ fun AnalyzeScreen(
                 AnimatedVisibility(visible = settingsExpanded) {
                     ReviewSettingsPanel(
                         settings = state.settings,
-                        engineLabel = state.result?.engineLabel ?: "Lichess Cloud + On-device Engine",
+                        engineLabel = state.result?.engineLabel ?: "Stockfish Multi-PV API + On-device Engine",
                         onUpdate = onUpdateSettings
                     )
                 }
@@ -344,13 +430,57 @@ fun AnalyzeScreen(
                 showBestMove = state.showBestMove,
                 flipped = state.flipped,
                 boardTheme = state.boardTheme,
+                variation = state.variation,
+                plyLiveLines = state.plyLiveLines,
+                isLoadingPlyLines = state.isLoadingPlyLines,
+                boardSelectedSquare = state.boardSelectedSquare,
+                boardLegalTargets = state.boardLegalTargets,
+                boardPendingPromotion = state.boardPendingPromotion,
                 onGoToPly = onGoToPly,
                 onToggleBestMove = onToggleBestMove,
                 onToggleFlip = onToggleFlip,
                 onShareAnalysis = onShareAnalysis,
-                onBoardThemeChange = onBoardThemeChange
+                onBoardThemeChange = onBoardThemeChange,
+                onBoardSquareClick = onBoardSquareClick,
+                onSelectVariationPromotion = onSelectVariationPromotion,
+                onDismissVariationPromotion = onDismissVariationPromotion,
+                onPlayEngineLineMove = onPlayEngineLineMove,
+                onStepVariation = onStepVariation,
+                onUndoVariation = onUndoVariation,
+                onExitVariation = onExitVariation,
+                onPracticeMistakes = onPracticeMistakes
             )
         }
+    }
+
+    // Username Importer Bottom Sheet
+    if (state.showImporterSheet) {
+        PlatformImporterSheet(
+            state = state,
+            onSelectPlatform = onSelectImportPlatform,
+            onUsernameChange = onImportUsernameChange,
+            onFetch = onFetchPlatformGames,
+            onSpeedFilter = onSpeedFilter,
+            onResultFilter = onResultFilter,
+            onColorFilter = onColorFilter,
+            onAnalyzeImportedGame = onAnalyzeImportedGame,
+            onDismiss = onCloseImporter
+        )
+    }
+
+    // One-Tap Practice My Mistakes Drill Dialog
+    state.mistakeDrill?.let { drill ->
+        MistakeDrillDialog(
+            drill = drill,
+            boardTheme = state.boardTheme,
+            onSquareClick = onDrillSquareClick,
+            onSelectPromotion = onDrillPromotion,
+            onDismissPromotion = onDismissDrillPromotion,
+            onHint = onDrillHint,
+            onRetry = onDrillRetry,
+            onNext = onDrillNext,
+            onDismiss = onCloseDrill
+        )
     }
 
     // Share Analysis / PGN Dialog
@@ -362,7 +492,7 @@ fun AnalyzeScreen(
     }
 }
 
-private val ColorErrorText = androidx.compose.ui.graphics.Color(0xFFFF8A80)
+private val ColorErrorText = Color(0xFFFF8A80)
 
 @Composable
 private fun ReviewSettingsPanel(

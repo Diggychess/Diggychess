@@ -1,5 +1,8 @@
 package com.example.chess
 
+import com.example.ui.theme.ClassBook
+import com.example.ui.theme.ClassGreat
+import com.example.ui.theme.ClassMiss
 import kotlin.math.ceil
 
 class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
@@ -38,20 +41,21 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
         }
 
         if (!usingSavedOrPgn) {
-            engineLabel = "Lichess Cloud + On-device Engine"
+            engineLabel = "Stockfish Multi-PV + On-device Engine"
             val startFen = parsed.headers["FEN"]?.takeIf { it.isNotBlank() } ?: ChessBoard.START_FEN
             val fens = listOf(startFen) + plies.map { it.fenAfter }
             val cache = HashMap<String, EngineEval>()
             val total = fens.size
-            val timePerPos = (11000L / total.coerceAtLeast(1)).coerceIn(220L, 1200L)
+            val timePerPos = (11500L / total.coerceAtLeast(1)).coerceIn(220L, 1100L)
 
             onProgress(0, total)
             for (i in fens.indices) {
                 val fen = fens[i]
                 val cacheKey = fen.split(' ').take(4).joinToString(" ")
-                val ev = cache[cacheKey] ?: engine.evaluatePosition(
+                val ev = cache[cacheKey] ?: engine.evaluateMultiPv(
                     fen = fen,
                     depth = settings.depth.coerceIn(4, 12),
+                    multiPv = 3,
                     timeLimitMs = timePerPos,
                     allowCloud = true
                 ).also { cache[cacheKey] = it }
@@ -137,6 +141,27 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
                 }
             }
 
+            val topLines = evalPerFen[i]?.topLines ?: emptyList()
+
+            // Great Move (!): Best non-book move where 2nd-best line drops >= 12 win%
+            var isGreatMove = false
+            if (cls == MoveClass.BEST && !isBook && topLines.size >= 2) {
+                var wp1 = MoveExplainer.winProbability(topLines[0].cp)
+                var wp2 = MoveExplainer.winProbability(topLines[1].cp)
+                if (!isWhite) {
+                    wp1 = 100.0 - wp1
+                    wp2 = 100.0 - wp2
+                }
+                if (wp1 - wp2 >= 12.0) {
+                    isGreatMove = true
+                }
+            }
+
+            // Miss (✖): Had strong winning edge (>= 72 win%) and threw >= 15 win% (or missed forced mate)
+            val isMissedWin = !isBook &&
+                (cls == MoveClass.MISTAKE || cls == MoveClass.BLUNDER) &&
+                wpBefore >= 72.0 && loss >= 15.0
+
             val acc = MoveExplainer.moveAccuracy(loss)
             if (isWhite) {
                 whiteAccList.add(acc)
@@ -191,6 +216,29 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
                 prevSideMove = prevSideMove
             )
 
+            val coachInsights = MoveExplainer.buildCoachInsights(
+                plyIdx = i,
+                san = p.san,
+                move = p.move,
+                fenBefore = p.fenBefore,
+                fenAfter = p.fenAfter,
+                moveClass = cls,
+                isBook = isBook,
+                isGreatMove = isGreatMove,
+                isMissedWin = isMissedWin,
+                opening = opening,
+                bestSan = p.bestSan,
+                topLines = topLines
+            )
+
+            val (badgeLabel, badgeGlyph, badgeColor) = when {
+                isBook -> Triple("Book", "B", ClassBook)
+                cls == MoveClass.BRILLIANT -> Triple("Brilliant", "!!", cls.color)
+                isGreatMove -> Triple("Great", "!", ClassGreat)
+                isMissedWin -> Triple("Miss", "✖", ClassMiss)
+                else -> Triple(cls.label, cls.glyph, cls.color)
+            }
+
             analyzedPlies.add(
                 AnalyzedPly(
                     index = i,
@@ -211,7 +259,16 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
                     bestTo = bestTo,
                     pvUci = pvUci,
                     explanation = explanation,
-                    bestExplanation = bestExplanation
+                    bestExplanation = bestExplanation,
+                    topLines = topLines,
+                    coachHeadline = coachInsights.headline,
+                    badgeLabel = badgeLabel,
+                    badgeGlyph = badgeGlyph,
+                    badgeColor = badgeColor,
+                    tacticalTags = coachInsights.tacticalTags,
+                    winProbSwing = wpAfter - wpBefore,
+                    isGreatMove = isGreatMove,
+                    isMissedWin = isMissedWin
                 )
             )
         }

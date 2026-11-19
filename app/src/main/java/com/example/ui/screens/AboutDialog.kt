@@ -2,18 +2,27 @@ package com.example.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.theme.*
@@ -27,10 +36,17 @@ fun AboutDialog(
     onGenerateBackup: suspend () -> String,
     onRestoreBackup: (String) -> Unit,
     onBackupMessage: (String) -> Unit,
+    onSendContact: (name: String, email: String, subject: String, message: String, onClear: () -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    var contactExpanded by remember { mutableStateOf(false) }
+    var senderName by remember { mutableStateOf("") }
+    var senderEmail by remember(state.contactEmail) { mutableStateOf(state.contactEmail) }
+    var subject by remember { mutableStateOf("KnightScope Feedback") }
+    var message by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -76,7 +92,7 @@ fun AboutDialog(
                 modifier = Modifier
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("ABOUT KNIGHTSCOPE", style = MaterialTheme.typography.titleSmall, color = TextMuted)
 
@@ -95,6 +111,231 @@ fun AboutDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
+
+                // Local Session Stats
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SurfaceDark,
+                    border = BorderStroke(1.dp, BorderSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "YOUR SESSION STATS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextMuted,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SessionStatTile(
+                                label = "Bot Games",
+                                value = state.userProfile.gamesPlayedBot.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                            SessionStatTile(
+                                label = "Analysed",
+                                value = state.userProfile.gamesAnalysed.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SessionStatTile(
+                                label = "Puzzles",
+                                value = state.userProfile.puzzlesSolved.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                            SessionStatTile(
+                                label = "Win Streak",
+                                value = state.userProfile.winStreak.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // Expandable Contact & Support Section
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SurfaceDark,
+                    border = BorderStroke(1.dp, if (contactExpanded) AccentGreen.copy(alpha = 0.5f) else BorderSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .clickable { contactExpanded = !contactExpanded }
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                                .testTag("contact_support_toggle"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MailOutline,
+                                    contentDescription = "Contact and support",
+                                    tint = AccentGreen,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Contact & Support",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = if (contactExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = if (contactExpanded) "Collapse contact form" else "Expand contact form",
+                                tint = TextMuted
+                            )
+                        }
+
+                        AnimatedVisibility(visible = contactExpanded) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (!state.contactConfigured) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CardDark,
+                                        border = BorderStroke(1.dp, BorderSubtle),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("contact_unconfigured_notice")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Info,
+                                                contentDescription = "Optional service notice",
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "Contact delivery is optional and currently disabled because no email service (Formspree or EmailJS) is configured.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TextMuted
+                                            )
+                                        }
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = senderName,
+                                    onValueChange = { senderName = it },
+                                    label = { Text("Your Name (optional)") },
+                                    singleLine = true,
+                                    enabled = state.contactConfigured,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("contact_name_input"),
+                                    colors = aboutFieldColors()
+                                )
+
+                                OutlinedTextField(
+                                    value = senderEmail,
+                                    onValueChange = { senderEmail = it },
+                                    label = { Text("Your Email") },
+                                    singleLine = true,
+                                    enabled = state.contactConfigured,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("contact_email_input"),
+                                    colors = aboutFieldColors()
+                                )
+
+                                OutlinedTextField(
+                                    value = subject,
+                                    onValueChange = { subject = it },
+                                    label = { Text("Subject") },
+                                    singleLine = true,
+                                    enabled = state.contactConfigured,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("contact_subject_input"),
+                                    colors = aboutFieldColors()
+                                )
+
+                                OutlinedTextField(
+                                    value = message,
+                                    onValueChange = { message = it },
+                                    label = { Text("Message / Bug report / Feedback") },
+                                    minLines = 3,
+                                    maxLines = 5,
+                                    enabled = state.contactConfigured,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("contact_message_input"),
+                                    colors = aboutFieldColors()
+                                )
+
+                                Button(
+                                    onClick = {
+                                        onSendContact(senderName, senderEmail, subject, message) {
+                                            message = ""
+                                        }
+                                    },
+                                    enabled = state.contactConfigured && !state.isSendingContact,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AccentGreen,
+                                        contentColor = OnAccentDark,
+                                        disabledContainerColor = BorderSubtle,
+                                        disabledContentColor = TextMuted
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .testTag("contact_send_button")
+                                ) {
+                                    if (state.isSendingContact) {
+                                        CircularProgressIndicator(
+                                            color = OnAccentDark,
+                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Sending…", fontWeight = FontWeight.SemiBold)
+                                    } else {
+                                        Text(
+                                            text = if (state.contactConfigured) "Send Message" else "Send Unavailable",
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                state.contactStatus?.let { msg ->
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (state.contactIsError) ClassBlunder else AccentGreenHover
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 OutlinedButton(
                     onClick = onRunSelfTest,
@@ -165,7 +406,12 @@ fun AboutDialog(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("about_close_button")
+                    ) {
                         Text("Close", color = AccentGreen)
                     }
                 }
@@ -173,3 +419,45 @@ fun AboutDialog(
         }
     }
 }
+
+@Composable
+private fun SessionStatTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = CardDark,
+        border = BorderStroke(1.dp, LineSubtle),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = AccentGreenHover
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted
+            )
+        }
+    }
+}
+
+@Composable
+private fun aboutFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = AccentGreen,
+    unfocusedBorderColor = BorderSubtle,
+    focusedLabelColor = AccentGreen,
+    unfocusedLabelColor = TextMuted,
+    focusedTextColor = TextPrimary,
+    unfocusedTextColor = TextPrimary,
+    cursorColor = AccentGreen
+)

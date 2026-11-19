@@ -5,17 +5,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.LastPage
 import androidx.compose.material.icons.filled.FirstPage
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,9 +32,14 @@ import androidx.compose.ui.unit.sp
 import com.example.chess.*
 import com.example.ui.components.BoardArrow
 import com.example.ui.components.ChessBoardView
+import com.example.ui.components.CoachCommentaryCard
 import com.example.ui.components.EvalBar
 import com.example.ui.components.EvalGraph
+import com.example.ui.components.MultiPvLinesCard
+import com.example.ui.components.PromotionPickerDialog
+import com.example.ui.components.SquareMoveBadge
 import com.example.ui.theme.*
+import com.example.ui.viewmodel.VariationBranch
 import java.util.Locale
 
 @Composable
@@ -41,11 +49,25 @@ fun AnalyzeWorkspace(
     showBestMove: Boolean,
     flipped: Boolean,
     boardTheme: BoardTheme,
+    variation: VariationBranch?,
+    plyLiveLines: List<EngineVariation>,
+    isLoadingPlyLines: Boolean,
+    boardSelectedSquare: String?,
+    boardLegalTargets: Map<String, Boolean>,
+    boardPendingPromotion: Pair<String, String>?,
     onGoToPly: (Int, Boolean) -> Unit,
     onToggleBestMove: () -> Unit,
     onToggleFlip: () -> Unit,
     onShareAnalysis: () -> Unit,
-    onBoardThemeChange: (BoardTheme) -> Unit
+    onBoardThemeChange: (BoardTheme) -> Unit,
+    onBoardSquareClick: (String) -> Unit,
+    onSelectVariationPromotion: (PieceType) -> Unit,
+    onDismissVariationPromotion: () -> Unit,
+    onPlayEngineLineMove: (EngineVariation, Int) -> Unit,
+    onStepVariation: (Int) -> Unit,
+    onUndoVariation: () -> Unit,
+    onExitVariation: () -> Unit,
+    onPracticeMistakes: (Int?) -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val isWide = maxWidth >= 820.dp
@@ -63,11 +85,25 @@ fun AnalyzeWorkspace(
                         showBestMove = showBestMove,
                         flipped = flipped,
                         boardTheme = boardTheme,
+                        variation = variation,
+                        plyLiveLines = plyLiveLines,
+                        isLoadingPlyLines = isLoadingPlyLines,
+                        boardSelectedSquare = boardSelectedSquare,
+                        boardLegalTargets = boardLegalTargets,
+                        boardPendingPromotion = boardPendingPromotion,
                         onGoToPly = onGoToPly,
                         onToggleBestMove = onToggleBestMove,
                         onToggleFlip = onToggleFlip,
                         onShareAnalysis = onShareAnalysis,
-                        onBoardThemeChange = onBoardThemeChange
+                        onBoardThemeChange = onBoardThemeChange,
+                        onBoardSquareClick = onBoardSquareClick,
+                        onSelectVariationPromotion = onSelectVariationPromotion,
+                        onDismissVariationPromotion = onDismissVariationPromotion,
+                        onPlayEngineLineMove = onPlayEngineLineMove,
+                        onStepVariation = onStepVariation,
+                        onUndoVariation = onUndoVariation,
+                        onExitVariation = onExitVariation,
+                        onPracticeMistakes = onPracticeMistakes
                     )
                 }
                 Column(
@@ -77,7 +113,8 @@ fun AnalyzeWorkspace(
                     AnalysisRightCards(
                         result = result,
                         currentPly = currentPly,
-                        onGoToPly = onGoToPly
+                        onGoToPly = onGoToPly,
+                        onPracticeMistakes = onPracticeMistakes
                     )
                 }
             }
@@ -92,16 +129,31 @@ fun AnalyzeWorkspace(
                     showBestMove = showBestMove,
                     flipped = flipped,
                     boardTheme = boardTheme,
+                    variation = variation,
+                    plyLiveLines = plyLiveLines,
+                    isLoadingPlyLines = isLoadingPlyLines,
+                    boardSelectedSquare = boardSelectedSquare,
+                    boardLegalTargets = boardLegalTargets,
+                    boardPendingPromotion = boardPendingPromotion,
                     onGoToPly = onGoToPly,
                     onToggleBestMove = onToggleBestMove,
                     onToggleFlip = onToggleFlip,
                     onShareAnalysis = onShareAnalysis,
-                    onBoardThemeChange = onBoardThemeChange
+                    onBoardThemeChange = onBoardThemeChange,
+                    onBoardSquareClick = onBoardSquareClick,
+                    onSelectVariationPromotion = onSelectVariationPromotion,
+                    onDismissVariationPromotion = onDismissVariationPromotion,
+                    onPlayEngineLineMove = onPlayEngineLineMove,
+                    onStepVariation = onStepVariation,
+                    onUndoVariation = onUndoVariation,
+                    onExitVariation = onExitVariation,
+                    onPracticeMistakes = onPracticeMistakes
                 )
                 AnalysisRightCards(
                     result = result,
                     currentPly = currentPly,
-                    onGoToPly = onGoToPly
+                    onGoToPly = onGoToPly,
+                    onPracticeMistakes = onPracticeMistakes
                 )
             }
         }
@@ -115,29 +167,74 @@ private fun BoardAndMoveCard(
     showBestMove: Boolean,
     flipped: Boolean,
     boardTheme: BoardTheme,
+    variation: VariationBranch?,
+    plyLiveLines: List<EngineVariation>,
+    isLoadingPlyLines: Boolean,
+    boardSelectedSquare: String?,
+    boardLegalTargets: Map<String, Boolean>,
+    boardPendingPromotion: Pair<String, String>?,
     onGoToPly: (Int, Boolean) -> Unit,
     onToggleBestMove: () -> Unit,
     onToggleFlip: () -> Unit,
     onShareAnalysis: () -> Unit,
-    onBoardThemeChange: (BoardTheme) -> Unit
+    onBoardThemeChange: (BoardTheme) -> Unit,
+    onBoardSquareClick: (String) -> Unit,
+    onSelectVariationPromotion: (PieceType) -> Unit,
+    onDismissVariationPromotion: () -> Unit,
+    onPlayEngineLineMove: (EngineVariation, Int) -> Unit,
+    onStepVariation: (Int) -> Unit,
+    onUndoVariation: () -> Unit,
+    onExitVariation: () -> Unit,
+    onPracticeMistakes: (Int?) -> Unit
 ) {
     val activePly = if (currentPly > 0) result.plies.getOrNull(currentPly - 1) else null
-    val isShowingBest = showBestMove && activePly?.bestFrom != null && activePly.bestTo != null
+    val isShowingBest = variation == null && showBestMove && activePly?.bestFrom != null && activePly.bestTo != null
     val displayFen = when {
+        variation != null -> variation.activeFen
         activePly == null -> result.headers["FEN"]?.takeIf { it.isNotBlank() } ?: ChessBoard.START_FEN
         isShowingBest -> activePly.fenBefore
         else -> activePly.fenAfter
     }
-    val highlightSquares = if (activePly != null && !isShowingBest) {
-        listOf(activePly.move.fromName, activePly.move.toName)
-    } else emptyList()
 
-    val arrows = if (isShowingBest && activePly != null && activePly.bestFrom != null && activePly.bestTo != null) {
-        listOf(
-            BoardArrow(activePly.bestFrom, activePly.bestTo, ArrowBestGreen),
-            BoardArrow(activePly.move.fromName, activePly.move.toName, ArrowPlayedRed)
+    val highlightSquares = when {
+        variation != null -> variation.lastMoveSquares
+        activePly != null && !isShowingBest -> listOf(activePly.move.fromName, activePly.move.toName)
+        else -> emptyList()
+    }
+
+    val selectedSq = variation?.selectedSquare ?: boardSelectedSquare
+    val legalTargets = variation?.legalTargets ?: boardLegalTargets
+
+    val moveBadge = if (variation == null && activePly != null && !isShowingBest) {
+        SquareMoveBadge(
+            square = activePly.move.toName,
+            glyph = activePly.badgeGlyph,
+            color = activePly.badgeColor
         )
-    } else emptyList()
+    } else null
+
+    val arrows = remember(variation, isShowingBest, activePly, plyLiveLines) {
+        when {
+            variation != null -> {
+                val uci = variation.liveLines.firstOrNull()?.firstUci
+                if (uci != null && uci.length >= 4) {
+                    listOf(BoardArrow(uci.substring(0, 2), uci.substring(2, 4), ArrowSecondaryCyan))
+                } else emptyList()
+            }
+            isShowingBest && activePly != null && activePly.bestFrom != null && activePly.bestTo != null -> {
+                listOf(
+                    BoardArrow(activePly.bestFrom, activePly.bestTo, ArrowBestGreen),
+                    BoardArrow(activePly.move.fromName, activePly.move.toName, ArrowPlayedRed)
+                )
+            }
+            else -> {
+                val uci = plyLiveLines.firstOrNull()?.firstUci
+                if (uci != null && uci.length >= 4) {
+                    listOf(BoardArrow(uci.substring(0, 2), uci.substring(2, 4), ArrowSecondaryCyan))
+                } else emptyList()
+            }
+        }
+    }
 
     val opLabelText = when {
         result.plies.isEmpty() -> ""
@@ -155,8 +252,8 @@ private fun BoardAndMoveCard(
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-        border = BorderStroke(1.dp, LineSubtle),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
+        border = BorderStroke(1.dp, if (variation != null) StudioCyan.copy(alpha = 0.45f) else LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -209,13 +306,13 @@ private fun BoardAndMoveCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Eval bar + Board
+            // Eval bar + Interactive Chessboard
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val curEval = result.evals.getOrElse(currentPly) { 0.0 }
+                val curEval = variation?.liveEvalCp ?: result.evals.getOrElse(currentPly) { 0.0 }
                 EvalBar(
                     evalPawns = curEval,
                     flipped = flipped,
@@ -227,8 +324,12 @@ private fun BoardAndMoveCard(
                     fen = displayFen,
                     boardTheme = boardTheme,
                     flipped = flipped,
+                    selectedSquare = selectedSq,
                     lastMoveSquares = highlightSquares,
+                    legalTargets = legalTargets,
                     arrows = arrows,
+                    moveBadge = moveBadge,
+                    onSquareClick = onBoardSquareClick,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -273,101 +374,34 @@ private fun BoardAndMoveCard(
                     border = BorderStroke(1.dp, BorderSubtle),
                     modifier = navModifier.testTag("nav_last")
                 ) {
-                    Icon(Icons.Filled.LastPage, contentDescription = "Last move", tint = TextPrimary)
+                    Icon(Icons.AutoMirrored.Filled.LastPage, contentDescription = "Last move", tint = TextPrimary)
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Move Explanation Box
-            Surface(
-                color = SurfaceDark,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderSubtle),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    if (activePly == null) {
-                        Text(
-                            text = "Start of game. Press ▶ or pick a move from the list.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted
-                        )
-                    } else {
-                        val moveNum = (currentPly - 1) / 2 + 1
-                        val dots = if (currentPly % 2 == 1) ". " else "... "
-                        val badgeLabel = when {
-                            activePly.isBook -> "Book"
-                            activePly.moveClass == MoveClass.BEST && activePly.bestSan != null && activePly.bestSan != activePly.san -> "Excellent"
-                            else -> activePly.moveClass.label
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "$moveNum$dots${activePly.san}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
-                            )
-                            Surface(
-                                color = activePly.moveClass.color,
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    text = badgeLabel,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-                            Text(
-                                text = "eval ${MoveExplainer.formatPlyEval(activePly.evalAfter, activePly.mate)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (isShowingBest) {
-                            Text(
-                                text = "Green arrow = best move ${activePly.bestSan}, red arrow = move played.",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = AccentGreenHover
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = activePly.bestExplanation,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextPrimary
-                            )
-                        } else {
-                            Text(
-                                text = activePly.explanation,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextPrimary
-                            )
-                        }
+            // Chess.com-style Coach Commentary & Move Badges
+            CoachCommentaryCard(
+                activePly = activePly,
+                currentPly = currentPly,
+                isShowingBest = isShowingBest,
+                variation = variation,
+                onToggleBestMove = onToggleBestMove,
+                onPracticeMistake = { idx -> onPracticeMistakes(idx) }
+            )
 
-                        if (activePly.bestFrom != null) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = onToggleBestMove,
-                                border = BorderStroke(1.dp, AccentGreen),
-                                shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier.testTag("toggle_best_move")
-                            ) {
-                                Text(
-                                    text = if (isShowingBest) "Back" else "Show best move",
-                                    color = AccentGreen,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // UnCappio Studio Multi-PV Top 3 Engine Lines & Variation Explorer
+            MultiPvLinesCard(
+                lines = plyLiveLines,
+                isLoading = isLoadingPlyLines,
+                variation = variation,
+                onPlayLineMove = onPlayEngineLineMove,
+                onStepVariation = onStepVariation,
+                onUndoVariation = onUndoVariation,
+                onExitVariation = onExitVariation
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -413,7 +447,7 @@ private fun BoardAndMoveCard(
                                 .background(theme.darkSquare)
                                 .border(
                                     width = if (theme == boardTheme) 2.5.dp else 1.dp,
-                                    color = if (theme == boardTheme) AccentGreen else BorderSubtle,
+                                    color = if (theme == boardTheme) StudioCyan else BorderSubtle,
                                     shape = CircleShape
                                 )
                                 .clickable { onBoardThemeChange(theme) }
@@ -424,17 +458,48 @@ private fun BoardAndMoveCard(
             }
         }
     }
+
+    val pendingPromo = variation?.pendingPromotion ?: boardPendingPromotion
+    if (pendingPromo != null) {
+        val sideToMove = ChessBoard(displayFen).turn
+        PromotionPickerDialog(
+            color = sideToMove,
+            onSelect = onSelectVariationPromotion,
+            onDismiss = onDismissVariationPromotion
+        )
+    }
 }
 
 @Composable
 private fun AnalysisRightCards(
     result: GameAnalysisResult,
     currentPly: Int,
-    onGoToPly: (Int, Boolean) -> Unit
+    onGoToPly: (Int, Boolean) -> Unit,
+    onPracticeMistakes: (Int?) -> Unit
 ) {
+    val criticalPlies = remember(result) {
+        result.plies
+            .filter {
+                it.moveClass == MoveClass.MISTAKE ||
+                    it.moveClass == MoveClass.BLUNDER ||
+                    it.moveClass == MoveClass.BRILLIANT ||
+                    it.isGreatMove
+            }
+            .associate { (it.index + 1) to it.badgeColor }
+    }
+
+    val hasMistakesToPractice = remember(result) {
+        result.plies.any {
+            (it.moveClass == MoveClass.INACCURACY ||
+                it.moveClass == MoveClass.MISTAKE ||
+                it.moveClass == MoveClass.BLUNDER) &&
+                it.bestFrom != null && it.bestTo != null
+        }
+    }
+
     // Evaluation Graph Card
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
         border = BorderStroke(1.dp, LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -444,11 +509,12 @@ private fun AnalysisRightCards(
             EvalGraph(
                 evals = result.evals,
                 currentPly = currentPly,
-                onSelectPly = { onGoToPly(it, false) }
+                onSelectPly = { onGoToPly(it, false) },
+                criticalPlies = criticalPlies
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Tap the graph to jump to a move. Above the line favours White.",
+                text = "Tap the graph to jump to a move. Coloured dots highlight critical moments.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
@@ -458,7 +524,7 @@ private fun AnalysisRightCards(
     // Opening Summary Card
     val op = result.openingSummary
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
         border = BorderStroke(1.dp, LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -502,7 +568,7 @@ private fun AnalysisRightCards(
     // Game Summary Table
     val st = result.summaryStats
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
         border = BorderStroke(1.dp, LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -518,7 +584,7 @@ private fun AnalysisRightCards(
             )
             MoveClass.entries.forEach { cls ->
                 SummaryRow(
-                    label = cls.label,
+                    label = "${cls.glyph} ${cls.label}",
                     whiteVal = (st.whiteCounts[cls] ?: 0).toString(),
                     blackVal = (st.blackCounts[cls] ?: 0).toString(),
                     dotColor = cls.color
@@ -530,14 +596,38 @@ private fun AnalysisRightCards(
         }
     }
 
-    // Key Mistakes Card
+    // Key Mistakes Card + One-Tap Practice My Mistakes CTA
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
         border = BorderStroke(1.dp, LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("KEY MISTAKES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("KEY MISTAKES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                if (hasMistakesToPractice) {
+                    Button(
+                        onClick = { onPracticeMistakes(null) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StudioCyan,
+                            contentColor = OnAccentDark
+                        ),
+                        shape = RoundedCornerShape(999.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .heightIn(min = 38.dp)
+                            .testTag("practice_all_mistakes_button")
+                    ) {
+                        Icon(Icons.Filled.FitnessCenter, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Practice Mistakes", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(6.dp))
             if (result.keyMistakes.isEmpty()) {
                 Text(
@@ -557,10 +647,18 @@ private fun AnalysisRightCards(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(9.dp)
+                                .size(22.dp)
                                 .clip(CircleShape)
-                                .background(p.moveClass.color)
-                        )
+                                .background(p.badgeColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = p.badgeGlyph,
+                                color = p.badgeColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = moveLabel,
@@ -570,7 +668,7 @@ private fun AnalysisRightCards(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${p.moveClass.label}${p.bestSan?.let { ", best was $it" } ?: ""}",
+                            text = "${p.badgeLabel}${p.bestSan?.let { ", best was $it" } ?: ""}",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
                             modifier = Modifier.weight(1f)
@@ -584,7 +682,7 @@ private fun AnalysisRightCards(
 
     // Move List Card
     Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
         border = BorderStroke(1.dp, LineSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -592,41 +690,47 @@ private fun AnalysisRightCards(
             Text("MOVES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
             Spacer(modifier = Modifier.height(8.dp))
             val pairCount = (result.plies.size + 1) / 2
-            for (pairIdx in 0 until pairCount) {
-                val wPly = result.plies.getOrNull(pairIdx * 2)
-                val bPly = result.plies.getOrNull(pairIdx * 2 + 1)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "${pairIdx + 1}.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        modifier = Modifier.width(30.dp)
-                    )
-                    if (wPly != null) {
-                        MoveListChip(
-                            ply = wPly,
-                            isSelected = currentPly == wPly.index + 1,
-                            onClick = { onGoToPly(wPly.index + 1, false) },
-                            modifier = Modifier.weight(1f)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                items(pairCount, key = { it }) { pairIdx ->
+                    val wPly = result.plies.getOrNull(pairIdx * 2)
+                    val bPly = result.plies.getOrNull(pairIdx * 2 + 1)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "${pairIdx + 1}.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            modifier = Modifier.width(30.dp)
                         )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    if (bPly != null) {
-                        MoveListChip(
-                            ply = bPly,
-                            isSelected = currentPly == bPly.index + 1,
-                            onClick = { onGoToPly(bPly.index + 1, false) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
+                        if (wPly != null) {
+                            MoveListChip(
+                                ply = wPly,
+                                isSelected = currentPly == wPly.index + 1,
+                                onClick = { onGoToPly(wPly.index + 1, false) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                        if (bPly != null) {
+                            MoveListChip(
+                                ply = bPly,
+                                isSelected = currentPly == bPly.index + 1,
+                                onClick = { onGoToPly(bPly.index + 1, false) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -702,7 +806,7 @@ private fun MoveListChip(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
         color = if (isSelected) SurfaceDark else Color.Transparent,
-        border = BorderStroke(1.dp, if (isSelected) AccentGreen else Color.Transparent),
+        border = BorderStroke(1.dp, if (isSelected) StudioCyan else Color.Transparent),
         modifier = modifier
             .heightIn(min = 38.dp)
             .testTag("move_ply_${ply.index + 1}")
@@ -719,7 +823,7 @@ private fun MoveListChip(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(ply.moveClass.color)
+                        .background(ply.badgeColor)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -728,6 +832,15 @@ private fun MoveListChip(
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary
                 )
+                if (ply.moveClass != MoveClass.GOOD && ply.moveClass != MoveClass.BEST) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = ply.badgeGlyph,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = ply.badgeColor
+                    )
+                }
             }
             Text(
                 text = MoveExplainer.formatPlyEval(ply.evalAfter, ply.mate),

@@ -1,0 +1,14 @@
+*.apk
+*.aab
+*.ap_
+*.dex
+.gradle/
+build/
+app/build/
+.idea/
+local.properties
+.env
+*-debug.log
+firestore-debug.log
+firebase-debug.log
+.DS_Store

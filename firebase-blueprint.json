@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile, Cloudinary avatar URL, and personal chess session statistics.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID matching the document ID." },
+        "displayName": { "type": "string", "description": "Display name shown in profile and PGN headers." },
+        "avatarUrl": { "type": "string", "description": "HTTPS URL for user avatar (Cloudinary or Google)." },
+        "preferredDifficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "gamesPlayedBot": { "type": "integer" },
+        "gamesAnalysed": { "type": "integer" },
+        "puzzlesSolved": { "type": "integer" },
+        "winStreak": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "displayName", "preferredDifficulty", "gamesPlayedBot", "gamesAnalysed", "puzzlesSolved", "winStreak", "createdAt", "updatedAt"]
+    },
+    "CloudSavedGame": {
+      "title": "CloudSavedGame",
+      "description": "Analysed chess game record synced per authenticated user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "timestampMs": { "type": "integer" },
+        "plies": { "type": "integer" },
+        "moves": { "type": "integer" },
+        "pgn": { "type": "string" },
+        "evals": { "type": "array" },
+        "bestMoves": { "type": "array" },
+        "whiteCounts": { "type": "array" },
+        "blackCounts": { "type": "array" },
+        "whitePhaseMistakes": { "type": "array" },
+        "blackPhaseMistakes": { "type": "array" },
+        "mistakes": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "title", "timestampMs", "plies", "moves", "pgn", "evals", "bestMoves", "whiteCounts", "blackCounts", "whitePhaseMistakes", "blackPhaseMistakes", "mistakes", "createdAt", "updatedAt"]
+    },
+    "PuzzleProgress": {
+      "title": "PuzzleProgress",
+      "description": "User tactical puzzle ELO rating, history, and daily goal progress.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "rating": { "type": "number" },
+        "ratedCount": { "type": "integer" },
+        "dailyGoal": { "type": "integer" },
+        "ratingHistory": { "type": "array" },
+        "seenIds": { "type": "array" },
+        "recentAttempts": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "rating", "ratedCount", "dailyGoal", "ratingHistory", "seenIds", "recentAttempts", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only profile and session statistics document."
+    },
+    "/users/{userId}/games/{gameId}": {
+      "schema": { "$ref": "#/entities/CloudSavedGame" },
+      "description": "Owner-only analysed chess games subcollection."
+    },
+    "/users/{userId}/progress/{progressId}": {
+      "schema": { "$ref": "#/entities/PuzzleProgress" },
+      "description": "Owner-only tactical puzzle rating and attempts progress."
+    }
+  }
+}

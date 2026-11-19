@@ -1,5 +1,8 @@
 package com.example.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,11 +13,13 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +55,7 @@ private enum class KnightScopeTab(
     val unselectedIcon: ImageVector,
     val testTag: String
 ) {
+    PLAY("play", R.string.tab_play, Icons.Filled.SmartToy, Icons.Outlined.SmartToy, "nav_play"),
     ANALYSE("analyse", R.string.tab_analyse, Icons.Filled.Analytics, Icons.Outlined.Analytics, "nav_analyse"),
     PUZZLES("puzzles", R.string.tab_puzzles, Icons.Filled.Extension, Icons.Outlined.Extension, "nav_puzzles"),
     FRIENDS("friends", R.string.tab_friends, Icons.Filled.Group, Icons.Outlined.Group, "nav_friends"),
@@ -58,14 +64,21 @@ private enum class KnightScopeTab(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KnightScopeApp(repo: KnightScopeRepository) {
-    val factory = remember(repo) { KnightScopeViewModelFactory(repo) }
+fun KnightScopeApp(
+    repo: KnightScopeRepository
+) {
+    val factory = remember(repo) {
+        KnightScopeViewModelFactory(repo = repo)
+    }
+
+    val playVm: PlayViewModel = viewModel(factory = factory)
     val analyzeVm: AnalyzeViewModel = viewModel(factory = factory)
     val puzzlesVm: PuzzlesViewModel = viewModel(factory = factory)
     val friendsVm: FriendsViewModel = viewModel(factory = factory)
     val historyVm: HistoryViewModel = viewModel(factory = factory)
     val aboutVm: AboutViewModel = viewModel(factory = factory)
 
+    val playState by playVm.uiState.collectAsStateWithLifecycle()
     val analyzeState by analyzeVm.uiState.collectAsStateWithLifecycle()
     val puzzlesState by puzzlesVm.uiState.collectAsStateWithLifecycle()
     val friendsState by friendsVm.uiState.collectAsStateWithLifecycle()
@@ -160,8 +173,13 @@ fun KnightScopeApp(repo: KnightScopeRepository) {
                         },
                         actions = {
                             IconButton(
-                                onClick = { showAbout = true },
-                                modifier = Modifier.testTag("about_button")
+                                onClick = {
+                                    aboutVm.clearContactNotice()
+                                    showAbout = true
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("about_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Info,
@@ -194,7 +212,8 @@ fun KnightScopeApp(repo: KnightScopeRepository) {
                                     label = {
                                         Text(
                                             text = label,
-                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                            maxLines = 1
                                         )
                                     },
                                     colors = NavigationBarItemDefaults.colors(
@@ -213,11 +232,43 @@ fun KnightScopeApp(repo: KnightScopeRepository) {
             ) { innerPadding ->
                 NavHost(
                     navController = navController,
-                    startDestination = KnightScopeTab.ANALYSE.route,
+                    startDestination = KnightScopeTab.PLAY.route,
+                    enterTransition = { fadeIn(animationSpec = tween(200)) },
+                    exitTransition = { fadeOut(animationSpec = tween(200)) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    composable(KnightScopeTab.PLAY.route) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            PlayScreen(
+                                state = playState,
+                                onSelectDifficulty = playVm::setDifficulty,
+                                onSelectColor = playVm::selectColorChoice,
+                                onToggleLiveEval = playVm::setShowLiveEval,
+                                onStartGame = { playVm.startGame() },
+                                onSquareClick = playVm::onSquareClick,
+                                onSelectPromotion = playVm::selectPromotion,
+                                onDismissPromotion = playVm::dismissPromotion,
+                                onHint = playVm::requestHint,
+                                onTakeback = playVm::takeback,
+                                onFlip = playVm::toggleFlip,
+                                onResign = playVm::resign,
+                                onRematch = playVm::rematch,
+                                onAnalyseGame = {
+                                    val pgn = playVm.buildFinishedPgn()
+                                    analyzeVm.loadAndAnalyzePgn(pgn)
+                                    navigateToTab(KnightScopeTab.ANALYSE.route)
+                                },
+                                onLeaveGame = playVm::leaveGame,
+                                modifier = Modifier.widthIn(max = 760.dp)
+                            )
+                        }
+                    }
+
                     composable(KnightScopeTab.ANALYSE.route) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -237,6 +288,30 @@ fun KnightScopeApp(repo: KnightScopeRepository) {
                                 onToggleBestMove = analyzeVm::toggleBestMove,
                                 onToggleFlip = analyzeVm::toggleFlip,
                                 onBoardThemeChange = analyzeVm::setBoardTheme,
+                                onOpenImporter = analyzeVm::openImporterSheet,
+                                onCloseImporter = analyzeVm::closeImporterSheet,
+                                onSelectImportPlatform = analyzeVm::setImportPlatform,
+                                onImportUsernameChange = analyzeVm::updateImportUsername,
+                                onFetchPlatformGames = analyzeVm::fetchPlatformGames,
+                                onSpeedFilter = analyzeVm::setImportSpeedFilter,
+                                onResultFilter = analyzeVm::setImportResultFilter,
+                                onColorFilter = analyzeVm::setImportColorFilter,
+                                onAnalyzeImportedGame = analyzeVm::importAndAnalyzeGame,
+                                onBoardSquareClick = analyzeVm::onBoardSquareClick,
+                                onSelectVariationPromotion = analyzeVm::selectVariationPromotion,
+                                onDismissVariationPromotion = analyzeVm::dismissVariationPromotion,
+                                onPlayEngineLineMove = analyzeVm::playEngineLineMoves,
+                                onStepVariation = analyzeVm::stepToVariationIndex,
+                                onUndoVariation = analyzeVm::undoVariationMove,
+                                onExitVariation = analyzeVm::exitVariation,
+                                onPracticeMistakes = analyzeVm::startMistakeDrill,
+                                onDrillSquareClick = analyzeVm::onDrillSquareClick,
+                                onDrillPromotion = analyzeVm::selectDrillPromotion,
+                                onDismissDrillPromotion = analyzeVm::dismissDrillPromotion,
+                                onDrillHint = analyzeVm::revealDrillHint,
+                                onDrillRetry = analyzeVm::retryCurrentMistake,
+                                onDrillNext = analyzeVm::nextMistakeDrill,
+                                onCloseDrill = analyzeVm::closeMistakeDrill,
                                 modifier = Modifier.widthIn(max = 1040.dp)
                             )
                         }
@@ -350,7 +425,11 @@ fun KnightScopeApp(repo: KnightScopeRepository) {
                 puzzlesVm.reloadPool()
             },
             onBackupMessage = aboutVm::setBackupMessage,
-            onDismiss = { showAbout = false }
+            onSendContact = aboutVm::sendContactMessage,
+            onDismiss = {
+                aboutVm.clearContactNotice()
+                showAbout = false
+            }
         )
     }
 }
@@ -368,7 +447,6 @@ private fun KnightScopeBrandBadge() {
             val w = size.width
             val h = size.height
             val knight = Path().apply {
-                // Stylised chess knight silhouette matching the KnightScope emblem
                 moveTo(w * 0.24f, h * 0.86f)
                 lineTo(w * 0.78f, h * 0.86f)
                 lineTo(w * 0.74f, h * 0.74f)

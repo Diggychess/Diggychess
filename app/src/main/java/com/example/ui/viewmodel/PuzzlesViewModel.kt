@@ -52,7 +52,7 @@ data class PuzzlesUiState(
     val ratingState: PuzzleRatingState = PuzzleRatingState(),
     val attempts: List<PuzzleAttempt> = emptyList(),
     val dailyGoal: Int = 5,
-    val boardTheme: BoardTheme = BoardTheme.WOOD,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val menuError: String? = null,
     val importStatus: String? = null,
 
@@ -85,7 +85,9 @@ data class PuzzlesUiState(
     val pendingPromotion: Pair<String, String>? = null
 )
 
-class PuzzlesViewModel(private val repo: KnightScopeRepository) : ViewModel() {
+class PuzzlesViewModel(
+    private val repo: KnightScopeRepository
+) : ViewModel() {
 
     companion object {
         const val LEVEL_GOAL = 10
@@ -185,12 +187,15 @@ class PuzzlesViewModel(private val repo: KnightScopeRepository) : ViewModel() {
     fun setStartingRating(rating: Int) {
         viewModelScope.launch {
             val cur = _uiState.value.ratingState
-            repo.savePuzzleRating(cur.copy(rating = rating.toDouble(), history = emptyList()))
+            val nextState = cur.copy(rating = rating.toDouble(), history = emptyList())
+            repo.savePuzzleRating(nextState)
         }
     }
 
     fun setDailyGoal(goal: Int) {
-        viewModelScope.launch { repo.setDailyGoal(goal) }
+        viewModelScope.launch {
+            repo.setDailyGoal(goal)
+        }
     }
 
     fun levelSolvedCount(levelIdx: Int): Int {
@@ -580,14 +585,17 @@ class PuzzlesViewModel(private val repo: KnightScopeRepository) : ViewModel() {
         val cur = s.currentPuzzle ?: return
         recordedOutcome = ok
         viewModelScope.launch {
-            repo.recordPuzzleAttempt(
-                PuzzleAttempt(
-                    id = cur.id,
-                    timestamp = System.currentTimeMillis(),
-                    ok = ok,
-                    rating = cur.rating
-                )
+            val newAttempt = PuzzleAttempt(
+                id = cur.id,
+                timestamp = System.currentTimeMillis(),
+                ok = ok,
+                rating = cur.rating
             )
+            repo.recordPuzzleAttempt(newAttempt)
+            if (ok) {
+                repo.incrementPuzzlesSolved()
+            }
+
             if (cur.rating > 0 && s.mode != PuzzleMode.REVIEW) {
                 val r = _uiState.value.ratingState
                 val k = when {
@@ -600,14 +608,13 @@ class PuzzlesViewModel(private val repo: KnightScopeRepository) : ViewModel() {
                 val nextRating = (r.rating + delta).coerceAtLeast(100.0)
                 val nextHist = (r.history + (System.currentTimeMillis() to nextRating.roundToInt())).takeLast(100)
                 val nextSeen = (r.seenIds + cur.id).takeLast(400)
-                repo.savePuzzleRating(
-                    PuzzleRatingState(
-                        rating = nextRating,
-                        count = r.count + 1,
-                        history = nextHist,
-                        seenIds = nextSeen
-                    )
+                val nextRatingState = PuzzleRatingState(
+                    rating = nextRating,
+                    count = r.count + 1,
+                    history = nextHist,
+                    seenIds = nextSeen
                 )
+                repo.savePuzzleRating(nextRatingState)
                 _uiState.update {
                     it.copy(
                         lastResultOk = ok,

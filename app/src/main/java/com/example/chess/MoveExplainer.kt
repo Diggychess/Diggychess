@@ -643,4 +643,75 @@ object MoveExplainer {
             add(moveText)
         }.joinToString("\n")
     }
+
+    data class CoachInsights(
+        val headline: String,
+        val tacticalTags: List<String>
+    )
+
+    fun buildCoachInsights(
+        plyIdx: Int,
+        san: String,
+        move: Move,
+        fenBefore: String,
+        fenAfter: String,
+        moveClass: MoveClass,
+        isBook: Boolean,
+        isGreatMove: Boolean,
+        isMissedWin: Boolean,
+        opening: OpeningEntry?,
+        bestSan: String?,
+        topLines: List<EngineVariation>
+    ): CoachInsights {
+        val boardAfter = ChessBoard(fenAfter)
+        val color = if (plyIdx % 2 == 0) PieceColor.WHITE else PieceColor.BLACK
+        val opp = color.opposite()
+
+        val tags = mutableListOf<String>()
+        if (isBook) tags.add("Opening Theory")
+        if (move.isKingSideCastle || move.isQueenSideCastle) tags.add("King Safety")
+        if (boardAfter.inCheckmate()) tags.add("Checkmate")
+        else if (boardAfter.inCheck()) tags.add("Check")
+        if (move.captured != null) tags.add("Capture")
+        if (move.promotion != null) tags.add("Promotion")
+
+        val forked = runCatching { attackedTargetsFrom(fenAfter, move.toName) }
+            .getOrDefault(emptyList())
+            .filter { it.value >= 3 || it == PieceType.KING }
+        if (forked.size >= 2) tags.add("Fork")
+
+        if (moveClass == MoveClass.BRILLIANT) tags.add("Sacrifice")
+        if (isGreatMove) tags.add("Only Move")
+        if (isMissedWin) tags.add("Missed Win")
+
+        if (moveClass.ordinal >= MoveClass.INACCURACY.ordinal && moveClass != MoveClass.BRILLIANT) {
+            if (hangs(fenAfter) != null) tags.add("Hanging Piece")
+            val threats = runCatching { threatsAgainst(fenAfter, color) }.getOrDefault(emptyList())
+            if (threats.any { it.net >= 3 } && "Hanging Piece" !in tags) tags.add("Under Attack")
+        } else {
+            val newThreats = runCatching { threatsAgainst(fenAfter, opp) }.getOrDefault(emptyList())
+            if (newThreats.any { move.toName in it.by && it.net >= 3 }) tags.add("Threat")
+        }
+
+        val bestTop = topLines.firstOrNull()
+        val bestEvalText = bestTop?.let { formatPlyEval(it.cp, it.mate) }
+
+        val headline = when {
+            isBook && opening != null -> "$san is theory — ${opening.name}"
+            isBook -> "$san follows opening book theory"
+            moveClass == MoveClass.BRILLIANT -> "$san!! is a Brilliant sacrifice"
+            isGreatMove -> "$san! is a Great move — the only accurate continuation"
+            moveClass == MoveClass.BEST -> "$san is the best engine move" + (bestEvalText?.let { " ($it)" } ?: "")
+            moveClass == MoveClass.GOOD -> "$san is solid" + if (bestSan != null && bestSan != san) " (engine slightly prefers $bestSan)" else ""
+            moveClass == MoveClass.INACCURACY -> "$san?! is an inaccuracy" + (bestSan?.let { " — $it was sharper" } ?: "")
+            isMissedWin -> "$san✖ misses a winning tactical chance" + (bestSan?.let { " ($it wins)" } ?: "")
+            moveClass == MoveClass.MISTAKE -> "$san? is a mistake" + (bestSan?.let { " — $it kept control" } ?: "")
+            else -> "$san?? is a blunder" + (bestSan?.let { " — $it was required" } ?: "")
+        }
+
+        return CoachInsights(
+            headline = headline,
+            tacticalTags = tags.distinct().take(4)
+        )
+    }
 }

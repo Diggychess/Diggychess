@@ -8,10 +8,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,9 +23,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.chess.ChessPiece
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
 import com.example.ui.components.ChessBoardView
+import com.example.ui.components.ChessPieceIcon
 import com.example.ui.components.PromotionPickerDialog
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PuzzleMode
@@ -56,8 +58,8 @@ fun PuzzlePlayView(
     val turnLabel = when {
         state.lastResultOk == true -> "✔ Correct"
         state.lastResultOk == false -> "✖ Wrong"
-        state.playerColor == PieceColor.WHITE -> "♔ White to play"
-        else -> "♚ Black to play"
+        state.playerColor == PieceColor.WHITE -> "White to play"
+        else -> "Black to play"
     }
     val turnColor = when (state.lastResultOk) {
         true -> AccentGreenHover
@@ -101,12 +103,23 @@ fun PuzzlePlayView(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = turnLabel,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = turnColor
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (state.lastResultOk == null) {
+                                ChessPieceIcon(
+                                    piece = ChessPiece(state.playerColor, PieceType.KING),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Text(
+                                text = turnLabel,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = turnColor
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "ELO ",
@@ -208,7 +221,7 @@ fun PuzzlePlayView(
                                 .height(54.dp)
                                 .testTag("puzzle_hint")
                         ) {
-                            Icon(Icons.Filled.HelpOutline, contentDescription = "Hint", tint = AccentGreenHover)
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Hint", tint = AccentGreenHover)
                         }
                         VerticalDivider(color = LineSubtle, modifier = Modifier.height(54.dp))
                         IconButton(

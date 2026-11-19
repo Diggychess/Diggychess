@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,6 +19,18 @@ import org.json.JSONObject
 
 private val Context.knightScopeDataStore: DataStore<Preferences> by preferencesDataStore(name = "knightscope_prefs")
 
+data class UserProfile(
+    val id: String = "local",
+    val userId: String = "local",
+    val displayName: String = "KnightScope Player",
+    val avatarUrl: String? = null,
+    val preferredDifficulty: String = "medium",
+    val gamesPlayedBot: Int = 0,
+    val gamesAnalysed: Int = 0,
+    val puzzlesSolved: Int = 0,
+    val winStreak: Int = 0
+)
+
 class KnightScopeRepository(private val context: Context) {
 
     companion object {
@@ -30,6 +43,10 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_DAILY_GOAL = stringPreferencesKey("ks_goal")
         private val KEY_FRIEND_NAME = stringPreferencesKey("ks_name")
         private val KEY_REPORT_SIDE = stringPreferencesKey("ks_side")
+        private val KEY_PLAY_DIFFICULTY = stringPreferencesKey("ks_play_diff")
+        private val KEY_PLAY_SHOW_EVAL = booleanPreferencesKey("ks_play_eval")
+        private val KEY_USER_PROFILE = stringPreferencesKey("ks_profile")
+        private val KEY_CONTACT_EMAIL = stringPreferencesKey("ks_contact_email")
 
         val STARTER_PUZZLES = listOf(
             Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "KnightScope"),
@@ -109,7 +126,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val boardThemeFlow: Flow<BoardTheme> = context.knightScopeDataStore.data.map { prefs ->
-        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "wood")
+        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "green")
     }
 
     suspend fun setBoardTheme(theme: BoardTheme) {
@@ -193,6 +210,78 @@ class KnightScopeRepository(private val context: Context) {
 
     suspend fun setReportSide(side: String) {
         context.knightScopeDataStore.edit { it[KEY_REPORT_SIDE] = side }
+    }
+
+    val playDifficultyFlow: Flow<EngineDifficulty> = context.knightScopeDataStore.data.map { prefs ->
+        EngineDifficulty.fromId(prefs[KEY_PLAY_DIFFICULTY])
+    }
+
+    suspend fun setPlayDifficulty(difficulty: EngineDifficulty) {
+        context.knightScopeDataStore.edit { it[KEY_PLAY_DIFFICULTY] = difficulty.id }
+    }
+
+    val playShowLiveEvalFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+        prefs[KEY_PLAY_SHOW_EVAL] ?: true
+    }
+
+    suspend fun setPlayShowLiveEval(show: Boolean) {
+        context.knightScopeDataStore.edit { it[KEY_PLAY_SHOW_EVAL] = show }
+    }
+
+    val userProfileFlow: Flow<UserProfile> = context.knightScopeDataStore.data.map { prefs ->
+        parseUserProfile(prefs[KEY_USER_PROFILE])
+    }
+
+    val contactEmailFlow: Flow<String> = context.knightScopeDataStore.data.map { prefs ->
+        prefs[KEY_CONTACT_EMAIL] ?: ""
+    }
+
+    suspend fun updateProfileDisplayName(displayName: String) {
+        val safeName = displayName.trim().ifBlank { "KnightScope Player" }.take(60)
+        context.knightScopeDataStore.edit { prefs ->
+            val current = parseUserProfile(prefs[KEY_USER_PROFILE])
+            prefs[KEY_USER_PROFILE] = serializeUserProfile(current.copy(displayName = safeName)).toString()
+        }
+    }
+
+    suspend fun updateProfileAvatarUrl(avatarUrl: String) {
+        val safeUrl = avatarUrl.trim().take(800)
+        context.knightScopeDataStore.edit { prefs ->
+            val current = parseUserProfile(prefs[KEY_USER_PROFILE])
+            prefs[KEY_USER_PROFILE] = serializeUserProfile(current.copy(avatarUrl = safeUrl.ifBlank { null })).toString()
+        }
+    }
+
+    suspend fun updateContactEmail(email: String) {
+        context.knightScopeDataStore.edit { it[KEY_CONTACT_EMAIL] = email.trim().take(120) }
+    }
+
+    suspend fun recordBotGameResult(playerWon: Boolean) {
+        context.knightScopeDataStore.edit { prefs ->
+            val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
+            val nextStreak = if (playerWon) (cur.winStreak + 1).coerceAtMost(1_000_000) else 0
+            val updated = cur.copy(
+                gamesPlayedBot = (cur.gamesPlayedBot + 1).coerceAtMost(1_000_000),
+                winStreak = nextStreak
+            )
+            prefs[KEY_USER_PROFILE] = serializeUserProfile(updated).toString()
+        }
+    }
+
+    suspend fun incrementGamesAnalysed() {
+        context.knightScopeDataStore.edit { prefs ->
+            val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
+            val updated = cur.copy(gamesAnalysed = (cur.gamesAnalysed + 1).coerceAtMost(1_000_000))
+            prefs[KEY_USER_PROFILE] = serializeUserProfile(updated).toString()
+        }
+    }
+
+    suspend fun incrementPuzzlesSolved() {
+        context.knightScopeDataStore.edit { prefs ->
+            val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
+            val updated = cur.copy(puzzlesSolved = (cur.puzzlesSolved + 1).coerceAtMost(1_000_000))
+            prefs[KEY_USER_PROFILE] = serializeUserProfile(updated).toString()
+        }
     }
 
     suspend fun getImportedPuzzles(): List<Puzzle> {
@@ -463,5 +552,38 @@ class KnightScopeRepository(private val context: Context) {
             })
         }
         return arr
+    }
+
+    private fun parseUserProfile(raw: String?): UserProfile {
+        if (raw.isNullOrBlank()) return UserProfile(displayName = "KnightScope Player")
+        return try {
+            val o = JSONObject(raw)
+            val avatar = o.optString("avatarUrl", "").takeIf { it.isNotBlank() }
+            UserProfile(
+                id = "local",
+                userId = "local",
+                displayName = o.optString("displayName", "KnightScope Player").ifBlank { "KnightScope Player" },
+                avatarUrl = avatar,
+                preferredDifficulty = o.optString("preferredDifficulty", "medium"),
+                gamesPlayedBot = o.optInt("gamesPlayedBot", 0),
+                gamesAnalysed = o.optInt("gamesAnalysed", 0),
+                puzzlesSolved = o.optInt("puzzlesSolved", 0),
+                winStreak = o.optInt("winStreak", 0)
+            )
+        } catch (_: Exception) {
+            UserProfile(displayName = "KnightScope Player")
+        }
+    }
+
+    private fun serializeUserProfile(p: UserProfile): JSONObject {
+        return JSONObject().apply {
+            put("displayName", p.displayName)
+            if (!p.avatarUrl.isNullOrBlank()) put("avatarUrl", p.avatarUrl)
+            put("preferredDifficulty", p.preferredDifficulty)
+            put("gamesPlayedBot", p.gamesPlayedBot)
+            put("gamesAnalysed", p.gamesAnalysed)
+            put("puzzlesSolved", p.puzzlesSolved)
+            put("winStreak", p.winStreak)
+        }
     }
 }

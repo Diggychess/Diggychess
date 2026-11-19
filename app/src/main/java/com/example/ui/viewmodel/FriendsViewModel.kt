@@ -64,7 +64,7 @@ data class FriendsUiState(
     val opponentWantsRematch: Boolean = false,
     val linkStatus: String = "",
     val canReconnect: Boolean = false,
-    val boardTheme: BoardTheme = BoardTheme.WOOD,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val pendingPromotion: Pair<String, String>? = null
 )
 

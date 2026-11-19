@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -13,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.chess.MoveExplainer
+import com.example.ui.theme.BorderSubtle
 
 @Composable
 fun EvalBar(
@@ -29,16 +31,17 @@ fun EvalBar(
 
     Box(
         modifier = modifier
-            .width(14.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFF262626))
+            .width(16.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF1C232B))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(animatedFrac)
                 .align(if (flipped) Alignment.TopCenter else Alignment.BottomCenter)
-                .background(Color(0xFFF4F4F2))
+                .background(Color(0xFFF3F6FA))
         )
     }
 }

@@ -23,17 +23,20 @@ data class HistoryUiState(
     val report: HistoryReportSummary? = null
 )
 
-class HistoryViewModel(private val repo: KnightScopeRepository) : ViewModel() {
+class HistoryViewModel(
+    private val repo: KnightScopeRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistoryUiState())
     val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            combine(repo.historyFlow, repo.reportSideFlow) { games, side ->
-                val report = computeReport(games, side)
+            combine(repo.historyFlow, repo.reportSideFlow) { localGames, side ->
+                val sorted = localGames.sortedByDescending { it.timestamp }
+                val report = computeReport(sorted, side)
                 _uiState.value.copy(
-                    games = games,
+                    games = sorted,
                     sideFilter = side,
                     report = report
                 )
@@ -57,7 +60,9 @@ class HistoryViewModel(private val repo: KnightScopeRepository) : ViewModel() {
 
     fun confirmDelete(id: String) {
         _uiState.update { it.copy(pendingDeleteId = null) }
-        viewModelScope.launch { repo.deleteGameFromHistory(id) }
+        viewModelScope.launch {
+            repo.deleteGameFromHistory(id)
+        }
     }
 
     private fun computeReport(games: List<SavedGameEntry>, side: String): HistoryReportSummary? {
