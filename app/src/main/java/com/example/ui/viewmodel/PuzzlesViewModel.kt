@@ -19,7 +19,7 @@ enum class PuzzleCategory(val id: String, val label: String, val rangeLabel: Str
     MEDIUM("med", "Medium", "1400–1999"),
     HARD("hard", "Hard", "2000+"),
     GM("gm", "Grandmaster", "2500+"),
-    UNRATED("unr", "Starter (unrated)", "KnightScope");
+    UNRATED("unr", "Starter (unrated)", "Diggy Chess");
 
     fun matches(p: Puzzle): Boolean = when (this) {
         EASY -> p.rating in 1..1399

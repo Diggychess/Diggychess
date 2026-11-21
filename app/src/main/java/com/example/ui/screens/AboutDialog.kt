@@ -45,7 +45,7 @@ fun AboutDialog(
     var contactExpanded by remember { mutableStateOf(false) }
     var senderName by remember { mutableStateOf("") }
     var senderEmail by remember(state.contactEmail) { mutableStateOf(state.contactEmail) }
-    var subject by remember { mutableStateOf("KnightScope Feedback") }
+    var subject by remember { mutableStateOf("Diggy Chess Feedback") }
     var message by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -94,10 +94,10 @@ fun AboutDialog(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("ABOUT KNIGHTSCOPE", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                Text("ABOUT DIGGY CHESS", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
 
                 Text(
-                    text = "KnightScope reviews your chess games with engine evaluations and explains the key moments in plain English.",
+                    text = "Diggy Chess reviews your chess games with engine evaluations and explains the key moments in plain English.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
@@ -378,7 +378,7 @@ fun AboutDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { exportLauncher.launch("knightscope-backup.json") },
+                        onClick = { exportLauncher.launch("diggy-chess-backup.json") },
                         border = BorderStroke(1.dp, BorderSubtle),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier

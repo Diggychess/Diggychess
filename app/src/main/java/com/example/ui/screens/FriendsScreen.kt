@@ -224,7 +224,7 @@ fun FriendsScreen(
                                             val send = Intent(Intent.ACTION_SEND).apply {
                                                 putExtra(
                                                     Intent.EXTRA_TEXT,
-                                                    "Play chess with me on KnightScope! Join live match: ${invite.url}"
+                                                    "Play chess with me on Diggy Chess! Join live match: ${invite.url}"
                                                 )
                                                 type = "text/plain"
                                             }
@@ -410,7 +410,7 @@ fun FriendsScreen(
                                     OutlinedButton(
                                         onClick = {
                                             val intent = Intent(Intent.ACTION_SEND).apply {
-                                                putExtra(Intent.EXTRA_TEXT, "Play chess with me on KnightScope! Join Wi-Fi room: $addr ($inviteLink)")
+                                                putExtra(Intent.EXTRA_TEXT, "Play chess with me on Diggy Chess! Join Wi-Fi room: $addr ($inviteLink)")
                                                 type = "text/plain"
                                             }
                                             context.startActivity(Intent.createChooser(intent, "Invite friend"))

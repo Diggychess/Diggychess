@@ -53,7 +53,7 @@ fun SettingsScreen(
     var contactExpanded by remember { mutableStateOf(false) }
     var senderName by remember { mutableStateOf("") }
     var senderEmail by remember(state.contactEmail) { mutableStateOf(state.contactEmail) }
-    var subject by remember { mutableStateOf("KnightScope Feedback") }
+    var subject by remember { mutableStateOf("Diggy Chess Feedback") }
     var message by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -107,12 +107,13 @@ fun SettingsScreen(
 
         // Appearance & Board Card
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
             border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("APPEARANCE & BOARD", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                Text("APPEARANCE & BOARD", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
 
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
@@ -122,8 +123,8 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = AccentGreenHover)
                         Column {
-                            Text("Dark Studio Theme", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                            Text(if (state.isDarkMode) "Dark Studio active" else "Light Classic active", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                            Text("Royal Obsidian Theme", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(if (state.isDarkMode) "Royal Gold & Obsidian active" else "Alabaster & Antique Gold active", style = MaterialTheme.typography.bodySmall, color = TextMuted)
                         }
                     }
                     Switch(
@@ -150,26 +151,33 @@ fun SettingsScreen(
                 }
 
                 Text("Board Colors", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoardTheme.entries.forEach { theme ->
-                        val selected = theme == state.boardTheme
-                        Surface(
-                            onClick = { onSelectBoardTheme(theme) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (selected) AccentGreen.copy(alpha = 0.16f) else SurfaceDark,
-                            border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("settings_board_${theme.id}")
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Row(modifier = Modifier.size(28.dp, 14.dp).clip(RoundedCornerShape(4.dp))) {
-                                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.lightSquare))
-                                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.darkSquare))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BoardTheme.entries.chunked(3).forEach { rowThemes ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            rowThemes.forEach { theme ->
+                                val selected = theme == state.boardTheme
+                                Surface(
+                                    onClick = { onSelectBoardTheme(theme) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) AccentGreen.copy(alpha = 0.16f) else SurfaceDark,
+                                    border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
+                                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("settings_board_${theme.id}")
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(modifier = Modifier.size(30.dp, 14.dp).clip(RoundedCornerShape(4.dp))) {
+                                            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.lightSquare))
+                                            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.darkSquare))
+                                        }
+                                        Text(theme.label, style = MaterialTheme.typography.labelSmall, color = TextPrimary, maxLines = 1)
+                                    }
                                 }
-                                Text(theme.label, style = MaterialTheme.typography.labelSmall, color = TextPrimary, maxLines = 1)
+                            }
+                            repeat(3 - rowThemes.size) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -232,7 +240,7 @@ fun SettingsScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { exportLauncher.launch("knightscope-backup.json") },
+                        onClick = { exportLauncher.launch("diggy-chess-backup.json") },
                         border = BorderStroke(1.dp, BorderSubtle),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("settings_backup_export")
@@ -386,18 +394,19 @@ fun SettingsScreen(
 
         // Open-Source Credits & Licenses
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
             border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("OPEN-SOURCE CREDITS & LICENSES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                Text("OPEN-SOURCE CREDITS & LICENSES", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
                 Text("• Stockfish Online / Local Alpha-Beta Chess Engine (GPL-3.0)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
                 Text("• Lichess Open Puzzle Database & Opening Explorer (CC0 Public Domain)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
                 Text("• Lichess Cloud Eval, Open Challenge & Game APIs (Free Public API)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
                 Text("• Chess.com Published Data API (Public Game Importer)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
                 Text("• Cburnett-Inspired Staunton Vector Pieces (CC BY-SA 3.0)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Inter & JetBrains Mono Typography (SIL Open Font License 1.1)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                Text("• Cinzel, Plus Jakarta Sans & JetBrains Mono Typography (SIL OFL 1.1)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
             }
         }
     }

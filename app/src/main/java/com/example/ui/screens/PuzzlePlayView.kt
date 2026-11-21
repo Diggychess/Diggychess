@@ -87,7 +87,7 @@ fun PuzzlePlayView(
         else -> "Black to play"
     }
     val turnColor = when {
-        state.isFinished || state.correctMoveSquares.isNotEmpty() || state.lastResultOk == true -> AccentGreenHover
+        state.isFinished || state.correctMoveSquares.isNotEmpty() || state.lastResultOk == true -> FeedbackCorrectGreen
         state.isWrongMove || state.lastResultOk == false -> ClassBlunder
         else -> TextPrimary
     }
@@ -134,9 +134,10 @@ fun PuzzlePlayView(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
             border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 // Header: Side to play + ELO
@@ -397,9 +398,10 @@ fun PuzzlePlayView(
 
         // Feedback & Details Card
         Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
             border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(18.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val mateCount = ceil(cur.solution.size / 2.0).toInt()
@@ -411,7 +413,7 @@ fun PuzzlePlayView(
 
                 if (state.feedbackText.isNotEmpty()) {
                     val fbColor = when (state.feedbackOk) {
-                        true -> AccentGreen
+                        true -> FeedbackCorrectGreen
                         false -> ClassBlunder
                         null -> TextPrimary
                     }
@@ -535,8 +537,8 @@ private fun PuzzleMoveFeedbackOverlay(
     eloDelta: Int?,
     onUndo: () -> Unit
 ) {
-    val containerColor = if (isWrong) ClassBlunder.copy(alpha = 0.95f) else AccentGreenDark.copy(alpha = 0.95f)
-    val borderColor = if (isWrong) Color.White.copy(alpha = 0.35f) else AccentGreenHover.copy(alpha = 0.7f)
+    val containerColor = if (isWrong) ClassBlunder.copy(alpha = 0.95f) else FeedbackCorrectGreen.copy(alpha = 0.95f)
+    val borderColor = if (isWrong) Color.White.copy(alpha = 0.35f) else ClassBest.copy(alpha = 0.85f)
 
     Surface(
         color = containerColor,
@@ -783,9 +785,9 @@ private fun PuzzleHintDialog(
                     }
                 } else {
                     Surface(
-                        color = AccentGreen.copy(alpha = 0.12f),
+                        color = FeedbackCorrectGreen.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.55f)),
+                        border = BorderStroke(1.dp, FeedbackCorrectGreen.copy(alpha = 0.55f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("hint_stage2_card")
@@ -798,7 +800,7 @@ private fun PuzzleHintDialog(
                                 text = "STAGE 2 · TARGET & LINE",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = AccentGreenHover
+                                color = ClassBest
                             )
                             if (state.hintFromSquare.isNotEmpty() && state.hintToSquare.isNotEmpty()) {
                                 val sanTag = if (state.hintSanMove.isNotEmpty()) " (${state.hintSanMove})" else ""

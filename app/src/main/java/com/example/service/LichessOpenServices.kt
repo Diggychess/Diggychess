@@ -61,7 +61,7 @@ object LichessOpenServices {
         clockLimitSec: Int = 300,
         clockIncrementSec: Int = 3,
         rated: Boolean = false,
-        name: String = "KnightScope Friendly Match"
+        name: String = "Diggy Chess Friendly Match"
     ): Result<LichessOpenInvite> = withContext(Dispatchers.IO) {
         try {
             val form = FormBody.Builder()

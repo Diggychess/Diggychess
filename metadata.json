@@ -1,6 +1,6 @@
 {
-  "name": "KnightScope",
-  "description": "Chess game analysis, tactical puzzles, opening insights, and friendly matches.",
+  "name": "Diggy Chess",
+  "description": "Royal Gold & Obsidian chess studio with Stockfish play, Chess.com & Lichess game analysis, tactical puzzles, and opening drills.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

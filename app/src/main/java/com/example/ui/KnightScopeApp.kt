@@ -1,10 +1,12 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,12 +44,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -155,20 +160,21 @@ fun KnightScopeApp(
                     Row(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        KnightScopeBrandBadge()
+                        DiggyBrandBadge(size = 36)
                         Column {
                             Text(
                                 text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Chess Studio",
+                                text = "ROYAL GOLD STUDIO",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = AccentGreenHover
+                                color = AccentGreenHover,
+                                letterSpacing = 1.sp
                             )
                         }
                     }
@@ -275,93 +281,81 @@ fun KnightScopeApp(
                     containerColor = Color.Transparent,
                     contentWindowInsets = WindowInsets.safeDrawing,
                     topBar = {
-                        TopAppBar(
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = BgDark.copy(alpha = 0.92f),
-                                titleContentColor = TextPrimary
-                            ),
-                            navigationIcon = {
-                                IconButton(
-                                    onClick = { scope.launch { drawerState.open() } },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .testTag("drawer_menu_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Menu,
-                                        contentDescription = "Open navigation menu",
-                                        tint = TextPrimary
-                                    )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgDark.copy(alpha = 0.88f))
+                        ) {
+                            TopAppBar(
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    titleContentColor = TextPrimary
+                                ),
+                                navigationIcon = {
+                                    IconButton(
+                                        onClick = { scope.launch { drawerState.open() } },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("drawer_menu_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Menu,
+                                            contentDescription = "Open navigation menu",
+                                            tint = AccentGreenHover
+                                        )
+                                    }
+                                },
+                                title = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.clickable { navigateTo(KnightScopeDestination.HOME.route) }
+                                    ) {
+                                        DiggyBrandBadge(size = 32)
+                                        Column {
+                                            Text(
+                                                text = stringResource(R.string.app_name),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "ROYAL STUDIO",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = AccentGreenHover,
+                                                fontSize = 9.sp,
+                                                letterSpacing = 1.2.sp
+                                            )
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    IconButton(
+                                        onClick = { navigateTo(KnightScopeDestination.SETTINGS.route) },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("settings_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Settings,
+                                            contentDescription = stringResource(R.string.tab_settings),
+                                            tint = AccentGreenHover
+                                        )
+                                    }
                                 }
-                            },
-                            title = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.clickable { navigateTo(KnightScopeDestination.HOME.route) }
-                                ) {
-                                    KnightScopeBrandBadge()
-                                    Text(
-                                        text = stringResource(R.string.app_name),
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                }
-                            },
-                            actions = {
-                                IconButton(
-                                    onClick = { navigateTo(KnightScopeDestination.SETTINGS.route) },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .testTag("settings_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Settings,
-                                        contentDescription = stringResource(R.string.tab_settings),
-                                        tint = TextMuted
-                                    )
-                                }
-                            }
-                        )
+                            )
+                            HorizontalDivider(color = LineSubtle)
+                        }
                     },
                     bottomBar = {
                         if (!useRail) {
-                            NavigationBar(
-                                containerColor = SurfaceDark.copy(alpha = 0.96f),
-                                contentColor = TextPrimary,
-                                tonalElevation = 0.dp
-                            ) {
-                                primaryTabs.forEach { tab ->
-                                    val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                                    val label = stringResource(tab.labelRes)
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = { navigateTo(tab.route) },
-                                        icon = {
-                                            Icon(
-                                                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                                contentDescription = label
-                                            )
-                                        },
-                                        label = {
-                                            Text(
-                                                text = label,
-                                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                                maxLines = 1
-                                            )
-                                        },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = AccentGreen,
-                                            selectedTextColor = TextPrimary,
-                                            unselectedIconColor = TextMuted,
-                                            unselectedTextColor = TextMuted,
-                                            indicatorColor = AccentGreen.copy(alpha = 0.16f)
-                                        ),
-                                        modifier = Modifier.testTag(tab.testTag)
-                                    )
-                                }
-                            }
+                            DiggyFloatingBottomDock(
+                                tabs = primaryTabs,
+                                currentDestination = currentDestination,
+                                onSelectTab = { navigateTo(it.route) }
+                            )
                         }
                     }
                 ) { innerPadding ->
@@ -631,32 +625,97 @@ fun KnightScopeApp(
 }
 
 @Composable
-private fun KnightScopeBrandBadge() {
-    val knightColor = OnAccentDark
+private fun DiggyFloatingBottomDock(
+    tabs: List<KnightScopeDestination>,
+    currentDestination: androidx.navigation.NavDestination?,
+    onSelectTab: (KnightScopeDestination) -> Unit
+) {
     Box(
         modifier = Modifier
-            .size(30.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(AccentGreen),
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(22.dp)) {
-            val w = size.width
-            val h = size.height
-            val knight = Path().apply {
-                moveTo(w * 0.24f, h * 0.86f)
-                lineTo(w * 0.78f, h * 0.86f)
-                lineTo(w * 0.74f, h * 0.74f)
-                cubicTo(w * 0.73f, h * 0.44f, w * 0.68f, h * 0.24f, w * 0.50f, h * 0.16f)
-                lineTo(w * 0.44f, h * 0.10f)
-                lineTo(w * 0.40f, h * 0.19f)
-                lineTo(w * 0.22f, h * 0.34f)
-                lineTo(w * 0.25f, h * 0.44f)
-                lineTo(w * 0.40f, h * 0.40f)
-                cubicTo(w * 0.43f, h * 0.50f, w * 0.32f, h * 0.62f, w * 0.28f, h * 0.74f)
-                close()
+        Surface(
+            color = SurfaceDark.copy(alpha = 0.96f),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.34f)),
+            shadowElevation = 14.dp,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 560.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEach { tab ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                    val label = stringResource(tab.labelRes)
+                    val pillBg by animateColorAsState(
+                        targetValue = if (selected) AccentGreen.copy(alpha = 0.18f) else Color.Transparent,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "dockPillBg"
+                    )
+                    val iconTint by animateColorAsState(
+                        targetValue = if (selected) AccentGreenHover else TextMuted,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "dockIconTint"
+                    )
+
+                    Surface(
+                        onClick = { onSelectTab(tab) },
+                        color = pillBg,
+                        shape = RoundedCornerShape(20.dp),
+                        border = if (selected) BorderStroke(1.dp, AccentGreen.copy(alpha = 0.42f)) else null,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 52.dp)
+                            .minimumInteractiveComponentSize()
+                            .testTag(tab.testTag)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                contentDescription = label,
+                                tint = iconTint,
+                                modifier = Modifier.size(21.dp)
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selected) TextPrimary else TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
-            drawPath(knight, color = knightColor)
         }
     }
+}
+
+@Composable
+private fun DiggyBrandBadge(size: Int = 32) {
+    Image(
+        painter = painterResource(id = R.drawable.ic_launcher_art),
+        contentDescription = "Diggy Chess crest",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(size.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .border(1.dp, AccentGreen.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+    )
 }

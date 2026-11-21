@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">KnightScope</string>
+    <string name="app_name">Diggy Chess</string>
     <string name="tab_home">Home</string>
     <string name="tab_play">Play</string>
     <string name="tab_analyse">Analyse</string>
@@ -20,5 +20,5 @@
     <string name="friends_subtitle">No login. Share live online invite links, play over Wi-Fi, or side-by-side.</string>
     <string name="history_title">Analysed History</string>
     <string name="history_subtitle">Analysed games saved locally on this device.</string>
-    <string name="about_title">About KnightScope</string>
+    <string name="about_title">About Diggy Chess</string>
 </resources>

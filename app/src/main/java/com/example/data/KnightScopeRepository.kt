@@ -22,7 +22,7 @@ private val Context.knightScopeDataStore: DataStore<Preferences> by preferencesD
 data class UserProfile(
     val id: String = "local",
     val userId: String = "local",
-    val displayName: String = "KnightScope Player",
+    val displayName: String = "Diggy Chess Player",
     val avatarUrl: String? = null,
     val preferredDifficulty: String = "medium",
     val gamesPlayedBot: Int = 0,
@@ -53,17 +53,17 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_COMPLETED_LESSONS = stringPreferencesKey("ks_completed_lessons")
 
         val STARTER_PUZZLES = listOf(
-            Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-02", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", null, "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", listOf("e8e1"), 0, listOf("Back-rank mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-03", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", null, "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", listOf("h5f7"), 0, listOf("Scholar’s mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-04", "7k/8/6K1/8/8/8/8/R7 w - - 0 1", null, "7k/8/6K1/8/8/8/8/R7 w - - 0 1", listOf("a1a8"), 0, listOf("Rook mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-05", "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", null, "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", listOf("a7g7"), 0, listOf("Queen mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-06", "8/8/8/8/8/5k2/q7/7K b - - 0 1", null, "8/8/8/8/8/5k2/q7/7K b - - 0 1", listOf("a2g2"), 0, listOf("Queen mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-07", "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", null, "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", listOf("b1b8"), 0, listOf("Two-rook mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-08", "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", null, "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", listOf("b8b1"), 0, listOf("Two-rook mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-09", "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", null, "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", listOf("e5f7"), 0, listOf("Smothered mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-10", "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", null, "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", listOf("e4f2"), 0, listOf("Smothered mate", "mate"), true, "KnightScope"),
-            Puzzle("ks-11", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", null, "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", listOf("d8h4"), 0, listOf("Fool’s mate", "mate"), true, "KnightScope")
+            Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-02", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", null, "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", listOf("e8e1"), 0, listOf("Back-rank mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-03", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", null, "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", listOf("h5f7"), 0, listOf("Scholar’s mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-04", "7k/8/6K1/8/8/8/8/R7 w - - 0 1", null, "7k/8/6K1/8/8/8/8/R7 w - - 0 1", listOf("a1a8"), 0, listOf("Rook mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-05", "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", null, "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", listOf("a7g7"), 0, listOf("Queen mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-06", "8/8/8/8/8/5k2/q7/7K b - - 0 1", null, "8/8/8/8/8/5k2/q7/7K b - - 0 1", listOf("a2g2"), 0, listOf("Queen mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-07", "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", null, "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", listOf("b1b8"), 0, listOf("Two-rook mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-08", "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", null, "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", listOf("b8b1"), 0, listOf("Two-rook mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-09", "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", null, "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", listOf("e5f7"), 0, listOf("Smothered mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-10", "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", null, "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", listOf("e4f2"), 0, listOf("Smothered mate", "mate"), true, "Diggy Chess"),
+            Puzzle("ks-11", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", null, "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", listOf("d8h4"), 0, listOf("Fool’s mate", "mate"), true, "Diggy Chess")
         )
     }
 
@@ -130,7 +130,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val boardThemeFlow: Flow<BoardTheme> = context.knightScopeDataStore.data.map { prefs ->
-        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "green")
+        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "royal")
     }
 
     suspend fun setBoardTheme(theme: BoardTheme) {
@@ -600,14 +600,14 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     private fun parseUserProfile(raw: String?): UserProfile {
-        if (raw.isNullOrBlank()) return UserProfile(displayName = "KnightScope Player")
+        if (raw.isNullOrBlank()) return UserProfile(displayName = "Diggy Chess Player")
         return try {
             val o = JSONObject(raw)
             val avatar = o.optString("avatarUrl", "").takeIf { it.isNotBlank() }
             UserProfile(
                 id = "local",
                 userId = "local",
-                displayName = o.optString("displayName", "KnightScope Player").ifBlank { "KnightScope Player" },
+                displayName = o.optString("displayName", "Diggy Chess Player").ifBlank { "Diggy Chess Player" },
                 avatarUrl = avatar,
                 preferredDifficulty = o.optString("preferredDifficulty", "medium"),
                 gamesPlayedBot = o.optInt("gamesPlayedBot", 0),
@@ -616,7 +616,7 @@ class KnightScopeRepository(private val context: Context) {
                 winStreak = o.optInt("winStreak", 0)
             )
         } catch (_: Exception) {
-            UserProfile(displayName = "KnightScope Player")
+            UserProfile(displayName = "Diggy Chess Player")
         }
     }
 

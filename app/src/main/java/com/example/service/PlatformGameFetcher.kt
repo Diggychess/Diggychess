@@ -16,7 +16,7 @@ object PlatformGameFetcher {
         .readTimeout(15000, TimeUnit.MILLISECONDS)
         .build()
 
-    private const val CHESS_COM_USER_AGENT = "KnightScopeAndroid/1.0 (contact@knightscope.app)"
+    private const val CHESS_COM_USER_AGENT = "DiggyChessAndroid/1.0 (contact@diggychess.app)"
 
     suspend fun fetchUserGamesAndStats(
         platform: ChessPlatform,

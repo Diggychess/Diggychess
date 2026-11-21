@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "KnightScope"
+rootProject.name = "Diggy Chess"
 include(":app")

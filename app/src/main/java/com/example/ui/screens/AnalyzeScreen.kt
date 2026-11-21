@@ -501,7 +501,7 @@ fun ShareTextDialog(
                                 putExtra(Intent.EXTRA_TEXT, text)
                                 type = "text/plain"
                             }
-                            context.startActivity(Intent.createChooser(sendIntent, "Share KnightScope analysis"))
+                            context.startActivity(Intent.createChooser(sendIntent, "Share Diggy Chess analysis"))
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
                         modifier = Modifier

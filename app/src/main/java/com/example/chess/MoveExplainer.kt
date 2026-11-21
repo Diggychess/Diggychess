@@ -611,7 +611,7 @@ object MoveExplainer {
         }
 
         return buildList {
-            add("KnightScope game review")
+            add("Diggy Chess game review")
             add("$wName vs $bName")
             if (!result.headers["Result"].isNullOrBlank()) add("Result: ${result.headers["Result"]}")
             if (op.entry != null) add("Opening: ${op.entry.name} (${op.entry.eco})")
