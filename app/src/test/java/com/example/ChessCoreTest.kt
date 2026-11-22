@@ -217,4 +217,100 @@ class ChessCoreTest {
     fun contactSender_isOptionalWithoutSecrets() {
         assertFalse(com.example.service.ContactSender.hasAnyProvider())
     }
+
+    @Test
+    fun diggyDesignTokensAndPlayHelpers_workAsExpected() {
+        assertEquals(com.example.ui.theme.BoardTheme.GOLD, com.example.ui.theme.BoardTheme.fromId("unknown"))
+        assertEquals(com.example.ui.theme.BoardTheme.GOLD, com.example.ui.theme.BoardTheme.fromId("gold"))
+        assertEquals("Gold/Classic", com.example.ui.theme.BoardTheme.GOLD.label)
+        assertEquals("Green/Cream", com.example.ui.theme.BoardTheme.GREEN.label)
+        assertEquals("Blue/Steel", com.example.ui.theme.BoardTheme.BLUE.label)
+        assertEquals("Brown/Wood", com.example.ui.theme.BoardTheme.BROWN.label)
+        assertEquals(com.example.ui.theme.PieceStyle.NEO, com.example.ui.theme.PieceStyle.fromId(null))
+        assertEquals(com.example.ui.theme.PieceStyle.CLASSIC_2D, com.example.ui.theme.PieceStyle.fromId("classic_2d"))
+        assertEquals(com.example.ui.theme.PieceStyle.THREED, com.example.ui.theme.PieceStyle.fromId("3d"))
+
+        val cap = com.example.ui.components.computeCapturedMaterial("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        assertTrue(cap.capturedWhitePieces.isEmpty())
+        assertTrue(cap.capturedBlackPieces.isEmpty())
+        assertEquals(0, cap.whiteAdvantage)
+
+        val capMissingQueen = com.example.ui.components.computeCapturedMaterial("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        assertEquals(listOf(PieceType.QUEEN), capMissingQueen.capturedBlackPieces)
+        assertEquals(9, capMissingQueen.whiteAdvantage)
+
+        assertEquals("3:00", com.example.ui.components.formatClockMillis(180_000L))
+        assertEquals("0:01", com.example.ui.components.formatClockMillis(50L))
+        assertEquals(180_000L, com.example.ui.viewmodel.QuickPlayTimeControl.BLITZ_3.baseMillis)
+        assertNull(com.example.ui.viewmodel.QuickPlayTimeControl.UNTIMED.baseMillis)
+    }
+
+    @Test
+    fun chessAudioAndBoardTransitions_produceValidWoodWavsAndDetectCastling() {
+        val buffers = listOf(
+            com.example.audio.ChessSoundPlayer.moveBuffer,
+            com.example.audio.ChessSoundPlayer.captureBuffer,
+            com.example.audio.ChessSoundPlayer.captureCheckBuffer,
+            com.example.audio.ChessSoundPlayer.castleBuffer,
+            com.example.audio.ChessSoundPlayer.checkBuffer,
+            com.example.audio.ChessSoundPlayer.checkmateBuffer,
+            com.example.audio.ChessSoundPlayer.drawBuffer,
+            com.example.audio.ChessSoundPlayer.pickupBuffer,
+            com.example.audio.ChessSoundPlayer.wrongMoveBuffer,
+            com.example.audio.ChessSoundPlayer.gameEndBuffer
+        )
+        buffers.forEach { buf ->
+            assertTrue("Sound buffer should not be empty", buf.size > 500)
+            assertTrue("Sound buffer should have audible waveform", buf.any { it != 0.toShort() })
+            val wav = com.example.audio.ChessSoundPlayer.buildWavBytes(buf)
+            assertEquals("RIFF", String(wav, 0, 4, Charsets.US_ASCII))
+            assertEquals("WAVE", String(wav, 8, 4, Charsets.US_ASCII))
+            assertEquals("data", String(wav, 36, 4, Charsets.US_ASCII))
+            assertEquals(44 + buf.size * 2, wav.size)
+        }
+
+        // Capture double-clack and checkmate fanfare should be distinctly longer/richer than regular move & draw
+        assertTrue(com.example.audio.ChessSoundPlayer.captureBuffer.size > com.example.audio.ChessSoundPlayer.moveBuffer.size)
+        assertTrue(com.example.audio.ChessSoundPlayer.checkmateBuffer.size > com.example.audio.ChessSoundPlayer.drawBuffer.size)
+        assertFalse(com.example.audio.ChessSoundPlayer.checkmateBuffer.contentEquals(com.example.audio.ChessSoundPlayer.drawBuffer))
+        assertFalse(com.example.audio.ChessSoundPlayer.captureBuffer.contentEquals(com.example.audio.ChessSoundPlayer.moveBuffer))
+
+        val beforeCastle = ChessBoard("r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4")
+        val afterCastle = ChessBoard(beforeCastle.toFen()).apply { makeSanMove("O-O") }
+        assertTrue(com.example.ui.components.isCastlingTransition(beforeCastle, afterCastle))
+
+        val beforeKingStep = ChessBoard("4k3/8/8/8/8/8/8/4K3 w - - 0 1")
+        val afterKingStep = ChessBoard(beforeKingStep.toFen()).apply { makeSanMove("Kf1") }
+        assertFalse(com.example.ui.components.isCastlingTransition(beforeKingStep, afterKingStep))
+    }
+
+    @Test
+    fun gameAnalyzer_parallelBatchedReview_reportsMonotonicProgressAndUnifiedEngineLabel() = runBlocking {
+        val pgn = """
+            [Event "Batch Review"]
+            [White "Alice"]
+            [Black "Stockfish"]
+            [Result "1-0"]
+
+            1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O 1-0
+        """.trimIndent()
+        val analyzer = GameAnalyzer(ChessEngine())
+        val progressEvents = mutableListOf<Pair<Int, Int>>()
+        val res = analyzer.analyze(
+            pgnText = pgn,
+            settings = ReviewSettings(depth = 4, forceReanalyze = true),
+            savedEntry = null,
+            onProgress = { done, total -> synchronized(progressEvents) { progressEvents.add(done to total) } }
+        )
+        assertEquals("Diggy Chess Stockfish Engine", res.engineLabel)
+        assertEquals(7, res.plies.size)
+        assertTrue(progressEvents.isNotEmpty())
+        assertEquals(0, progressEvents.first().first)
+        assertEquals(progressEvents.last().second, progressEvents.last().first)
+        assertEquals("C50", res.openingSummary.entry?.eco)
+        assertTrue(res.summaryStats.whiteAccuracy in 0.0..100.0)
+        assertTrue(res.summaryStats.blackAccuracy in 0.0..100.0)
+    }
 }
+
+

@@ -22,7 +22,7 @@ data class OpeningExplorerUiState(
     val useMastersDb: Boolean = false,
     val isLoadingStats: Boolean = false,
     val stats: ExplorerPositionResult? = null,
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
     val pendingPromotion: Pair<String, String>? = null
 )
 

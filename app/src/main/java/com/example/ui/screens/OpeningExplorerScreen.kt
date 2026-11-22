@@ -7,10 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,8 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
-import com.example.ui.components.ChessBoardView
-import com.example.ui.components.PromotionPickerDialog
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.OpeningExplorerUiState
 import kotlin.math.roundToInt
@@ -49,51 +46,28 @@ fun OpeningExplorerScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Opening Explorer", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
             Text(
-                text = "Tap or drag moves to explore theory, Lichess master/club win rates, and candidate continuations.",
+                text = "Explore opening theory, Lichess master & club win rates, and candidate lines.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
         }
 
-        // Database Toggle & Opening Header
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = !state.useMastersDb,
-                        onClick = { onDatabaseChange(false) },
-                        label = { Text("Club DB (Lichess)") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentGreen.copy(alpha = 0.18f),
-                            selectedLabelColor = AccentGreenHover
-                        ),
-                        modifier = Modifier.testTag("explorer_club_db")
-                    )
-                    FilterChip(
-                        selected = state.useMastersDb,
-                        onClick = { onDatabaseChange(true) },
-                        label = { Text("Masters DB") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = StudioCyan.copy(alpha = 0.18f),
-                            selectedLabelColor = StudioCyan
-                        ),
-                        modifier = Modifier.testTag("explorer_masters_db")
-                    )
-                }
+        // Database Toggle & Interactive Board Card
+        DiggyCard(contentPadding = PaddingValues(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DiggySegmentedControl(
+                    options = listOf(false, true),
+                    selectedOption = state.useMastersDb,
+                    onSelect = onDatabaseChange,
+                    labelFor = { if (it) "Masters DB" else "Club DB (Lichess)" },
+                    tagFor = { if (it) "explorer_masters_db" else "explorer_club_db" }
+                )
 
                 val openingLabel = state.stats?.openingName?.let { name ->
                     val ecoPrefix = state.stats.openingEco?.let { "$it · " }.orEmpty()
@@ -104,7 +78,7 @@ fun OpeningExplorerScreen(
                     text = openingLabel,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = AccentGreenHover
+                    color = AccentGreen
                 )
 
                 if (state.sanHistory.isNotEmpty()) {
@@ -113,7 +87,7 @@ fun OpeningExplorerScreen(
                     }.joinToString(" ")
                     Text(
                         text = pgnPreview,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMonoFontFamily),
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextPrimary
                     )
                 }
@@ -129,66 +103,60 @@ fun OpeningExplorerScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Back",
                         onClick = onUndo,
                         enabled = state.canUndo,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("explorer_undo")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo move", modifier = Modifier.size(16.dp), tint = TextPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Back", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.AutoMirrored.Rounded.Undo,
+                        testTag = "explorer_undo",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Reset",
                         onClick = onReset,
                         enabled = state.canUndo,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("explorer_reset")
-                    ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Reset board", modifier = Modifier.size(16.dp), tint = TextPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Reset", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Refresh,
+                        testTag = "explorer_reset",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Flip",
                         onClick = onToggleFlip,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("explorer_flip")
-                    ) {
-                        Icon(Icons.Filled.Flip, contentDescription = "Flip board", modifier = Modifier.size(16.dp), tint = TextPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Flip", color = TextPrimary)
-                    }
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.SwapVert,
+                        testTag = "explorer_flip",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 if (state.sanHistory.isNotEmpty()) {
-                    Button(
+                    DiggyButton(
+                        text = "Send Line to Analyse Game",
                         onClick = onAnalysePosition,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("explorer_analyse")
-                    ) {
-                        Icon(Icons.Filled.Analytics, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send line to Analyse Game", fontWeight = FontWeight.Bold)
-                    }
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.Rounded.Analytics,
+                        testTag = "explorer_analyse",
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
 
-        // Candidate Moves Table
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Popular Continuations Table
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("POPULAR CONTINUATIONS", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                    Text("Popular Continuations", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     val src = state.stats?.sourceLabel.orEmpty()
                     if (src.isNotEmpty()) {
                         Text(src, style = MaterialTheme.typography.labelSmall, color = StudioCyan)
@@ -196,91 +164,94 @@ fun OpeningExplorerScreen(
                 }
 
                 if (state.isLoadingStats) {
-                    LinearProgressIndicator(
-                        color = StudioCyan,
-                        trackColor = BorderSubtle,
-                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp))
-                    )
-                }
-
-                val moves = state.stats?.moves.orEmpty()
-                if (moves.isEmpty() && !state.isLoadingStats) {
-                    Text(
-                        text = "No database games recorded from this position.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(3) {
+                            DiggySkeletonBox(modifier = Modifier.fillMaxWidth().height(54.dp))
+                        }
+                    }
                 } else {
-                    moves.forEach { mv ->
-                        Surface(
-                            onClick = { onPlayMove(mv.uci) },
-                            color = SurfaceDark,
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, BorderSubtle),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 52.dp)
-                                .testTag("explorer_move_${mv.uci}")
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                    val moves = state.stats?.moves.orEmpty()
+                    if (moves.isEmpty()) {
+                        DiggyEmptyState(
+                            title = "No database games found",
+                            subtitle = "Try switching between Masters DB and Club DB or stepping back a move.",
+                            icon = Icons.Rounded.Explore
+                        )
+                    } else {
+                        moves.forEach { mv ->
+                            Surface(
+                                onClick = { onPlayMove(mv.uci) },
+                                color = CardSurfaceElevated,
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                                border = BorderStroke(1.dp, BorderSubtle),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .testTag("explorer_move_${mv.uci}")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = mv.san,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontFamily = JetBrainsMonoFontFamily),
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                    val meta = if (mv.isOfflineBook) {
-                                        "Built-in book move"
-                                    } else {
-                                        val wPct = (mv.whitePct * 100).roundToInt()
-                                        val dPct = (mv.drawPct * 100).roundToInt()
-                                        val bPct = (mv.blackPct * 100).roundToInt()
-                                        "${mv.totalGames} games · W $wPct% / D $dPct% / B $bPct%"
-                                    }
-                                    Text(
-                                        text = meta,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextMuted,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (!mv.isOfflineBook) {
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(999.dp))
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (mv.whitePct > 0f) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(mv.whitePct.coerceAtLeast(0.02f))
-                                                    .fillMaxHeight()
-                                                    .background(Color(0xFFECEFF1))
-                                            )
+                                        Text(
+                                            text = mv.san,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        val meta = if (mv.isOfflineBook) {
+                                            "Built-in book move"
+                                        } else {
+                                            val wPct = (mv.whitePct * 100).roundToInt()
+                                            val dPct = (mv.drawPct * 100).roundToInt()
+                                            val bPct = (mv.blackPct * 100).roundToInt()
+                                            "${mv.totalGames} games · W $wPct% / D $dPct% / B $bPct%"
                                         }
-                                        if (mv.drawPct > 0f) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(mv.drawPct.coerceAtLeast(0.02f))
-                                                    .fillMaxHeight()
-                                                    .background(Color(0xFF78909C))
-                                            )
-                                        }
-                                        if (mv.blackPct > 0f) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(mv.blackPct.coerceAtLeast(0.02f))
-                                                    .fillMaxHeight()
-                                                    .background(Color(0xFF263238))
-                                            )
+                                        Text(
+                                            text = meta,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    if (!mv.isOfflineBook) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(999.dp))
+                                        ) {
+                                            if (mv.whitePct > 0f) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(mv.whitePct.coerceAtLeast(0.02f))
+                                                        .fillMaxHeight()
+                                                        .background(Color(0xFFECEFF1))
+                                                )
+                                            }
+                                            if (mv.drawPct > 0f) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(mv.drawPct.coerceAtLeast(0.02f))
+                                                        .fillMaxHeight()
+                                                        .background(Color(0xFF78909C))
+                                                )
+                                            }
+                                            if (mv.blackPct > 0f) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(mv.blackPct.coerceAtLeast(0.02f))
+                                                        .fillMaxHeight()
+                                                        .background(Color(0xFF263238))
+                                                )
+                                            }
                                         }
                                     }
                                 }

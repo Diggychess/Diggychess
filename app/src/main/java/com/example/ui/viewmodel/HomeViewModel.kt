@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.KnightScopeRepository
+import com.example.data.RecentPlayGameSummary
 import com.example.data.UserProfile
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,7 +16,8 @@ data class HomeUiState(
     val completedLessonsCount: Int = 0,
     val totalLessonsCount: Int = 6,
     val recentGamesCount: Int = 0,
-    val lastAnalysedTitle: String? = null
+    val lastAnalysedTitle: String? = null,
+    val recentPlayGames: List<RecentPlayGameSummary> = emptyList()
 )
 
 class HomeViewModel(repo: KnightScopeRepository) : ViewModel() {
@@ -52,6 +54,11 @@ class HomeViewModel(repo: KnightScopeRepository) : ViewModel() {
                         lastAnalysedTitle = hist.firstOrNull()?.title
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            repo.recentPlayGamesFlow.collect { played ->
+                _uiState.update { it.copy(recentPlayGames = played) }
             }
         }
     }

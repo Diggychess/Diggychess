@@ -38,7 +38,7 @@ data class OpeningTrainerUiState(
     val feedbackOk: Boolean? = null,
     val coachNote: String = "",
     val isLineComplete: Boolean = false,
-    val boardTheme: BoardTheme = BoardTheme.GREEN
+    val boardTheme: BoardTheme = BoardTheme.GOLD
 )
 
 class OpeningTrainerViewModel(private val repo: KnightScopeRepository) : ViewModel() {

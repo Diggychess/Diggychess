@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.SavedGameEntry
 import com.example.data.KnightScopeRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -20,7 +21,8 @@ data class HistoryUiState(
     val games: List<SavedGameEntry> = emptyList(),
     val sideFilter: String = "both", // "both", "w", "b"
     val pendingDeleteId: String? = null,
-    val report: HistoryReportSummary? = null
+    val report: HistoryReportSummary? = null,
+    val isRefreshing: Boolean = false
 )
 
 class HistoryViewModel(
@@ -48,6 +50,23 @@ class HistoryViewModel(
 
     fun setSideFilter(side: String) {
         viewModelScope.launch { repo.setReportSide(side) }
+    }
+
+    fun refresh() {
+        if (_uiState.value.isRefreshing) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) }
+            val latest = repo.historyFlow.first().sortedByDescending { it.timestamp }
+            val report = computeReport(latest, _uiState.value.sideFilter)
+            delay(320)
+            _uiState.update {
+                it.copy(
+                    games = latest,
+                    report = report,
+                    isRefreshing = false
+                )
+            }
+        }
     }
 
     fun requestDelete(id: String) {

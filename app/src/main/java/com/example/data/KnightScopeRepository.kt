@@ -2,13 +2,15 @@ package com.example.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStoreFile
 import com.example.chess.*
 import com.example.ui.theme.BoardTheme
+import com.example.ui.theme.PieceStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -16,8 +18,32 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.WeakHashMap
 
-private val Context.knightScopeDataStore: DataStore<Preferences> by preferencesDataStore(name = "knightscope_prefs")
+private val dataStoreCacheLock = Any()
+private val dataStoreCache = WeakHashMap<Context, DataStore<Preferences>>()
+
+private fun getKnightScopeDataStore(context: Context): DataStore<Preferences> {
+    val appCtx = context.applicationContext ?: context
+    synchronized(dataStoreCacheLock) {
+        return dataStoreCache.getOrPut(appCtx) {
+            PreferenceDataStoreFactory.create(
+                produceFile = { appCtx.preferencesDataStoreFile("knightscope_prefs") }
+            )
+        }
+    }
+}
+
+data class RecentPlayGameSummary(
+    val id: String,
+    val title: String,
+    val result: String,
+    val timeControlLabel: String,
+    val difficultyLabel: String,
+    val movesCount: Int,
+    val timestamp: Long,
+    val pgn: String
+)
 
 data class UserProfile(
     val id: String = "local",
@@ -32,6 +58,9 @@ data class UserProfile(
 )
 
 class KnightScopeRepository(private val context: Context) {
+
+    private val dataStore: DataStore<Preferences>
+        get() = getKnightScopeDataStore(context)
 
     companion object {
         private val KEY_HISTORY = stringPreferencesKey("ks_hist")
@@ -49,7 +78,13 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_CONTACT_EMAIL = stringPreferencesKey("ks_contact_email")
         private val KEY_DARK_MODE = booleanPreferencesKey("ks_dark_mode")
         private val KEY_PIECE_ANIMATIONS = booleanPreferencesKey("ks_piece_anims")
+        private val KEY_PIECE_STYLE = stringPreferencesKey("ks_piece_style")
+        private val KEY_BOARD_3D = booleanPreferencesKey("ks_board_3d")
+        private val KEY_SOUND_ENABLED = booleanPreferencesKey("ks_sound_enabled")
+        private val KEY_HAPTICS_ENABLED = booleanPreferencesKey("ks_haptics_enabled")
+        private val KEY_RECENT_PLAY_GAMES = stringPreferencesKey("ks_recent_play_games")
         private val KEY_OPENING_STREAK = stringPreferencesKey("ks_opening_streak")
+        private val KEY_BEST_PUZZLE_STREAK = stringPreferencesKey("ks_best_puzzle_streak")
         private val KEY_COMPLETED_LESSONS = stringPreferencesKey("ks_completed_lessons")
 
         val STARTER_PUZZLES = listOf(
@@ -129,15 +164,59 @@ class KnightScopeRepository(private val context: Context) {
         return p.copy(fen = startFen)
     }
 
-    val boardThemeFlow: Flow<BoardTheme> = context.knightScopeDataStore.data.map { prefs ->
-        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "royal")
+    val boardThemeFlow: Flow<BoardTheme> = dataStore.data.map { prefs ->
+        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "gold")
     }
 
     suspend fun setBoardTheme(theme: BoardTheme) {
-        context.knightScopeDataStore.edit { it[KEY_BOARD_THEME] = theme.id }
+        dataStore.edit { it[KEY_BOARD_THEME] = theme.id }
     }
 
-    val settingsFlow: Flow<ReviewSettings> = context.knightScopeDataStore.data.map { prefs ->
+    val pieceStyleFlow: Flow<PieceStyle> = dataStore.data.map { prefs ->
+        PieceStyle.fromId(prefs[KEY_PIECE_STYLE])
+    }
+
+    suspend fun setPieceStyle(style: PieceStyle) {
+        dataStore.edit { it[KEY_PIECE_STYLE] = style.id }
+    }
+
+    val board3dEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_BOARD_3D] ?: false
+    }
+
+    suspend fun setBoard3dEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_BOARD_3D] = enabled }
+    }
+
+    val soundEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SOUND_ENABLED] ?: true
+    }
+
+    suspend fun setSoundEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_SOUND_ENABLED] = enabled }
+    }
+
+    val hapticsEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_HAPTICS_ENABLED] ?: true
+    }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_HAPTICS_ENABLED] = enabled }
+    }
+
+    val recentPlayGamesFlow: Flow<List<RecentPlayGameSummary>> = dataStore.data.map { prefs ->
+        parseRecentPlayGames(prefs[KEY_RECENT_PLAY_GAMES])
+    }
+
+    suspend fun recordPlayGameSummary(summary: RecentPlayGameSummary) {
+        dataStore.edit { prefs ->
+            val current = parseRecentPlayGames(prefs[KEY_RECENT_PLAY_GAMES]).filter { it.id != summary.id }
+            val updated = (listOf(summary) + current).take(20)
+            prefs[KEY_RECENT_PLAY_GAMES] = serializeRecentPlayGames(updated).toString()
+        }
+    }
+
+    val settingsFlow: Flow<ReviewSettings> = dataStore.data.map { prefs ->
         parseSettings(prefs[KEY_SETTINGS])
     }
 
@@ -147,15 +226,15 @@ class KnightScopeRepository(private val context: Context) {
             put("force", s.forceReanalyze)
             put("th", JSONArray(listOf(s.inaccuracyThreshold, s.mistakeThreshold, s.blunderThreshold)))
         }
-        context.knightScopeDataStore.edit { it[KEY_SETTINGS] = obj.toString() }
+        dataStore.edit { it[KEY_SETTINGS] = obj.toString() }
     }
 
-    val historyFlow: Flow<List<SavedGameEntry>> = context.knightScopeDataStore.data.map { prefs ->
+    val historyFlow: Flow<List<SavedGameEntry>> = dataStore.data.map { prefs ->
         parseHistory(prefs[KEY_HISTORY])
     }
 
     suspend fun saveGameToHistory(entry: SavedGameEntry) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = parseHistory(prefs[KEY_HISTORY]).filter { it.id != entry.id }
             val updated = (listOf(entry) + current).take(100)
             prefs[KEY_HISTORY] = serializeHistory(updated).toString()
@@ -163,18 +242,18 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun deleteGameFromHistory(id: String) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = parseHistory(prefs[KEY_HISTORY]).filter { it.id != id }
             prefs[KEY_HISTORY] = serializeHistory(current).toString()
         }
     }
 
-    val puzzleAttemptsFlow: Flow<List<PuzzleAttempt>> = context.knightScopeDataStore.data.map { prefs ->
+    val puzzleAttemptsFlow: Flow<List<PuzzleAttempt>> = dataStore.data.map { prefs ->
         parseAttempts(prefs[KEY_STATS])
     }
 
     suspend fun recordPuzzleAttempt(attempt: PuzzleAttempt) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = parseAttempts(prefs[KEY_STATS]).toMutableList()
             current.add(attempt)
             val trimmed = if (current.size > 2000) current.takeLast(2000) else current
@@ -182,98 +261,111 @@ class KnightScopeRepository(private val context: Context) {
         }
     }
 
-    val puzzleRatingFlow: Flow<PuzzleRatingState> = context.knightScopeDataStore.data.map { prefs ->
+    val puzzleRatingFlow: Flow<PuzzleRatingState> = dataStore.data.map { prefs ->
         parseRatingState(prefs[KEY_RATING])
     }
 
     suspend fun savePuzzleRating(state: PuzzleRatingState) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[KEY_RATING] = serializeRatingState(state).toString()
         }
     }
 
-    val dailyGoalFlow: Flow<Int> = context.knightScopeDataStore.data.map { prefs ->
+    val dailyGoalFlow: Flow<Int> = dataStore.data.map { prefs ->
         prefs[KEY_DAILY_GOAL]?.toIntOrNull() ?: 5
     }
 
     suspend fun setDailyGoal(goal: Int) {
-        context.knightScopeDataStore.edit { it[KEY_DAILY_GOAL] = goal.toString() }
+        dataStore.edit { it[KEY_DAILY_GOAL] = goal.toString() }
     }
 
-    val friendNameFlow: Flow<String> = context.knightScopeDataStore.data.map { prefs ->
+    val friendNameFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_FRIEND_NAME] ?: ""
     }
 
     suspend fun setFriendName(name: String) {
-        context.knightScopeDataStore.edit { it[KEY_FRIEND_NAME] = name }
+        dataStore.edit { it[KEY_FRIEND_NAME] = name }
     }
 
-    val reportSideFlow: Flow<String> = context.knightScopeDataStore.data.map { prefs ->
+    val reportSideFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_REPORT_SIDE] ?: "both"
     }
 
     suspend fun setReportSide(side: String) {
-        context.knightScopeDataStore.edit { it[KEY_REPORT_SIDE] = side }
+        dataStore.edit { it[KEY_REPORT_SIDE] = side }
     }
 
-    val playDifficultyFlow: Flow<EngineDifficulty> = context.knightScopeDataStore.data.map { prefs ->
+    val playDifficultyFlow: Flow<EngineDifficulty> = dataStore.data.map { prefs ->
         EngineDifficulty.fromId(prefs[KEY_PLAY_DIFFICULTY])
     }
 
     suspend fun setPlayDifficulty(difficulty: EngineDifficulty) {
-        context.knightScopeDataStore.edit { it[KEY_PLAY_DIFFICULTY] = difficulty.id }
+        dataStore.edit { it[KEY_PLAY_DIFFICULTY] = difficulty.id }
     }
 
-    val playShowLiveEvalFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+    val playShowLiveEvalFlow: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_PLAY_SHOW_EVAL] ?: true
     }
 
     suspend fun setPlayShowLiveEval(show: Boolean) {
-        context.knightScopeDataStore.edit { it[KEY_PLAY_SHOW_EVAL] = show }
+        dataStore.edit { it[KEY_PLAY_SHOW_EVAL] = show }
     }
 
-    val userProfileFlow: Flow<UserProfile> = context.knightScopeDataStore.data.map { prefs ->
+    val userProfileFlow: Flow<UserProfile> = dataStore.data.map { prefs ->
         parseUserProfile(prefs[KEY_USER_PROFILE])
     }
 
-    val contactEmailFlow: Flow<String> = context.knightScopeDataStore.data.map { prefs ->
+    val contactEmailFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[KEY_CONTACT_EMAIL] ?: ""
     }
 
-    val darkModeFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+    val darkModeFlow: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_DARK_MODE] ?: true
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
-        context.knightScopeDataStore.edit { it[KEY_DARK_MODE] = enabled }
+        dataStore.edit { it[KEY_DARK_MODE] = enabled }
     }
 
-    val pieceAnimationsFlow: Flow<Boolean> = context.knightScopeDataStore.data.map { prefs ->
+    val pieceAnimationsFlow: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_PIECE_ANIMATIONS] ?: true
     }
 
     suspend fun setPieceAnimations(enabled: Boolean) {
-        context.knightScopeDataStore.edit { it[KEY_PIECE_ANIMATIONS] = enabled }
+        dataStore.edit { it[KEY_PIECE_ANIMATIONS] = enabled }
     }
 
-    val openingStreakFlow: Flow<Int> = context.knightScopeDataStore.data.map { prefs ->
+    val openingStreakFlow: Flow<Int> = dataStore.data.map { prefs ->
         prefs[KEY_OPENING_STREAK]?.toIntOrNull() ?: 0
     }
 
     suspend fun updateOpeningStreak(correct: Boolean) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val cur = prefs[KEY_OPENING_STREAK]?.toIntOrNull() ?: 0
             prefs[KEY_OPENING_STREAK] = (if (correct) cur + 1 else 0).toString()
         }
     }
 
-    val completedLessonsFlow: Flow<Set<String>> = context.knightScopeDataStore.data.map { prefs ->
+    val bestPuzzleStreakFlow: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0
+    }
+
+    suspend fun updateBestPuzzleStreak(best: Int) {
+        dataStore.edit { prefs ->
+            val cur = prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0
+            if (best > cur) {
+                prefs[KEY_BEST_PUZZLE_STREAK] = best.toString()
+            }
+        }
+    }
+
+    val completedLessonsFlow: Flow<Set<String>> = dataStore.data.map { prefs ->
         val raw = prefs[KEY_COMPLETED_LESSONS].orEmpty()
         if (raw.isBlank()) emptySet() else raw.split(',').filter { it.isNotBlank() }.toSet()
     }
 
     suspend fun markLessonCompleted(lessonId: String) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val raw = prefs[KEY_COMPLETED_LESSONS].orEmpty()
             val set = raw.split(',').filter { it.isNotBlank() }.toMutableSet()
             set.add(lessonId)
@@ -282,8 +374,8 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun updateProfileDisplayName(displayName: String) {
-        val safeName = displayName.trim().ifBlank { "KnightScope Player" }.take(60)
-        context.knightScopeDataStore.edit { prefs ->
+        val safeName = displayName.trim().ifBlank { "Diggy Chess Player" }.take(60)
+        dataStore.edit { prefs ->
             val current = parseUserProfile(prefs[KEY_USER_PROFILE])
             prefs[KEY_USER_PROFILE] = serializeUserProfile(current.copy(displayName = safeName)).toString()
         }
@@ -291,18 +383,18 @@ class KnightScopeRepository(private val context: Context) {
 
     suspend fun updateProfileAvatarUrl(avatarUrl: String) {
         val safeUrl = avatarUrl.trim().take(800)
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = parseUserProfile(prefs[KEY_USER_PROFILE])
             prefs[KEY_USER_PROFILE] = serializeUserProfile(current.copy(avatarUrl = safeUrl.ifBlank { null })).toString()
         }
     }
 
     suspend fun updateContactEmail(email: String) {
-        context.knightScopeDataStore.edit { it[KEY_CONTACT_EMAIL] = email.trim().take(120) }
+        dataStore.edit { it[KEY_CONTACT_EMAIL] = email.trim().take(120) }
     }
 
     suspend fun recordBotGameResult(playerWon: Boolean) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
             val nextStreak = if (playerWon) (cur.winStreak + 1).coerceAtMost(1_000_000) else 0
             val updated = cur.copy(
@@ -314,7 +406,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun incrementGamesAnalysed() {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
             val updated = cur.copy(gamesAnalysed = (cur.gamesAnalysed + 1).coerceAtMost(1_000_000))
             prefs[KEY_USER_PROFILE] = serializeUserProfile(updated).toString()
@@ -322,7 +414,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun incrementPuzzlesSolved() {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val cur = parseUserProfile(prefs[KEY_USER_PROFILE])
             val updated = cur.copy(puzzlesSolved = (cur.puzzlesSolved + 1).coerceAtMost(1_000_000))
             prefs[KEY_USER_PROFILE] = serializeUserProfile(updated).toString()
@@ -330,12 +422,12 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun getImportedPuzzles(): List<Puzzle> {
-        val raw = context.knightScopeDataStore.data.first()[KEY_IMPORTED_PUZZLES] ?: return emptyList()
+        val raw = dataStore.data.first()[KEY_IMPORTED_PUZZLES] ?: return emptyList()
         return parseImportedPuzzles(raw)
     }
 
     suspend fun addImportedPuzzles(newOnes: List<Puzzle>) {
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val existing = parseImportedPuzzles(prefs[KEY_IMPORTED_PUZZLES])
             val ids = existing.map { it.id }.toSet()
             val merged = (existing + newOnes.filter { it.id !in ids }).takeLast(1500)
@@ -344,7 +436,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun exportBackupJson(): String {
-        val prefs = context.knightScopeDataStore.data.first()
+        val prefs = dataStore.data.first()
         val games = parseHistory(prefs[KEY_HISTORY])
         val stats = parseAttempts(prefs[KEY_STATS])
         val rate = parseRatingState(prefs[KEY_RATING])
@@ -361,7 +453,7 @@ class KnightScopeRepository(private val context: Context) {
         val inStats = if (root.has("stats")) parseAttempts(root.getJSONArray("stats").toString()) else emptyList()
         val inRate = if (root.has("rate")) parseRatingState(root.getJSONObject("rate").toString()) else null
 
-        context.knightScopeDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             // Merge games
             val existingGames = parseHistory(prefs[KEY_HISTORY])
             val seenGame = HashSet<String>()
@@ -630,5 +722,44 @@ class KnightScopeRepository(private val context: Context) {
             put("puzzlesSolved", p.puzzlesSolved)
             put("winStreak", p.winStreak)
         }
+    }
+
+    private fun parseRecentPlayGames(raw: String?): List<RecentPlayGameSummary> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            List(arr.length()) { idx ->
+                val o = arr.getJSONObject(idx)
+                RecentPlayGameSummary(
+                    id = o.optString("id"),
+                    title = o.optString("title", "Diggy Chess Match"),
+                    result = o.optString("res", "*"),
+                    timeControlLabel = o.optString("tc", "Untimed"),
+                    difficultyLabel = o.optString("diff", "Medium"),
+                    movesCount = o.optInt("moves", 0),
+                    timestamp = o.optLong("ts", 0L),
+                    pgn = o.optString("pgn", "")
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun serializeRecentPlayGames(list: List<RecentPlayGameSummary>): JSONArray {
+        val arr = JSONArray()
+        for (g in list) {
+            arr.put(JSONObject().apply {
+                put("id", g.id)
+                put("title", g.title)
+                put("res", g.result)
+                put("tc", g.timeControlLabel)
+                put("diff", g.difficultyLabel)
+                put("moves", g.movesCount)
+                put("ts", g.timestamp)
+                put("pgn", g.pgn)
+            })
+        }
+        return arr
     }
 }

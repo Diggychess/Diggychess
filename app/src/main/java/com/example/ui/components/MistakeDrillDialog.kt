@@ -6,11 +6,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.chess.PieceColor
@@ -49,7 +48,7 @@ fun MistakeDrillDialog(
     ) {
         Surface(
             color = BgDark,
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(DiggySpacing.cardRadius),
             border = BorderStroke(1.dp, BorderSubtle),
             modifier = Modifier
                 .fillMaxWidth(0.95f)
@@ -72,16 +71,15 @@ fun MistakeDrillDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.FitnessCenter,
+                            imageVector = Icons.Rounded.FitnessCenter,
                             contentDescription = null,
                             tint = StudioCyan,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Column {
                             Text(
-                                text = "Practice My Mistakes",
+                                text = "Practice Mistakes",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
@@ -93,24 +91,26 @@ fun MistakeDrillDialog(
                     }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.testTag("drill_close_button")
+                        modifier = Modifier
+                            .size(DiggySpacing.touchTargetMin)
+                            .testTag("drill_close_button")
                     ) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close drill", tint = TextMuted)
+                        Icon(Icons.Rounded.Close, contentDescription = "Close drill", tint = TextMuted, modifier = Modifier.size(24.dp))
                     }
                 }
 
                 // Prompt / Feedback banner
                 Surface(
                     color = when {
-                        drill.solved -> AccentGreen.copy(alpha = 0.16f)
+                        drill.solved -> ClassBest.copy(alpha = 0.16f)
                         drill.wrongAttempt -> ClassBlunder.copy(alpha = 0.16f)
                         else -> SurfaceDark
                     },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(
                         1.dp,
                         when {
-                            drill.solved -> AccentGreen
+                            drill.solved -> ClassBest
                             drill.wrongAttempt -> ClassBlunder
                             else -> BorderSubtle
                         }
@@ -122,7 +122,7 @@ fun MistakeDrillDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = when {
-                            drill.solved -> AccentGreenHover
+                            drill.solved -> ClassBest
                             drill.wrongAttempt -> ClassBlunder
                             else -> TextPrimary
                         },
@@ -149,56 +149,32 @@ fun MistakeDrillDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
+                    DiggyButton(
+                        text = "Hint",
                         onClick = onHint,
                         enabled = !drill.solved,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("drill_hint_button")
-                    ) {
-                        Icon(Icons.Filled.Lightbulb, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(17.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Hint", color = TextPrimary, fontSize = 13.sp)
-                    }
-
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Lightbulb,
+                        testTag = "drill_hint_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Retry",
                         onClick = onRetry,
                         enabled = drill.wrongAttempt || !drill.solved,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("drill_retry_button")
-                    ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(17.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Retry", color = TextPrimary, fontSize = 13.sp)
-                    }
-
-                    Button(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Refresh,
+                        testTag = "drill_retry_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = if (drill.index + 1 >= drill.mistakes.size) "Finish" else "Next",
                         onClick = onNext,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (drill.solved) AccentGreen else CardSurfaceElevated,
-                            contentColor = if (drill.solved) OnAccentDark else TextPrimary
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("drill_next_button")
-                    ) {
-                        Text(
-                            text = if (drill.index + 1 >= drill.mistakes.size) "Finish" else "Next",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(17.dp))
-                    }
+                        variant = if (drill.solved) DiggyButtonVariant.PRIMARY else DiggyButtonVariant.SECONDARY,
+                        icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                        testTag = "drill_next_button",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -102,12 +101,12 @@ fun AboutDialog(
                     color = TextMuted
                 )
                 Text(
-                    text = "Games are analysed on your device and PGNs are never uploaded. When online, Lichess Cloud Eval is queried for fast known positions, with the on-device alpha-beta engine as fallback.",
+                    text = "Games are analysed rapidly with a single unified Stockfish engine and automatic on-device alpha-beta fallback when offline.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
                 Text(
-                    text = "Puzzles come from the Lichess open puzzle database (CC0), bundled directly for offline training.",
+                    text = "Includes offline tactical puzzles, opening explorer tools, and interactive lessons.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
@@ -162,7 +161,8 @@ fun AboutDialog(
                     }
                 }
 
-                // Expandable Contact & Support Section
+                // Expandable Contact & Support Section (only shown when email provider is configured)
+                if (state.contactConfigured) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = SurfaceDark,
@@ -211,34 +211,6 @@ fun AboutDialog(
                                     .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (!state.contactConfigured) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = CardDark,
-                                        border = BorderStroke(1.dp, BorderSubtle),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("contact_unconfigured_notice")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Info,
-                                                contentDescription = "Optional service notice",
-                                                tint = TextMuted,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Text(
-                                                text = "Contact delivery is optional and currently disabled because no email service (Formspree or EmailJS) is configured.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = TextMuted
-                                            )
-                                        }
-                                    }
-                                }
 
                                 OutlinedTextField(
                                     value = senderName,
@@ -336,6 +308,7 @@ fun AboutDialog(
                         }
                     }
                 }
+                }
 
                 OutlinedButton(
                     onClick = onRunSelfTest,
@@ -368,7 +341,7 @@ fun AboutDialog(
                 }
 
                 Text(
-                    text = "Sources & licenses: Lichess puzzle database (CC0) · Lichess cloud-eval API · Cburnett-inspired vector pieces (CC BY-SA 3.0) · Inter & JetBrains Mono fonts (OFL). Opening names come from a built-in list of 80+ common openings.",
+                    text = "Diggy Chess · Vector pieces inspired by Cburnett (CC BY-SA 3.0) · Inter Typography (OFL 1.1).",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )

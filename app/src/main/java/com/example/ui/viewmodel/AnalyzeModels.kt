@@ -59,7 +59,7 @@ data class MistakeDrillState(
 data class AnalyzeUiState(
     val pgnText: String = "",
     val settings: ReviewSettings = ReviewSettings(),
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
     val isAnalyzing: Boolean = false,
     val progressDone: Int = 0,
     val progressTotal: Int = 0,

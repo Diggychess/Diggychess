@@ -1,6 +1,7 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,34 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.outlined.Analytics
-import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material.icons.outlined.FitnessCenter
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -66,27 +46,27 @@ import com.example.data.KnightScopeRepository
 import com.example.ui.screens.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class KnightScopeDestination(
     val route: String,
     val labelRes: Int,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
+    val icon: ImageVector,
     val testTag: String,
     val primaryTab: Boolean,
     val sectionLabel: String
 ) {
-    HOME("home", R.string.tab_home, Icons.Filled.Home, Icons.Outlined.Home, "nav_home", true, "CORE"),
-    PLAY("play", R.string.tab_play, Icons.Filled.SmartToy, Icons.Outlined.SmartToy, "nav_play", true, "CORE"),
-    ANALYSE("analyse", R.string.tab_analyse, Icons.Filled.Analytics, Icons.Outlined.Analytics, "nav_analyse", true, "CORE"),
-    PUZZLES("puzzles", R.string.tab_puzzles, Icons.Filled.Extension, Icons.Outlined.Extension, "nav_puzzles", true, "CORE"),
-    HISTORY("history", R.string.tab_history, Icons.Filled.History, Icons.Outlined.History, "nav_history", true, "CORE"),
-    FRIENDS("friends", R.string.tab_friends, Icons.Filled.Group, Icons.Outlined.Group, "nav_friends", false, "PLAY & STUDY"),
-    EXPLORER("explorer", R.string.tab_explorer, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_explorer", false, "PLAY & STUDY"),
-    TRAINER("trainer", R.string.tab_trainer, Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter, "nav_trainer", false, "PLAY & STUDY"),
-    LESSONS("lessons", R.string.tab_lessons, Icons.Filled.School, Icons.Outlined.School, "nav_lessons", false, "PLAY & STUDY"),
-    SETTINGS("settings", R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings, "nav_settings", false, "PREFERENCES")
+    HOME("home", R.string.tab_home, Icons.Rounded.Home, "nav_home", true, "Core"),
+    PLAY("play", R.string.tab_play, Icons.Rounded.SmartToy, "nav_play", true, "Core"),
+    ANALYSE("analyse", R.string.tab_analyse, Icons.Rounded.Analytics, "nav_analyse", true, "Core"),
+    PUZZLES("puzzles", R.string.tab_puzzles, Icons.Rounded.Extension, "nav_puzzles", true, "Core"),
+    HISTORY("history", R.string.tab_history, Icons.Rounded.History, "nav_history", true, "Core"),
+    FRIENDS("friends", R.string.tab_friends, Icons.Rounded.Group, "nav_friends", false, "Play & Study"),
+    EXPLORER("explorer", R.string.tab_explorer, Icons.Rounded.Explore, "nav_explorer", false, "Play & Study"),
+    TRAINER("trainer", R.string.tab_trainer, Icons.Rounded.FitnessCenter, "nav_trainer", false, "Play & Study"),
+    LESSONS("lessons", R.string.tab_lessons, Icons.Rounded.School, "nav_lessons", false, "Play & Study"),
+    SETTINGS("settings", R.string.tab_settings, Icons.Rounded.Settings, "nav_settings", false, "Preferences")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,6 +104,14 @@ fun KnightScopeApp(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    var showSplash by rememberSaveable { mutableStateOf(true) }
+    LaunchedEffect(showSplash) {
+        if (showSplash) {
+            delay(950)
+            showSplash = false
+        }
+    }
+
     fun navigateTo(route: String) {
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) {
@@ -143,481 +131,511 @@ fun KnightScopeApp(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = SurfaceDark,
-                drawerContentColor = TextPrimary,
-                modifier = Modifier.widthIn(max = 300.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 12.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = SurfaceDark,
+                    drawerContentColor = TextPrimary,
+                    modifier = Modifier.widthIn(max = 300.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 16.dp)
                     ) {
-                        DiggyBrandBadge(size = 36)
-                        Column {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            DiggyBrandBadge(size = 44)
                             Text(
                                 text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontSize = 21.sp,
                                 color = TextPrimary
                             )
-                            Text(
-                                text = "ROYAL GOLD STUDIO",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AccentGreenHover,
-                                letterSpacing = 1.sp
-                            )
                         }
-                    }
 
-                    HorizontalDivider(color = LineSubtle, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = LineSubtle, modifier = Modifier.padding(vertical = 12.dp))
 
-                    val sections = listOf("CORE", "PLAY & STUDY", "PREFERENCES")
-                    sections.forEach { sec ->
-                        Text(
-                            text = sec,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-                        )
-                        KnightScopeDestination.entries
-                            .filter { it.sectionLabel == sec }
-                            .forEach { dest ->
-                                val selected = currentDestination?.hierarchy?.any { it.route == dest.route } == true
-                                val label = stringResource(dest.labelRes)
-                                NavigationDrawerItem(
-                                    selected = selected,
-                                    onClick = { navigateTo(dest.route) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = if (selected) dest.selectedIcon else dest.unselectedIcon,
-                                            contentDescription = label
-                                        )
-                                    },
-                                    label = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium) },
-                                    colors = NavigationDrawerItemDefaults.colors(
-                                        selectedContainerColor = AccentGreen.copy(alpha = 0.16f),
-                                        selectedIconColor = AccentGreenHover,
-                                        selectedTextColor = TextPrimary,
-                                        unselectedIconColor = TextMuted,
-                                        unselectedTextColor = TextMuted
-                                    ),
-                                    modifier = Modifier
-                                        .padding(horizontal = 12.dp, vertical = 2.dp)
-                                        .testTag("drawer_${dest.route}")
-                                )
-                            }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        val sections = listOf("Core", "Play & Study", "Preferences")
+                        sections.forEach { sec ->
+                            Text(
+                                text = sec.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextMuted,
+                                letterSpacing = 0.8.sp,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                            KnightScopeDestination.entries
+                                .filter { it.sectionLabel == sec }
+                                .forEach { dest ->
+                                    val selected = currentDestination?.hierarchy?.any { it.route == dest.route } == true
+                                    val label = stringResource(dest.labelRes)
+                                    DiggyDrawerItem(
+                                        label = label,
+                                        icon = dest.icon,
+                                        selected = selected,
+                                        onClick = { navigateTo(dest.route) },
+                                        testTag = "drawer_${dest.route}"
+                                    )
+                                }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
                     }
                 }
             }
-        }
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(BgRadialTop, BgDark),
-                        center = Offset(400f, 0f),
-                        radius = 1200f
-                    )
-                )
         ) {
-            val useRail = maxWidth >= 840.dp
-            val primaryTabs = remember { KnightScopeDestination.entries.filter { it.primaryTab } }
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BgDark)
+            ) {
+                val useRail = maxWidth >= 840.dp
+                val primaryTabs = remember { KnightScopeDestination.entries.filter { it.primaryTab } }
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                if (useRail) {
-                    NavigationRail(
-                        containerColor = SurfaceDark.copy(alpha = 0.94f),
-                        contentColor = TextPrimary,
-                        modifier = Modifier.border(width = 1.dp, color = LineSubtle)
-                    ) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        IconButton(
-                            onClick = { scope.launch { drawerState.open() } },
-                            modifier = Modifier.size(48.dp).testTag("rail_menu_button")
+                Row(modifier = Modifier.fillMaxSize()) {
+                    if (useRail) {
+                        NavigationRail(
+                            containerColor = SurfaceDark,
+                            contentColor = TextPrimary,
+                            modifier = Modifier.border(width = 1.dp, color = LineSubtle)
                         ) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = TextPrimary)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        primaryTabs.forEach { tab ->
-                            val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                            val label = stringResource(tab.labelRes)
-                            NavigationRailItem(
-                                selected = selected,
-                                onClick = { navigateTo(tab.route) },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = label
-                                    )
-                                },
-                                label = { Text(label) },
-                                colors = NavigationRailItemDefaults.colors(
-                                    selectedIconColor = AccentGreen,
-                                    selectedTextColor = TextPrimary,
-                                    unselectedIconColor = TextMuted,
-                                    unselectedTextColor = TextMuted,
-                                    indicatorColor = AccentGreen.copy(alpha = 0.16f)
-                                ),
-                                modifier = Modifier.testTag(tab.testTag)
-                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier
+                                    .size(DiggySpacing.touchTargetMin)
+                                    .testTag("rail_menu_button")
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Menu,
+                                    contentDescription = "Open menu",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            primaryTabs.forEach { tab ->
+                                val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                                val label = stringResource(tab.labelRes)
+                                NavigationRailItem(
+                                    selected = selected,
+                                    onClick = { navigateTo(tab.route) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = label,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    },
+                                    label = { Text(label, fontSize = 12.sp) },
+                                    colors = NavigationRailItemDefaults.colors(
+                                        selectedIconColor = AccentGreen,
+                                        selectedTextColor = AccentGreen,
+                                        unselectedIconColor = TextMuted,
+                                        unselectedTextColor = TextMuted,
+                                        indicatorColor = AccentGreen.copy(alpha = 0.16f)
+                                    ),
+                                    modifier = Modifier.testTag(tab.testTag)
+                                )
+                            }
                         }
                     }
-                }
 
-                Scaffold(
-                    containerColor = Color.Transparent,
-                    contentWindowInsets = WindowInsets.safeDrawing,
-                    topBar = {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(BgDark.copy(alpha = 0.88f))
-                        ) {
-                            TopAppBar(
-                                colors = TopAppBarDefaults.topAppBarColors(
-                                    containerColor = Color.Transparent,
-                                    titleContentColor = TextPrimary
-                                ),
-                                navigationIcon = {
-                                    IconButton(
-                                        onClick = { scope.launch { drawerState.open() } },
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("drawer_menu_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Menu,
-                                            contentDescription = "Open navigation menu",
-                                            tint = AccentGreenHover
-                                        )
-                                    }
-                                },
-                                title = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        modifier = Modifier.clickable { navigateTo(KnightScopeDestination.HOME.route) }
-                                    ) {
-                                        DiggyBrandBadge(size = 32)
-                                        Column {
+                    Scaffold(
+                        containerColor = Color.Transparent,
+                        contentWindowInsets = WindowInsets.safeDrawing,
+                        topBar = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgDark)
+                            ) {
+                                TopAppBar(
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = Color.Transparent,
+                                        titleContentColor = TextPrimary
+                                    ),
+                                    navigationIcon = {
+                                        IconButton(
+                                            onClick = { scope.launch { drawerState.open() } },
+                                            modifier = Modifier
+                                                .size(DiggySpacing.touchTargetMin)
+                                                .testTag("drawer_menu_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Menu,
+                                                contentDescription = "Open navigation menu",
+                                                tint = TextPrimary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    },
+                                    title = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.clickable { navigateTo(KnightScopeDestination.HOME.route) }
+                                        ) {
+                                            DiggyBrandBadge(size = 32)
                                             Text(
                                                 text = stringResource(R.string.app_name),
                                                 style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
                                                 color = TextPrimary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                            Text(
-                                                text = "ROYAL STUDIO",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = AccentGreenHover,
-                                                fontSize = 9.sp,
-                                                letterSpacing = 1.2.sp
+                                        }
+                                    },
+                                    actions = {
+                                        IconButton(
+                                            onClick = { navigateTo(KnightScopeDestination.SETTINGS.route) },
+                                            modifier = Modifier
+                                                .size(DiggySpacing.touchTargetMin)
+                                                .testTag("settings_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Settings,
+                                                contentDescription = stringResource(R.string.tab_settings),
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(24.dp)
                                             )
                                         }
                                     }
-                                },
-                                actions = {
-                                    IconButton(
-                                        onClick = { navigateTo(KnightScopeDestination.SETTINGS.route) },
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("settings_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Settings,
-                                            contentDescription = stringResource(R.string.tab_settings),
-                                            tint = AccentGreenHover
-                                        )
-                                    }
+                                )
+                                HorizontalDivider(color = LineSubtle)
+                            }
+                        },
+                        bottomBar = {
+                            if (!useRail) {
+                                DiggyBottomNavBar(
+                                    tabs = primaryTabs,
+                                    currentDestination = currentDestination,
+                                    onSelectTab = { navigateTo(it.route) }
+                                )
+                            }
+                        }
+                    ) { innerPadding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = KnightScopeDestination.HOME.route,
+                            enterTransition = { fadeIn(animationSpec = tween(200)) },
+                            exitTransition = { fadeOut(animationSpec = tween(200)) },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        ) {
+                            composable(KnightScopeDestination.HOME.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    HomeScreen(
+                                        state = homeState,
+                                        hasActivePlayGame = playState.inGame,
+                                        onNavigate = { route -> navigateTo(route) },
+                                        onStartDailyPuzzle = {
+                                            puzzlesVm.startDaily()
+                                            navigateTo(KnightScopeDestination.PUZZLES.route)
+                                        },
+                                        onContinuePlay = {
+                                            navigateTo(KnightScopeDestination.PLAY.route)
+                                        },
+                                        onAnalysePgn = { pgn ->
+                                            analyzeVm.loadAndAnalyzePgn(pgn)
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        modifier = Modifier.widthIn(max = 860.dp)
+                                    )
                                 }
-                            )
-                            HorizontalDivider(color = LineSubtle)
-                        }
-                    },
-                    bottomBar = {
-                        if (!useRail) {
-                            DiggyFloatingBottomDock(
-                                tabs = primaryTabs,
-                                currentDestination = currentDestination,
-                                onSelectTab = { navigateTo(it.route) }
-                            )
-                        }
-                    }
-                ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = KnightScopeDestination.HOME.route,
-                        enterTransition = { fadeIn(animationSpec = tween(200)) },
-                        exitTransition = { fadeOut(animationSpec = tween(200)) },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        composable(KnightScopeDestination.HOME.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                HomeScreen(
-                                    state = homeState,
-                                    onNavigate = { route -> navigateTo(route) },
-                                    onStartDailyPuzzle = {
-                                        puzzlesVm.startDaily()
-                                        navigateTo(KnightScopeDestination.PUZZLES.route)
-                                    },
-                                    modifier = Modifier.widthIn(max = 860.dp)
-                                )
                             }
-                        }
 
-                        composable(KnightScopeDestination.PLAY.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                PlayScreen(
-                                    state = playState,
-                                    onSelectDifficulty = playVm::setDifficulty,
-                                    onSelectColor = playVm::selectColorChoice,
-                                    onToggleLiveEval = playVm::setShowLiveEval,
-                                    onStartGame = { playVm.startGame() },
-                                    onSquareClick = playVm::onSquareClick,
-                                    onSelectPromotion = playVm::selectPromotion,
-                                    onDismissPromotion = playVm::dismissPromotion,
-                                    onHint = playVm::requestHint,
-                                    onTakeback = playVm::takeback,
-                                    onFlip = playVm::toggleFlip,
-                                    onResign = playVm::resign,
-                                    onRematch = playVm::rematch,
-                                    onAnalyseGame = {
-                                        val pgn = playVm.buildFinishedPgn()
-                                        analyzeVm.loadAndAnalyzePgn(pgn)
-                                        navigateTo(KnightScopeDestination.ANALYSE.route)
-                                    },
-                                    onLeaveGame = playVm::leaveGame,
-                                    modifier = Modifier.widthIn(max = 760.dp)
-                                )
+                            composable(KnightScopeDestination.PLAY.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    PlayScreen(
+                                        state = playState,
+                                        onSelectDifficulty = playVm::setDifficulty,
+                                        onSelectColor = playVm::selectColorChoice,
+                                        onSelectTimeControl = playVm::selectTimeControl,
+                                        onStartQuickPlay = playVm::startQuickPlay,
+                                        onToggleLiveEval = playVm::setShowLiveEval,
+                                        onStartGame = { playVm.startGame() },
+                                        onSquareClick = playVm::onSquareClick,
+                                        onSelectPromotion = playVm::selectPromotion,
+                                        onDismissPromotion = playVm::dismissPromotion,
+                                        onHint = playVm::requestHint,
+                                        onTakeback = playVm::takeback,
+                                        onFlip = playVm::toggleFlip,
+                                        onResign = playVm::resign,
+                                        onRematch = playVm::rematch,
+                                        onAnalyseGame = {
+                                            val pgn = playVm.buildFinishedPgn()
+                                            analyzeVm.loadAndAnalyzePgn(pgn)
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        onAnalyseRecentPgn = { pgn ->
+                                            analyzeVm.loadAndAnalyzePgn(pgn)
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        onLeaveGame = playVm::leaveGame,
+                                        modifier = Modifier.widthIn(max = 760.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.ANALYSE.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                AnalyzeScreen(
-                                    state = analyzeState,
-                                    onPgnChange = analyzeVm::updatePgn,
-                                    onAnalyze = { analyzeVm.analyzeGame() },
-                                    onTrySample = analyzeVm::trySample,
-                                    onSharePgn = { analyzeVm.openShare(forceAnalysis = false) },
-                                    onShareAnalysis = { analyzeVm.openShare(forceAnalysis = true) },
-                                    onDismissShare = analyzeVm::closeShare,
-                                    onOpenRecent = analyzeVm::openFromHistory,
-                                    onGoToPly = analyzeVm::goToPly,
-                                    onToggleBestMove = analyzeVm::toggleBestMove,
-                                    onToggleFlip = analyzeVm::toggleFlip,
-                                    onBoardThemeChange = analyzeVm::setBoardTheme,
-                                    onOpenImporter = analyzeVm::openImporterSheet,
-                                    onCloseImporter = analyzeVm::closeImporterSheet,
-                                    onSelectImportPlatform = analyzeVm::setImportPlatform,
-                                    onImportUsernameChange = analyzeVm::updateImportUsername,
-                                    onFetchPlatformGames = analyzeVm::fetchPlatformGames,
-                                    onSpeedFilter = analyzeVm::setImportSpeedFilter,
-                                    onResultFilter = analyzeVm::setImportResultFilter,
-                                    onColorFilter = analyzeVm::setImportColorFilter,
-                                    onAnalyzeImportedGame = analyzeVm::importAndAnalyzeGame,
-                                    onBoardSquareClick = analyzeVm::onBoardSquareClick,
-                                    onSelectVariationPromotion = analyzeVm::selectVariationPromotion,
-                                    onDismissVariationPromotion = analyzeVm::dismissVariationPromotion,
-                                    onPlayEngineLineMove = analyzeVm::playEngineLineMoves,
-                                    onStepVariation = analyzeVm::stepToVariationIndex,
-                                    onUndoVariation = analyzeVm::undoVariationMove,
-                                    onExitVariation = analyzeVm::exitVariation,
-                                    onPracticeMistakes = analyzeVm::startMistakeDrill,
-                                    onDrillSquareClick = analyzeVm::onDrillSquareClick,
-                                    onDrillPromotion = analyzeVm::selectDrillPromotion,
-                                    onDismissDrillPromotion = analyzeVm::dismissDrillPromotion,
-                                    onDrillHint = analyzeVm::revealDrillHint,
-                                    onDrillRetry = analyzeVm::retryCurrentMistake,
-                                    onDrillNext = analyzeVm::nextMistakeDrill,
-                                    onCloseDrill = analyzeVm::closeMistakeDrill,
-                                    modifier = Modifier.widthIn(max = 1040.dp)
-                                )
+                            composable(KnightScopeDestination.ANALYSE.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    AnalyzeScreen(
+                                        state = analyzeState,
+                                        onPgnChange = analyzeVm::updatePgn,
+                                        onAnalyze = { analyzeVm.analyzeGame() },
+                                        onTrySample = analyzeVm::trySample,
+                                        onSharePgn = { analyzeVm.openShare(forceAnalysis = false) },
+                                        onShareAnalysis = { analyzeVm.openShare(forceAnalysis = true) },
+                                        onDismissShare = analyzeVm::closeShare,
+                                        onOpenRecent = analyzeVm::openFromHistory,
+                                        onGoToPly = analyzeVm::goToPly,
+                                        onToggleBestMove = analyzeVm::toggleBestMove,
+                                        onToggleFlip = analyzeVm::toggleFlip,
+                                        onBoardThemeChange = analyzeVm::setBoardTheme,
+                                        onOpenImporter = analyzeVm::openImporterSheet,
+                                        onCloseImporter = analyzeVm::closeImporterSheet,
+                                        onSelectImportPlatform = analyzeVm::setImportPlatform,
+                                        onImportUsernameChange = analyzeVm::updateImportUsername,
+                                        onFetchPlatformGames = analyzeVm::fetchPlatformGames,
+                                        onSpeedFilter = analyzeVm::setImportSpeedFilter,
+                                        onResultFilter = analyzeVm::setImportResultFilter,
+                                        onColorFilter = analyzeVm::setImportColorFilter,
+                                        onAnalyzeImportedGame = analyzeVm::importAndAnalyzeGame,
+                                        onBoardSquareClick = analyzeVm::onBoardSquareClick,
+                                        onSelectVariationPromotion = analyzeVm::selectVariationPromotion,
+                                        onDismissVariationPromotion = analyzeVm::dismissVariationPromotion,
+                                        onPlayEngineLineMove = analyzeVm::playEngineLineMoves,
+                                        onStepVariation = analyzeVm::stepToVariationIndex,
+                                        onUndoVariation = analyzeVm::undoVariationMove,
+                                        onExitVariation = analyzeVm::exitVariation,
+                                        onPracticeMistakes = analyzeVm::startMistakeDrill,
+                                        onDrillSquareClick = analyzeVm::onDrillSquareClick,
+                                        onDrillPromotion = analyzeVm::selectDrillPromotion,
+                                        onDismissDrillPromotion = analyzeVm::dismissDrillPromotion,
+                                        onDrillHint = analyzeVm::revealDrillHint,
+                                        onDrillRetry = analyzeVm::retryCurrentMistake,
+                                        onDrillNext = analyzeVm::nextMistakeDrill,
+                                        onCloseDrill = analyzeVm::closeMistakeDrill,
+                                        modifier = Modifier.widthIn(max = 1040.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.PUZZLES.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                PuzzlesScreen(
-                                    state = puzzlesState,
-                                    levelSolvedCount = puzzlesVm::levelSolvedCount,
-                                    isLevelUnlocked = puzzlesVm::isLevelUnlocked,
-                                    levelPuzzleCount = puzzlesVm::levelPuzzleCount,
-                                    onStartRated = puzzlesVm::startRated,
-                                    onSetStartingRating = puzzlesVm::setStartingRating,
-                                    onStartLevel = puzzlesVm::startLevel,
-                                    onToggleCategory = puzzlesVm::toggleCategory,
-                                    onSelectTheme = puzzlesVm::setThemeFilter,
-                                    onStartPractice = puzzlesVm::startPractice,
-                                    onStartQuickDifficulty = puzzlesVm::startQuickDifficulty,
-                                    onStartDaily = puzzlesVm::startDaily,
-                                    onStartRandom = puzzlesVm::startRandom,
-                                    onStartTimed = puzzlesVm::startTimed,
-                                    onStartReviewMistakes = puzzlesVm::startReviewMistakes,
-                                    onStartMyGameMistakes = puzzlesVm::startMyGameMistakes,
-                                    onSetDailyGoal = puzzlesVm::setDailyGoal,
-                                    onImportCsv = puzzlesVm::importCsvText,
-                                    onSquareClick = puzzlesVm::onSquareClick,
-                                    onSelectPromotion = puzzlesVm::selectPromotion,
-                                    onDismissPromotion = puzzlesVm::dismissPromotion,
-                                    onRestartPuzzle = puzzlesVm::restartPuzzle,
-                                    onUndoPuzzle = puzzlesVm::undoPuzzleMove,
-                                    onHintPuzzle = puzzlesVm::showHint,
-                                    onRevealHintDestination = puzzlesVm::revealDestinationHint,
-                                    onDismissHintModal = puzzlesVm::dismissHintModal,
-                                    onNextPuzzle = puzzlesVm::requestNextPuzzle,
-                                    onConfirmSkip = puzzlesVm::confirmSkipPuzzle,
-                                    onDismissSkip = puzzlesVm::dismissSkipDialog,
-                                    onToggleFlip = puzzlesVm::toggleFlip,
-                                    onBackToMenu = puzzlesVm::backToMenu,
-                                    modifier = Modifier.widthIn(max = 920.dp)
-                                )
+                            composable(KnightScopeDestination.PUZZLES.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    PuzzlesScreen(
+                                        state = puzzlesState,
+                                        levelSolvedCount = puzzlesVm::levelSolvedCount,
+                                        isLevelUnlocked = puzzlesVm::isLevelUnlocked,
+                                        levelPuzzleCount = puzzlesVm::levelPuzzleCount,
+                                        onStartRated = puzzlesVm::startRated,
+                                        onSetStartingRating = puzzlesVm::setStartingRating,
+                                        onStartLevel = puzzlesVm::startLevel,
+                                        onToggleCategory = puzzlesVm::toggleCategory,
+                                        onSelectTheme = puzzlesVm::setThemeFilter,
+                                        onStartPractice = puzzlesVm::startPractice,
+                                        onStartQuickDifficulty = puzzlesVm::startQuickDifficulty,
+                                        onStartDaily = puzzlesVm::startDaily,
+                                        onStartRandom = puzzlesVm::startRandom,
+                                        onStartTimed = puzzlesVm::startTimed,
+                                        onStartReviewMistakes = puzzlesVm::startReviewMistakes,
+                                        onStartMyGameMistakes = puzzlesVm::startMyGameMistakes,
+                                        onSetDailyGoal = puzzlesVm::setDailyGoal,
+                                        onImportCsv = puzzlesVm::importCsvText,
+                                        onSquareClick = puzzlesVm::onSquareClick,
+                                        onSelectPromotion = puzzlesVm::selectPromotion,
+                                        onDismissPromotion = puzzlesVm::dismissPromotion,
+                                        onRestartPuzzle = puzzlesVm::restartPuzzle,
+                                        onUndoPuzzle = puzzlesVm::undoPuzzleMove,
+                                        onHintPuzzle = puzzlesVm::showHint,
+                                        onRevealHintDestination = puzzlesVm::revealDestinationHint,
+                                        onDismissHintModal = puzzlesVm::dismissHintModal,
+                                        onNextPuzzle = puzzlesVm::requestNextPuzzle,
+                                        onConfirmSkip = puzzlesVm::confirmSkipPuzzle,
+                                        onDismissSkip = puzzlesVm::dismissSkipDialog,
+                                        onToggleFlip = puzzlesVm::toggleFlip,
+                                        onBackToMenu = puzzlesVm::backToMenu,
+                                        modifier = Modifier.widthIn(max = 920.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.FRIENDS.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                FriendsScreen(
-                                    state = friendsState,
-                                    onMyNameChange = friendsVm::updateMyName,
-                                    onOpponentNameChange = friendsVm::updateOpponentNameInput,
-                                    onSelectColor = friendsVm::selectColorChoice,
-                                    onSelectTimeControl = friendsVm::selectTimeControl,
-                                    onCreateOnlineInvite = friendsVm::createOnlineInvite,
-                                    onClearOnlineInvite = friendsVm::clearOnlineInvite,
-                                    onJoinAddressChange = friendsVm::updateJoinAddress,
-                                    onStartPassAndPlay = friendsVm::startPassAndPlay,
-                                    onHostWifiMatch = friendsVm::hostWifiMatch,
-                                    onJoinWifiMatch = friendsVm::joinWifiMatch,
-                                    onSquareClick = friendsVm::onSquareClick,
-                                    onSelectPromotion = friendsVm::selectPromotion,
-                                    onDismissPromotion = friendsVm::dismissPromotion,
-                                    onToggleFlip = friendsVm::toggleFlip,
-                                    onOfferDraw = friendsVm::offerDraw,
-                                    onAcceptDraw = friendsVm::acceptDraw,
-                                    onDeclineDraw = friendsVm::declineDraw,
-                                    onResign = friendsVm::resign,
-                                    onRematch = friendsVm::requestRematch,
-                                    onBuildPgn = friendsVm::buildFinishedPgn,
-                                    onAnalyseGame = {
-                                        val pgn = friendsVm.buildFinishedPgn()
-                                        analyzeVm.loadAndAnalyzePgn(pgn)
-                                        navigateTo(KnightScopeDestination.ANALYSE.route)
-                                    },
-                                    onLeaveGame = friendsVm::leaveGame,
-                                    modifier = Modifier.widthIn(max = 760.dp)
-                                )
+                            composable(KnightScopeDestination.FRIENDS.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    FriendsScreen(
+                                        state = friendsState,
+                                        onMyNameChange = friendsVm::updateMyName,
+                                        onOpponentNameChange = friendsVm::updateOpponentNameInput,
+                                        onSelectColor = friendsVm::selectColorChoice,
+                                        onSelectTimeControl = friendsVm::selectTimeControl,
+                                        onCreateOnlineInvite = friendsVm::createOnlineInvite,
+                                        onClearOnlineInvite = friendsVm::clearOnlineInvite,
+                                        onJoinAddressChange = friendsVm::updateJoinAddress,
+                                        onStartPassAndPlay = friendsVm::startPassAndPlay,
+                                        onHostWifiMatch = friendsVm::hostWifiMatch,
+                                        onJoinWifiMatch = friendsVm::joinWifiMatch,
+                                        onSquareClick = friendsVm::onSquareClick,
+                                        onSelectPromotion = friendsVm::selectPromotion,
+                                        onDismissPromotion = friendsVm::dismissPromotion,
+                                        onToggleFlip = friendsVm::toggleFlip,
+                                        onOfferDraw = friendsVm::offerDraw,
+                                        onAcceptDraw = friendsVm::acceptDraw,
+                                        onDeclineDraw = friendsVm::declineDraw,
+                                        onResign = friendsVm::resign,
+                                        onRematch = friendsVm::requestRematch,
+                                        onBuildPgn = friendsVm::buildFinishedPgn,
+                                        onAnalyseGame = {
+                                            val pgn = friendsVm.buildFinishedPgn()
+                                            analyzeVm.loadAndAnalyzePgn(pgn)
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        onLeaveGame = friendsVm::leaveGame,
+                                        modifier = Modifier.widthIn(max = 760.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.HISTORY.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                HistoryScreen(
-                                    state = historyState,
-                                    onSelectSideFilter = historyVm::setSideFilter,
-                                    onOpenGame = { entry ->
-                                        analyzeVm.openFromHistory(entry)
-                                        navigateTo(KnightScopeDestination.ANALYSE.route)
-                                    },
-                                    onRequestDelete = historyVm::requestDelete,
-                                    onConfirmDelete = historyVm::confirmDelete,
-                                    onCancelDelete = historyVm::cancelDelete,
-                                    onGoToAnalyze = { navigateTo(KnightScopeDestination.ANALYSE.route) },
-                                    modifier = Modifier.widthIn(max = 820.dp)
-                                )
+                            composable(KnightScopeDestination.HISTORY.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    HistoryScreen(
+                                        state = historyState,
+                                        onSelectSideFilter = historyVm::setSideFilter,
+                                        onRefresh = historyVm::refresh,
+                                        onOpenGame = { entry ->
+                                            analyzeVm.openFromHistory(entry)
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        onRequestDelete = historyVm::requestDelete,
+                                        onConfirmDelete = historyVm::confirmDelete,
+                                        onCancelDelete = historyVm::cancelDelete,
+                                        onGoToAnalyze = { navigateTo(KnightScopeDestination.ANALYSE.route) },
+                                        modifier = Modifier.widthIn(max = 820.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.EXPLORER.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                OpeningExplorerScreen(
-                                    state = explorerState,
-                                    onSquareClick = explorerVm::onSquareClick,
-                                    onSelectPromotion = explorerVm::selectPromotion,
-                                    onDismissPromotion = explorerVm::dismissPromotion,
-                                    onPlayMove = explorerVm::playUciMove,
-                                    onUndo = explorerVm::undoMove,
-                                    onReset = explorerVm::resetBoard,
-                                    onToggleFlip = explorerVm::toggleFlip,
-                                    onDatabaseChange = explorerVm::setDatabaseMode,
-                                    onAnalysePosition = {
-                                        analyzeVm.loadAndAnalyzePgn(explorerVm.buildCurrentPgn())
-                                        navigateTo(KnightScopeDestination.ANALYSE.route)
-                                    },
-                                    modifier = Modifier.widthIn(max = 860.dp)
-                                )
+                            composable(KnightScopeDestination.EXPLORER.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    OpeningExplorerScreen(
+                                        state = explorerState,
+                                        onSquareClick = explorerVm::onSquareClick,
+                                        onSelectPromotion = explorerVm::selectPromotion,
+                                        onDismissPromotion = explorerVm::dismissPromotion,
+                                        onPlayMove = explorerVm::playUciMove,
+                                        onUndo = explorerVm::undoMove,
+                                        onReset = explorerVm::resetBoard,
+                                        onToggleFlip = explorerVm::toggleFlip,
+                                        onDatabaseChange = explorerVm::setDatabaseMode,
+                                        onAnalysePosition = {
+                                            analyzeVm.loadAndAnalyzePgn(explorerVm.buildCurrentPgn())
+                                            navigateTo(KnightScopeDestination.ANALYSE.route)
+                                        },
+                                        modifier = Modifier.widthIn(max = 860.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.TRAINER.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                OpeningTrainerScreen(
-                                    state = trainerState,
-                                    onSelectRepertoire = trainerVm::selectRepertoire,
-                                    onSquareClick = trainerVm::onSquareClick,
-                                    onHint = trainerVm::requestHint,
-                                    onRestart = trainerVm::restartDrill,
-                                    onNextRepertoire = trainerVm::nextRepertoire,
-                                    modifier = Modifier.widthIn(max = 780.dp)
-                                )
+                            composable(KnightScopeDestination.TRAINER.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    OpeningTrainerScreen(
+                                        state = trainerState,
+                                        onSelectRepertoire = trainerVm::selectRepertoire,
+                                        onSquareClick = trainerVm::onSquareClick,
+                                        onHint = trainerVm::requestHint,
+                                        onRestart = trainerVm::restartDrill,
+                                        onNextRepertoire = trainerVm::nextRepertoire,
+                                        modifier = Modifier.widthIn(max = 780.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.LESSONS.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                ChessLessonsScreen(
-                                    state = lessonsState,
-                                    onOpenLesson = lessonsVm::openLesson,
-                                    onCloseLesson = lessonsVm::closeLesson,
-                                    onSquareClick = lessonsVm::onSquareClick,
-                                    onSelectPromotion = lessonsVm::selectPromotion,
-                                    onDismissPromotion = lessonsVm::dismissPromotion,
-                                    onHint = lessonsVm::showHint,
-                                    onRetry = lessonsVm::retryStep,
-                                    onNextStep = lessonsVm::nextStep,
-                                    modifier = Modifier.widthIn(max = 780.dp)
-                                )
+                            composable(KnightScopeDestination.LESSONS.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    ChessLessonsScreen(
+                                        state = lessonsState,
+                                        onOpenLesson = lessonsVm::openLesson,
+                                        onCloseLesson = lessonsVm::closeLesson,
+                                        onSquareClick = lessonsVm::onSquareClick,
+                                        onSelectPromotion = lessonsVm::selectPromotion,
+                                        onDismissPromotion = lessonsVm::dismissPromotion,
+                                        onHint = lessonsVm::showHint,
+                                        onRetry = lessonsVm::retryStep,
+                                        onNextStep = lessonsVm::nextStep,
+                                        modifier = Modifier.widthIn(max = 780.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        composable(KnightScopeDestination.SETTINGS.route) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                SettingsScreen(
-                                    state = settingsState,
-                                    onSetDarkMode = settingsVm::setDarkMode,
-                                    onSelectBoardTheme = settingsVm::setBoardTheme,
-                                    onSetPieceAnimations = settingsVm::setPieceAnimations,
-                                    onSelectAnalysisPreset = settingsVm::setAnalysisPreset,
-                                    onSelectDailyGoal = settingsVm::setDailyGoal,
-                                    onRunSelfTest = settingsVm::runSelfTest,
-                                    onGenerateBackup = settingsVm::generateBackupJson,
-                                    onRestoreBackup = { json ->
-                                        settingsVm.restoreBackupJson(json) { puzzlesVm.reloadPool() }
-                                    },
-                                    onBackupMessage = settingsVm::setBackupMessage,
-                                    onSendContact = settingsVm::sendContactMessage,
-                                    modifier = Modifier.widthIn(max = 780.dp)
-                                )
+                            composable(KnightScopeDestination.SETTINGS.route) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                    SettingsScreen(
+                                        state = settingsState,
+                                        onSetDarkMode = settingsVm::setDarkMode,
+                                        onSelectBoardTheme = settingsVm::setBoardTheme,
+                                        onSelectPieceStyle = settingsVm::setPieceStyle,
+                                        onSetBoard3dEnabled = settingsVm::setBoard3dEnabled,
+                                        onSetPieceAnimations = settingsVm::setPieceAnimations,
+                                        onSetSoundEnabled = settingsVm::setSoundEnabled,
+                                        onSetHapticsEnabled = settingsVm::setHapticsEnabled,
+                                        onSelectAnalysisPreset = settingsVm::setAnalysisPreset,
+                                        onSelectDailyGoal = settingsVm::setDailyGoal,
+                                        onRunSelfTest = settingsVm::runSelfTest,
+                                        onGenerateBackup = settingsVm::generateBackupJson,
+                                        onRestoreBackup = { json ->
+                                            settingsVm.restoreBackupJson(json) { puzzlesVm.reloadPool() }
+                                        },
+                                        onBackupMessage = settingsVm::setBackupMessage,
+                                        onSendContact = settingsVm::sendContactMessage,
+                                        modifier = Modifier.widthIn(max = 780.dp)
+                                    )
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Diggy Chess Launch Splash Overlay (tagline shown ONLY on splash)
+        AnimatedVisibility(
+            visible = showSplash,
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
+            Surface(
+                color = BgDark,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { showSplash = false }
+                    .testTag("diggy_splash_overlay")
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    DiggyBrandBadge(size = 84)
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Play. Learn. Win.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = AccentGreen
+                    )
                 }
             }
         }
@@ -625,81 +643,129 @@ fun KnightScopeApp(
 }
 
 @Composable
-private fun DiggyFloatingBottomDock(
+private fun DiggyDrawerItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    val bg = if (selected) AccentGreen.copy(alpha = 0.14f) else Color.Transparent
+    val iconColor = if (selected) AccentGreen else TextMuted
+    val textColor = if (selected) TextPrimary else TextMuted
+
+    Surface(
+        onClick = onClick,
+        color = bg,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .heightIn(min = DiggySpacing.touchTargetMin)
+            .testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (selected) AccentGreen else Color.Transparent)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiggyBottomNavBar(
     tabs: List<KnightScopeDestination>,
     currentDestination: androidx.navigation.NavDestination?,
     onSelectTab: (KnightScopeDestination) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        color = SurfaceDark,
+        border = BorderStroke(1.dp, LineSubtle),
+        shadowElevation = 10.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Surface(
-            color = SurfaceDark.copy(alpha = 0.96f),
-            shape = RoundedCornerShape(28.dp),
-            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.34f)),
-            shadowElevation = 14.dp,
-            tonalElevation = 6.dp,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 560.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEach { tab ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                    val label = stringResource(tab.labelRes)
-                    val pillBg by animateColorAsState(
-                        targetValue = if (selected) AccentGreen.copy(alpha = 0.18f) else Color.Transparent,
-                        animationSpec = tween(durationMillis = 200),
-                        label = "dockPillBg"
-                    )
-                    val iconTint by animateColorAsState(
-                        targetValue = if (selected) AccentGreenHover else TextMuted,
-                        animationSpec = tween(durationMillis = 200),
-                        label = "dockIconTint"
-                    )
+            tabs.forEach { tab ->
+                val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                val label = stringResource(tab.labelRes)
+                val pillBg by animateColorAsState(
+                    targetValue = if (selected) AccentGreen.copy(alpha = 0.16f) else Color.Transparent,
+                    animationSpec = tween(durationMillis = 200),
+                    label = "navPillBg"
+                )
+                val iconTint by animateColorAsState(
+                    targetValue = if (selected) AccentGreen else TextMuted,
+                    animationSpec = tween(durationMillis = 200),
+                    label = "navIconTint"
+                )
 
-                    Surface(
-                        onClick = { onSelectTab(tab) },
-                        color = pillBg,
-                        shape = RoundedCornerShape(20.dp),
-                        border = if (selected) BorderStroke(1.dp, AccentGreen.copy(alpha = 0.42f)) else null,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 52.dp)
-                            .minimumInteractiveComponentSize()
-                            .testTag(tab.testTag)
+                Surface(
+                    onClick = { onSelectTab(tab) },
+                    color = Color.Transparent,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = DiggySpacing.touchTargetMin)
+                        .testTag(tab.testTag)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(pillBg)
+                                .padding(horizontal = 14.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                imageVector = tab.icon,
                                 contentDescription = label,
                                 tint = iconTint,
-                                modifier = Modifier.size(21.dp)
-                            )
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selected) TextPrimary else TextMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                modifier = Modifier.size(24.dp)
                             )
                         }
+                        Text(
+                            text = label,
+                            fontFamily = InterFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (selected) AccentGreen else TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -715,7 +781,7 @@ private fun DiggyBrandBadge(size: Int = 32) {
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .size(size.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .border(1.dp, AccentGreen.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, AccentGreen.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
     )
 }

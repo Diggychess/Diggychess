@@ -2,12 +2,12 @@ package com.example.chess
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.random.Random
@@ -15,18 +15,13 @@ import kotlin.random.Random
 class ChessEngine {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(3500, TimeUnit.MILLISECONDS)
-        .readTimeout(4500, TimeUnit.MILLISECONDS)
+        .connectionPool(ConnectionPool(8, 30, TimeUnit.SECONDS))
+        .connectTimeout(2500, TimeUnit.MILLISECONDS)
+        .readTimeout(3500, TimeUnit.MILLISECONDS)
         .build()
 
     @Volatile
-    private var lichessCloudAvailable = true
-
-    @Volatile
-    private var chessApiAvailableUntilMs = 0L
-
-    @Volatile
-    private var stockfishOnlineAvailableUntilMs = 0L
+    private var stockfishApiAvailableUntilMs = 0L
 
     suspend fun evaluatePosition(
         fen: String,
@@ -46,77 +41,65 @@ class ChessEngine {
         depth: Int,
         multiPv: Int = 3,
         timeLimitMs: Long = 1000L,
-        allowCloud: Boolean = true
+        allowCloud: Boolean = true,
+        quickBatch: Boolean = false
     ): EngineEval = withContext(Dispatchers.Default) {
         val board = ChessBoard(fen)
         terminalEvalIfOver(board)?.let { return@withContext it }
 
         val targetVariants = multiPv.coerceIn(1, 3)
 
-        if (allowCloud && lichessCloudAvailable) {
-            fetchLichessCloudEval(fen, multiPv = targetVariants)?.let { ev ->
-                if (ev.topLines.isNotEmpty()) return@withContext ev
-            }
-        }
-
         if (allowCloud) {
-            fetchChessApiEval(
+            fetchStockfishApiEval(
                 fen = fen,
                 depth = depth.coerceIn(4, 12),
-                maxThinkingMs = 75,
+                maxThinkingMs = if (quickBatch) 55 else 80,
                 variants = targetVariants
             )?.let { ev ->
-                if (ev.topLines.size >= 2 || board.legalMoves().size <= 1) {
+                if (quickBatch || ev.topLines.size >= 2 || board.legalMoves().size <= 1) {
                     return@withContext ev
                 }
-                // Enrich single-line API response with secondary on-device alternatives
-                val localMulti = searchMultiPvOnDevice(board, depth.coerceIn(2, 5), (timeLimitMs / 2).coerceIn(180L, 450L), targetVariants)
+                val localMulti = searchMultiPvOnDevice(
+                    board,
+                    depth.coerceIn(2, 4),
+                    (timeLimitMs / 3).coerceIn(100L, 280L),
+                    targetVariants
+                )
                 val merged = mergeEngineLines(ev.topLines, localMulti.topLines, targetVariants)
                 return@withContext ev.copy(topLines = merged)
             }
         }
 
-        searchMultiPvOnDevice(board, depth.coerceIn(2, 7), timeLimitMs, targetVariants)
+        val localDepth = if (quickBatch) depth.coerceIn(2, 4) else depth.coerceIn(2, 7)
+        searchMultiPvOnDevice(board, localDepth, timeLimitMs, targetVariants)
     }
 
     suspend fun evaluateForLiveBar(fen: String): EngineEval = withContext(Dispatchers.Default) {
         val board = ChessBoard(fen)
         terminalEvalIfOver(board)?.let { return@withContext it }
 
-        fetchChessApiEval(
+        fetchStockfishApiEval(
             fen = fen,
             depth = 8,
             maxThinkingMs = 55,
             variants = 3
         )?.let { return@withContext it }
 
-        fetchStockfishOnlineEval(
-            fen = fen,
-            boardTurn = board.turn,
-            depth = 8
-        )?.let { return@withContext it }
-
-        searchMultiPvOnDevice(board, maxDepth = 4, timeLimitMs = 450L, multiPv = 3)
+        searchMultiPvOnDevice(board, maxDepth = 4, timeLimitMs = 380L, multiPv = 3)
     }
 
     suspend fun getHint(fen: String): EngineEval = withContext(Dispatchers.Default) {
         val board = ChessBoard(fen)
         terminalEvalIfOver(board)?.let { return@withContext it }
 
-        fetchChessApiEval(
+        fetchStockfishApiEval(
             fen = fen,
             depth = 12,
             maxThinkingMs = 85,
             variants = 3
         )?.let { return@withContext it }
 
-        fetchStockfishOnlineEval(
-            fen = fen,
-            boardTurn = board.turn,
-            depth = 10
-        )?.let { return@withContext it }
-
-        searchMultiPvOnDevice(board, maxDepth = 6, timeLimitMs = 1100L, multiPv = 3)
+        searchMultiPvOnDevice(board, maxDepth = 6, timeLimitMs = 950L, multiPv = 3)
     }
 
     suspend fun playBotMove(
@@ -128,19 +111,15 @@ class ChessEngine {
 
         val legalMoves = board.legalMoves()
         if (legalMoves.isEmpty()) {
-            return@withContext EngineEval(cp = 0.0, sourceLabel = "On-device Engine")
+            return@withContext EngineEval(cp = 0.0, sourceLabel = "On-Device Engine")
         }
 
         if (difficulty == EngineDifficulty.EASY) {
-            val apiEval = fetchChessApiEval(
+            val apiEval = fetchStockfishApiEval(
                 fen = fen,
                 depth = difficulty.apiDepth,
                 maxThinkingMs = difficulty.thinkingTimeMs,
                 variants = 3
-            ) ?: fetchStockfishOnlineEval(
-                fen = fen,
-                boardTurn = board.turn,
-                depth = 3
             )
 
             if (apiEval != null && apiEval.bestUci != null) {
@@ -150,7 +129,7 @@ class ChessEngine {
                     return@withContext apiEval.copy(bestUci = altUci)
                 }
                 if (Random.nextFloat() < 0.25f && legalMoves.size > 1) {
-                    val topLocal = topLocalMoves(board, depth = 2, timeLimitMs = 250L, count = 3)
+                    val topLocal = topLocalMoves(board, depth = 2, timeLimitMs = 220L, count = 3)
                     val alt = topLocal.drop(1).randomOrNull()
                     if (alt != null) {
                         return@withContext apiEval.copy(bestUci = alt.uci)
@@ -159,17 +138,17 @@ class ChessEngine {
                 return@withContext apiEval
             }
 
-            val topLocal = topLocalMoves(board, depth = difficulty.localDepth, timeLimitMs = 350L, count = 3)
+            val topLocal = topLocalMoves(board, depth = difficulty.localDepth, timeLimitMs = 320L, count = 3)
             val chosen = if (topLocal.size > 1 && Random.nextFloat() < 0.35f) {
                 topLocal[Random.nextInt(1, topLocal.size)]
             } else {
                 topLocal.firstOrNull() ?: legalMoves.first()
             }
-            val localEval = searchOnDevice(board, difficulty.localDepth, 350L)
+            val localEval = searchOnDevice(board, difficulty.localDepth, 320L)
             return@withContext localEval.copy(bestUci = chosen.uci)
         }
 
-        val apiEval = fetchChessApiEval(
+        val apiEval = fetchStockfishApiEval(
             fen = fen,
             depth = difficulty.apiDepth,
             maxThinkingMs = difficulty.thinkingTimeMs,
@@ -179,16 +158,7 @@ class ChessEngine {
             return@withContext apiEval
         }
 
-        val onlineEval = fetchStockfishOnlineEval(
-            fen = fen,
-            boardTurn = board.turn,
-            depth = difficulty.apiDepth.coerceAtMost(12)
-        )
-        if (onlineEval != null && !onlineEval.bestUci.isNullOrBlank()) {
-            return@withContext onlineEval
-        }
-
-        val fallbackMs = if (difficulty == EngineDifficulty.HARD) 1400L else 700L
+        val fallbackMs = if (difficulty == EngineDifficulty.HARD) 1200L else 650L
         searchOnDevice(board, difficulty.localDepth, fallbackMs)
     }
 
@@ -218,78 +188,13 @@ class ChessEngine {
         return merged
     }
 
-    private suspend fun fetchLichessCloudEval(fen: String, multiPv: Int = 3): EngineEval? = withContext(Dispatchers.IO) {
-        try {
-            val encoded = URLEncoder.encode(fen, "UTF-8")
-            val req = Request.Builder()
-                .url("https://lichess.org/api/cloud-eval?multiPv=${multiPv.coerceIn(1, 3)}&fen=$encoded")
-                .header("Accept", "application/json")
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (resp.code == 404) return@withContext null
-                if (!resp.isSuccessful) {
-                    if (resp.code == 429 || resp.code >= 500) lichessCloudAvailable = false
-                    return@withContext null
-                }
-                val body = resp.body?.string() ?: return@withContext null
-                val json = JSONObject(body)
-                val pvs = json.optJSONArray("pvs") ?: return@withContext null
-                if (pvs.length() == 0) return@withContext null
-                val depth = json.optInt("depth", 0)
-
-                val lines = mutableListOf<EngineVariation>()
-                for (i in 0 until pvs.length().coerceAtMost(multiPv)) {
-                    val v = pvs.getJSONObject(i)
-                    val movesStr = v.optString("moves", "")
-                    val pv = movesStr.split(' ').filter { it.isNotBlank() }
-                    val firstUci = pv.firstOrNull() ?: continue
-                    val pvSan = uciListToSan(fen, pv)
-                    val firstSan = pvSan.firstOrNull() ?: firstUci
-                    val mate = if (!v.isNull("mate")) v.optInt("mate") else null
-                    val cp = if (mate != null) {
-                        if (mate > 0) 99.0 else -99.0
-                    } else {
-                        (v.optInt("cp", 0) / 100.0).coerceIn(-99.0, 99.0)
-                    }
-                    lines.add(
-                        EngineVariation(
-                            rank = lines.size + 1,
-                            cp = cp,
-                            mate = mate,
-                            firstUci = firstUci,
-                            firstSan = firstSan,
-                            pvUci = pv,
-                            pvSan = pvSan,
-                            depth = depth
-                        )
-                    )
-                }
-
-                val top = lines.firstOrNull() ?: return@withContext null
-                EngineEval(
-                    cp = top.cp,
-                    mate = top.mate,
-                    pvUci = top.pvUci,
-                    depth = depth,
-                    bestUci = top.firstUci,
-                    sourceLabel = "Lichess Cloud",
-                    candidateMoves = lines.map { it.firstUci },
-                    topLines = lines
-                )
-            }
-        } catch (_: Exception) {
-            lichessCloudAvailable = false
-            null
-        }
-    }
-
-    private suspend fun fetchChessApiEval(
+    private suspend fun fetchStockfishApiEval(
         fen: String,
         depth: Int,
         maxThinkingMs: Int,
         variants: Int
     ): EngineEval? = withContext(Dispatchers.IO) {
-        if (System.currentTimeMillis() < chessApiAvailableUntilMs) return@withContext null
+        if (System.currentTimeMillis() < stockfishApiAvailableUntilMs) return@withContext null
         try {
             val payload = JSONObject().apply {
                 put("fen", fen)
@@ -305,7 +210,7 @@ class ChessEngine {
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
                     if (resp.code == 429 || resp.code >= 500) {
-                        chessApiAvailableUntilMs = System.currentTimeMillis() + 30_000L
+                        stockfishApiAvailableUntilMs = System.currentTimeMillis() + 20_000L
                     }
                     return@withContext null
                 }
@@ -400,81 +305,13 @@ class ChessEngine {
                     pvUci = pv,
                     depth = respDepth,
                     bestUci = bestUci,
-                    sourceLabel = "Stockfish API",
+                    sourceLabel = "Stockfish Engine",
                     candidateMoves = candidates,
                     topLines = lines
                 )
             }
         } catch (_: Exception) {
-            chessApiAvailableUntilMs = System.currentTimeMillis() + 15_000L
-            null
-        }
-    }
-
-    private suspend fun fetchStockfishOnlineEval(
-        fen: String,
-        boardTurn: PieceColor,
-        depth: Int
-    ): EngineEval? = withContext(Dispatchers.IO) {
-        if (System.currentTimeMillis() < stockfishOnlineAvailableUntilMs) return@withContext null
-        try {
-            val encoded = URLEncoder.encode(fen, "UTF-8")
-            val d = depth.coerceIn(1, 15)
-            val req = Request.Builder()
-                .url("https://stockfish.online/api/s/v2.php?fen=$encoded&depth=$d")
-                .header("Accept", "application/json")
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    if (resp.code == 429 || resp.code >= 500) {
-                        stockfishOnlineAvailableUntilMs = System.currentTimeMillis() + 30_000L
-                    }
-                    return@withContext null
-                }
-                val body = resp.body?.string() ?: return@withContext null
-                val json = JSONObject(body)
-                if (!json.optBoolean("success", false)) return@withContext null
-
-                val bestRaw = json.optString("bestmove", "")
-                val bestUci = bestRaw.split(' ')
-                    .firstOrNull { it.length in 4..5 && it != "bestmove" && it != "ponder" }
-                val contRaw = json.optString("continuation", "")
-                val pv = contRaw.split(' ').filter { it.isNotBlank() }
-                val resolvedBest = bestUci ?: pv.firstOrNull() ?: return@withContext null
-                val fullPv = pv.ifEmpty { listOf(resolvedBest) }
-                val pvSan = uciListToSan(fen, fullPv)
-
-                val sign = if (boardTurn == PieceColor.WHITE) 1 else -1
-                val mateVal = if (!json.isNull("mate")) json.optInt("mate") * sign else null
-                val cpPawns = if (mateVal != null) {
-                    if (mateVal > 0) 99.0 else -99.0
-                } else {
-                    (json.optDouble("evaluation", 0.0) * sign).coerceIn(-99.0, 99.0)
-                }
-
-                val line = EngineVariation(
-                    rank = 1,
-                    cp = cpPawns,
-                    mate = mateVal,
-                    firstUci = resolvedBest,
-                    firstSan = pvSan.firstOrNull() ?: resolvedBest,
-                    pvUci = fullPv,
-                    pvSan = pvSan,
-                    depth = d
-                )
-
-                EngineEval(
-                    cp = cpPawns,
-                    mate = mateVal,
-                    pvUci = fullPv,
-                    depth = d,
-                    bestUci = resolvedBest,
-                    sourceLabel = "Stockfish Online",
-                    topLines = listOf(line)
-                )
-            }
-        } catch (_: Exception) {
-            stockfishOnlineAvailableUntilMs = System.currentTimeMillis() + 15_000L
+            stockfishApiAvailableUntilMs = System.currentTimeMillis() + 15_000L
             null
         }
     }

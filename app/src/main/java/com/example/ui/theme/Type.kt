@@ -8,90 +8,90 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.R
 
-val CinzelFontFamily = FontFamily(
-    Font(R.font.cinzel, FontWeight.Normal),
-    Font(R.font.cinzel, FontWeight.Medium),
-    Font(R.font.cinzel, FontWeight.SemiBold),
-    Font(R.font.cinzel, FontWeight.Bold)
+val InterFontFamily = FontFamily(
+    Font(R.font.inter, FontWeight.Normal),
+    Font(R.font.inter, FontWeight.Medium),
+    Font(R.font.inter, FontWeight.SemiBold),
+    Font(R.font.inter, FontWeight.Bold)
 )
 
-val PlusJakartaFontFamily = FontFamily(
-    Font(R.font.plus_jakarta_sans, FontWeight.Normal),
-    Font(R.font.plus_jakarta_sans, FontWeight.Medium),
-    Font(R.font.plus_jakarta_sans, FontWeight.SemiBold),
-    Font(R.font.plus_jakarta_sans, FontWeight.Bold)
-)
-
-val InterFontFamily = PlusJakartaFontFamily
-
-val JetBrainsMonoFontFamily = FontFamily(
-    Font(R.font.jetbrains_mono, FontWeight.Normal),
-    Font(R.font.jetbrains_mono, FontWeight.Medium)
-)
+// Tabular numeral alias keeping Inter exclusively across the entire design system
+val JetBrainsMonoFontFamily = InterFontFamily
 
 val KnightScopeTypography = Typography(
+    // Title: 24/700
     headlineMedium = TextStyle(
-        fontFamily = CinzelFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 23.sp,
+        fontSize = 24.sp,
         lineHeight = 30.sp,
-        letterSpacing = 0.2.sp
+        letterSpacing = (-0.2).sp
     ),
+    // Section Header: 18/600
     titleLarge = TextStyle(
-        fontFamily = CinzelFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 19.sp,
-        lineHeight = 25.sp,
-        letterSpacing = 0.2.sp
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        lineHeight = 22.sp
+        lineHeight = 22.sp,
+        letterSpacing = 0.sp
     ),
     titleSmall = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.9.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 22.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
         letterSpacing = 0.4.sp
     ),
+    // Body: 15/400
+    bodyLarge = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+        lineHeight = 21.sp,
+        letterSpacing = 0.1.sp
+    ),
+    // Caption: 13/400
+    bodySmall = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.15.sp
+    ),
+    // Button: 16/600
+    labelLarge = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.2.sp
+    ),
     labelSmall = TextStyle(
-        fontFamily = PlusJakartaFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 14.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.25.sp
     )
 )

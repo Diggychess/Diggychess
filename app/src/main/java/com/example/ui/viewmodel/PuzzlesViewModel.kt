@@ -52,7 +52,7 @@ data class PuzzlesUiState(
     val ratingState: PuzzleRatingState = PuzzleRatingState(),
     val attempts: List<PuzzleAttempt> = emptyList(),
     val dailyGoal: Int = 5,
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
     val animateMoves: Boolean = true,
     val menuError: String? = null,
     val importStatus: String? = null,
@@ -91,6 +91,10 @@ data class PuzzlesUiState(
     val solutionExplanation: String = "",
     val lastResultOk: Boolean? = null,
     val lastEloDelta: Int? = null,
+    val currentPuzzleStreak: Int = 0,
+    val bestPuzzleStreak: Int = 0,
+    val isNewBestStreak: Boolean = false,
+    val streakMilestoneReached: Int? = null,
     val showSkipDialog: Boolean = false,
     val pendingPromotion: Pair<String, String>? = null
 )
@@ -111,6 +115,21 @@ class PuzzlesViewModel(
             PuzzleLevel(6, "Grandmaster", 2400, 4000)
         )
 
+        val STREAK_MILESTONES = setOf(3, 5, 10, 25, 50, 100)
+
+        fun milestoneForStreak(streak: Int): Int? =
+            streak.takeIf { it > 0 && (it in STREAK_MILESTONES || (it >= 100 && it % 50 == 0)) }
+
+        fun computeStreaks(attempts: List<PuzzleAttempt>): Pair<Int, Int> {
+            var cur = 0
+            var best = 0
+            attempts.forEach { a ->
+                cur = if (a.ok) cur + 1 else 0
+                if (cur > best) best = cur
+            }
+            return cur to best
+        }
+
         fun formatThemeLabel(t: String): String =
             t.replace(Regex("([A-Z])"), " $1").replaceFirstChar { it.uppercaseChar() }.trim()
     }
@@ -123,6 +142,7 @@ class PuzzlesViewModel(
     private var board: ChessBoard = ChessBoard()
     private var prevLastMoveSquares: List<String> = emptyList()
     private var recordedOutcome: Boolean? = null
+    private var persistedBestPuzzleStreak: Int = 0
     private var timerJob: Job? = null
     private var autoReplyJob: Job? = null
     private var solutionAnimJob: Job? = null
@@ -136,11 +156,28 @@ class PuzzlesViewModel(
             }
         }
         viewModelScope.launch {
-            repo.puzzleAttemptsFlow.collect { attempts ->
+            repo.puzzleAttemptsFlow.distinctUntilChanged().collect { attempts ->
                 val lastByPuzzle = mutableMapOf<String, Boolean>()
                 attempts.forEach { lastByPuzzle[it.id] = it.ok }
                 val wrongCount = allPuzzles.count { lastByPuzzle[it.id] == false }
-                _uiState.update { it.copy(attempts = attempts, reviewMistakesCount = wrongCount) }
+                val (curStreak, bestFromAttempts) = computeStreaks(attempts)
+                val mergedBest = maxOf(persistedBestPuzzleStreak, bestFromAttempts)
+                _uiState.update {
+                    it.copy(
+                        attempts = attempts,
+                        reviewMistakesCount = wrongCount,
+                        currentPuzzleStreak = curStreak,
+                        bestPuzzleStreak = mergedBest
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            repo.bestPuzzleStreakFlow.distinctUntilChanged().collect { savedBest ->
+                persistedBestPuzzleStreak = savedBest
+                _uiState.update {
+                    it.copy(bestPuzzleStreak = maxOf(it.bestPuzzleStreak, savedBest))
+                }
             }
         }
         viewModelScope.launch {
@@ -243,7 +280,7 @@ class PuzzlesViewModel(
     }
 
     fun startRated() {
-        val p = pickRatedPuzzle()
+        val p = pickRatedPuzzle(excludeId = null)
         if (p == null) {
             _uiState.update { it.copy(menuError = "No rated puzzles available.") }
             return
@@ -296,7 +333,9 @@ class PuzzlesViewModel(
         val cal = Calendar.getInstance()
         val daysSinceEpoch = (cal.timeInMillis + cal.timeZone.rawOffset) / 86_400_000L
         val idx = ((daysSinceEpoch % allPuzzles.size) + allPuzzles.size).toInt() % allPuzzles.size
-        beginSession(PuzzleMode.DAILY, listOf(allPuzzles[idx]))
+        val dailyPuzzle = allPuzzles[idx]
+        val followUps = allPuzzles.filterIndexed { i, p -> i != idx && p.id != dailyPuzzle.id }.shuffled()
+        beginSession(PuzzleMode.DAILY, listOf(dailyPuzzle) + followUps)
     }
 
     fun startRandom() {
@@ -341,10 +380,11 @@ class PuzzlesViewModel(
         beginSession(PuzzleMode.REVIEW, list.take(60))
     }
 
-    private fun pickRatedPuzzle(): Puzzle? {
+    private fun pickRatedPuzzle(excludeId: String? = _uiState.value.currentPuzzle?.id): Puzzle? {
         val rState = _uiState.value.ratingState
         val seen = rState.seenIds.toSet()
-        val ok = allPuzzles.filter { it.rating > 0 }
+        val ok = allPuzzles.filter { it.rating > 0 && it.id != excludeId }
+            .ifEmpty { allPuzzles.filter { it.rating > 0 } }
         for (w in listOf(100, 200, 350, 600, 3000)) {
             val candidates = ok.filter { kotlin.math.abs(it.rating - rState.rating) <= w && it.id !in seen }
             if (candidates.isNotEmpty()) return candidates.random()
@@ -461,6 +501,8 @@ class PuzzlesViewModel(
                 solutionExplanation = "",
                 lastResultOk = if (keepOutcome) it.lastResultOk else null,
                 lastEloDelta = if (keepOutcome) it.lastEloDelta else null,
+                isNewBestStreak = false,
+                streakMilestoneReached = null,
                 pendingPromotion = null
             )
         }
@@ -585,13 +627,12 @@ class PuzzlesViewModel(
                     solutionExplanation = explanation
                 )
             }
-            if (s.mode != PuzzleMode.DAILY) {
-                val tok = playToken
-                autoReplyJob = viewModelScope.launch {
-                    delay(1000)
-                    if (playToken == tok && !_uiState.value.isTimedExpired && _uiState.value.isFinished) {
-                        nextPuzzle()
-                    }
+            val tok = playToken
+            val autoShiftMs = if (s.mode == PuzzleMode.TIMED) 500L else 650L
+            autoReplyJob = viewModelScope.launch {
+                delay(autoShiftMs)
+                if (playToken == tok && !_uiState.value.isTimedExpired && _uiState.value.isFinished) {
+                    nextPuzzle()
                 }
             }
             return
@@ -642,6 +683,22 @@ class PuzzlesViewModel(
         val s = _uiState.value
         val cur = s.currentPuzzle ?: return
         recordedOutcome = ok
+
+        val prevStreak = s.currentPuzzleStreak
+        val prevBest = s.bestPuzzleStreak
+        val nextStreak = if (ok) prevStreak + 1 else 0
+        val nextBest = maxOf(prevBest, nextStreak)
+        val isNewBest = ok && nextStreak > prevBest && (prevBest > 0 || nextStreak >= 2)
+        val milestone = if (ok) milestoneForStreak(nextStreak) else null
+        _uiState.update {
+            it.copy(
+                currentPuzzleStreak = nextStreak,
+                bestPuzzleStreak = nextBest,
+                isNewBestStreak = isNewBest,
+                streakMilestoneReached = milestone
+            )
+        }
+
         viewModelScope.launch {
             val newAttempt = PuzzleAttempt(
                 id = cur.id,
@@ -652,6 +709,9 @@ class PuzzlesViewModel(
             repo.recordPuzzleAttempt(newAttempt)
             if (ok) {
                 repo.incrementPuzzlesSolved()
+                if (nextBest > persistedBestPuzzleStreak) {
+                    repo.updateBestPuzzleStreak(nextBest)
+                }
             }
 
             if (cur.rating > 0 && s.mode != PuzzleMode.REVIEW) {
@@ -710,6 +770,7 @@ class PuzzlesViewModel(
             return
         }
         if (s.solStepIndex > 0) {
+            autoReplyJob?.cancel()
             val n = if (s.solStepIndex % 2 == 0) 2 else 1
             if (s.solStepIndex >= n) {
                 repeat(n) { board.undo() }
@@ -912,21 +973,34 @@ class PuzzlesViewModel(
 
     private fun nextPuzzle() {
         val s = _uiState.value
+        val curId = s.currentPuzzle?.id
         when (s.mode) {
             PuzzleMode.RATED -> {
-                val p = pickRatedPuzzle() ?: return
+                val p = pickRatedPuzzle(excludeId = curId) ?: return
                 _uiState.update { it.copy(queue = listOf(p), queueIndex = 0) }
                 loadPuzzleAt(0, keepOutcome = false)
             }
             PuzzleMode.RAND -> {
                 val list = filteredPracticePool()
-                val p = list.randomOrNull() ?: s.currentPuzzle ?: return
+                val p = list.filter { it.id != curId }.randomOrNull()
+                    ?: allPuzzles.filter { it.id != curId }.randomOrNull()
+                    ?: s.currentPuzzle
+                    ?: return
                 _uiState.update { it.copy(queue = listOf(p), queueIndex = 0) }
                 loadPuzzleAt(0, keepOutcome = false)
             }
             else -> {
-                val nextIdx = if (s.queue.size > 1) (s.queueIndex + 1) % s.queue.size else 0
-                loadPuzzleAt(nextIdx, keepOutcome = false)
+                if (s.queue.size > 1) {
+                    val nextIdx = (s.queueIndex + 1) % s.queue.size
+                    loadPuzzleAt(nextIdx, keepOutcome = false)
+                } else {
+                    val fallback = filteredPracticePool().firstOrNull { it.id != curId }
+                        ?: allPuzzles.firstOrNull { it.id != curId }
+                    if (fallback != null) {
+                        _uiState.update { it.copy(queue = listOf(fallback), queueIndex = 0) }
+                    }
+                    loadPuzzleAt(0, keepOutcome = false)
+                }
             }
         }
     }

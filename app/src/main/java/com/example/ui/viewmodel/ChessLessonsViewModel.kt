@@ -40,7 +40,7 @@ data class ChessLessonsUiState(
     val lessonFinished: Boolean = false,
     val feedbackText: String = "",
     val feedbackOk: Boolean? = null,
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
     val pendingPromotion: Pair<String, String>? = null
 )
 

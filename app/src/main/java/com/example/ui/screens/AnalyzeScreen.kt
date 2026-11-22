@@ -7,17 +7,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -30,8 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.R
 import com.example.chess.*
-import com.example.ui.components.MistakeDrillDialog
-import com.example.ui.components.PlatformImporterSheet
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AnalyzeUiState
 import java.text.SimpleDateFormat
@@ -84,10 +78,9 @@ fun AnalyzeScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
-        // Page Header
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = stringResource(R.string.analyse_title),
@@ -101,25 +94,25 @@ fun AnalyzeScreen(
             )
         }
 
-        // UnCappio Studio Username Importer CTA Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardSurfaceElevated),
-            border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.45f)),
-            shape = RoundedCornerShape(14.dp)
+        // Chess.com & Lichess Username Importer Card
+        DiggyCard(
+            elevated = true,
+            borderColor = StudioCyan.copy(alpha = 0.45f),
+            contentPadding = PaddingValues(16.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        text = "Chess.com & Lichess Studio Import",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = StudioCyan
+                        text = "Import from Chess.com & Lichess",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary
                     )
                     val prof = state.platformProfile
                     val sub = if (prof != null) {
@@ -127,7 +120,7 @@ fun AnalyzeScreen(
                         "${prof.username} (${prof.platform.label})" +
                             (topStat?.let { " · ${it.mode} ${it.rating}" } ?: "")
                     } else {
-                        "Fetch ratings & recent games by username, filter & review in 1 tap."
+                        "Fetch live ratings & recent games by username."
                     }
                     Text(
                         text = sub,
@@ -137,161 +130,121 @@ fun AnalyzeScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Button(
+                DiggyButton(
+                    text = "Import",
                     onClick = onOpenImporter,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = StudioCyan,
-                        contentColor = OnAccentDark
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .testTag("open_importer_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CloudDownload,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Import", fontWeight = FontWeight.Bold)
-                }
+                    variant = DiggyButtonVariant.PRIMARY,
+                    icon = Icons.Rounded.CloudDownload,
+                    testTag = "open_importer_button"
+                )
             }
         }
 
         // PGN Input Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Game PGN",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedTextField(
                     value = state.pgnText,
                     onValueChange = onPgnChange,
-                    placeholder = { Text("Paste PGN here or import by username above", color = TextMuted) },
+                    placeholder = {
+                        Text(
+                            "Paste PGN here or import a game above",
+                            color = TextMuted
+                        )
+                    },
                     textStyle = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = JetBrainsMonoFontFamily,
                         color = TextPrimary,
                         fontSize = 13.sp
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 110.dp, max = 180.dp)
+                        .heightIn(min = 108.dp, max = 172.dp)
                         .testTag("pgn_input"),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = SurfaceDark,
-                        unfocusedContainerColor = SurfaceDark,
+                        focusedContainerColor = BgDark,
+                        unfocusedContainerColor = BgDark,
                         focusedBorderColor = AccentGreen,
                         unfocusedBorderColor = BorderSubtle
                     ),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+
+                DiggyButton(
+                    text = if (state.isAnalyzing) "Analysing…" else "Analyse Game",
+                    onClick = onAnalyze,
+                    loading = state.isAnalyzing,
+                    icon = Icons.Rounded.Analytics,
+                    testTag = "analyze_button",
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = onAnalyze,
-                        enabled = !state.isAnalyzing,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentGreen,
-                            contentColor = OnAccentDark
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("analyze_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (state.isAnalyzing) "Analysing…" else "Analyse game",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    OutlinedButton(
+                    DiggyButton(
+                        text = "Share PGN",
                         onClick = onSharePgn,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("share_pgn_button")
-                    ) {
-                        Text("Share PGN", color = TextPrimary)
-                    }
-
-                    TextButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Share,
+                        testTag = "share_pgn_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Try Sample",
                         onClick = onTrySample,
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("try_sample_button")
-                    ) {
-                        Text("Try a sample", color = AccentGreen)
-                    }
+                        variant = DiggyButtonVariant.SECONDARY,
+                        icon = Icons.Rounded.PlayArrow,
+                        testTag = "try_sample_button",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                // Progress / Error / Status
                 if (state.isAnalyzing) {
-                    Spacer(modifier = Modifier.height(10.dp))
                     Surface(
-                        color = SurfaceDark,
-                        shape = RoundedCornerShape(10.dp),
+                        color = BgDark,
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             val total = state.progressTotal.coerceAtLeast(1)
                             val frac = (state.progressDone.toFloat() / total).coerceIn(0f, 1f)
                             Text(
-                                text = "Analysing game… position ${state.progressDone} / $total (3-line eval)",
+                                text = "Analysing position ${state.progressDone} / $total (3-line engine review)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextPrimary
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { frac },
-                                color = StudioCyan,
+                                color = AccentGreen,
                                 trackColor = BorderSubtle,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(RoundedCornerShape(999.dp))
                             )
                         }
                     }
                 }
 
                 state.errorMessage?.let { err ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = err,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ColorErrorText
-                    )
+                    DiggyErrorState(message = err)
                 }
 
                 state.statusMessage?.let { msg ->
-                    Spacer(modifier = Modifier.height(8.dp))
                     Surface(
-                        color = SurfaceDark,
-                        shape = RoundedCornerShape(8.dp),
+                        color = CardSurfaceElevated,
+                        shape = RoundedCornerShape(DiggySpacing.chipRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -299,54 +252,49 @@ fun AnalyzeScreen(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
                             color = TextPrimary,
-                            modifier = Modifier.padding(10.dp)
+                            modifier = Modifier.padding(12.dp)
                         )
                     }
                 }
             }
         }
 
-        // Recent Games (when no analysis result is open)
+        // Recent Games or Full Analysis Workspace
         if (state.result == null) {
             if (state.recentGames.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "RECENT GAMES",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextMuted
+                        text = "Recent Games",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary
                     )
                     state.recentGames.forEach { entry ->
                         val dateStr = remember(entry.timestamp) {
                             SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(entry.timestamp))
                         }
-                        Surface(
+                        DiggyCard(
                             onClick = { onOpenRecent(entry) },
-                            shape = RoundedCornerShape(14.dp),
-                            color = CardDark,
-                            border = BorderStroke(1.dp, BorderSubtle),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 52.dp)
                                 .testTag("recent_game_${entry.id}")
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Outlined.History,
+                                        imageVector = Icons.Rounded.History,
                                         contentDescription = null,
                                         tint = AccentGreen,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = entry.title,
                                         style = MaterialTheme.typography.bodyMedium,
@@ -367,17 +315,15 @@ fun AnalyzeScreen(
                     }
                 }
             } else {
-                Text(
-                    text = "Games you analyse are saved here, on this device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
+                DiggyEmptyState(
+                    title = "No analysed games yet",
+                    subtitle = "Paste a PGN, try a sample game, or import from Chess.com / Lichess.",
+                    icon = Icons.Rounded.Analytics,
+                    actionLabel = "Try Sample Game",
+                    onAction = onTrySample
                 )
             }
         } else {
-            // Full Analysis Workspace
             AnalyzeWorkspace(
                 result = state.result,
                 currentPly = state.currentPly,
@@ -407,7 +353,6 @@ fun AnalyzeScreen(
         }
     }
 
-    // Username Importer Bottom Sheet
     if (state.showImporterSheet) {
         PlatformImporterSheet(
             state = state,
@@ -422,7 +367,6 @@ fun AnalyzeScreen(
         )
     }
 
-    // One-Tap Practice My Mistakes Drill Dialog
     state.mistakeDrill?.let { drill ->
         MistakeDrillDialog(
             drill = drill,
@@ -437,7 +381,6 @@ fun AnalyzeScreen(
         )
     }
 
-    // Share Analysis / PGN Dialog
     state.shareText?.let { shareContent ->
         ShareTextDialog(
             text = shareContent,
@@ -445,8 +388,6 @@ fun AnalyzeScreen(
         )
     }
 }
-
-private val ColorErrorText = Color(0xFFFF8A80)
 
 @Composable
 fun ShareTextDialog(
@@ -458,44 +399,42 @@ fun ShareTextDialog(
     var copiedNotice by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = CardDark,
-            border = BorderStroke(1.dp, BorderSubtle),
+        DiggyCard(
+            elevated = true,
+            contentPadding = PaddingValues(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Share game analysis",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Share Game Analysis",
+                    style = MaterialTheme.typography.titleLarge,
                     color = TextPrimary
                 )
-                Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = text,
                     onValueChange = {},
                     readOnly = true,
                     textStyle = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = JetBrainsMonoFontFamily,
                         fontSize = 12.sp,
                         color = TextPrimary
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp),
+                        .height(210.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = SurfaceDark,
-                        unfocusedContainerColor = SurfaceDark,
+                        focusedContainerColor = BgDark,
+                        unfocusedContainerColor = BgDark,
                         focusedBorderColor = BorderSubtle,
                         unfocusedBorderColor = BorderSubtle
-                    )
+                    ),
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
+                    DiggyButton(
+                        text = "Share",
                         onClick = {
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(Intent.EXTRA_TEXT, text)
@@ -503,40 +442,33 @@ fun ShareTextDialog(
                             }
                             context.startActivity(Intent.createChooser(sendIntent, "Share Diggy Chess analysis"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                    ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share", fontWeight = FontWeight.Bold)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.Rounded.Share,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Copy",
                         onClick = {
                             clipboard.setText(AnnotatedString(text))
                             copiedNotice = "Copied to clipboard."
                         },
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                    ) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copy", color = TextPrimary)
-                    }
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.ContentCopy,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
                 copiedNotice?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(it, style = MaterialTheme.typography.bodySmall, color = AccentGreen)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Close", color = AccentGreen)
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.heightIn(min = DiggySpacing.touchTargetMin)
+                    ) {
+                        Text("Close", color = AccentGreen, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

@@ -7,8 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,10 +22,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.chess.PieceType
+import com.example.chess.PuzzleAttempt
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PuzzleCategory
 import com.example.ui.viewmodel.PuzzlesUiState
@@ -100,8 +102,8 @@ fun PuzzlesScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -117,15 +119,14 @@ fun PuzzlesScreen(
         }
 
         // Rated Training Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("RATED TRAINING", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+        DiggyCard(elevated = true, contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Rated Training", style = MaterialTheme.typography.titleMedium, color = AccentGreen)
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     StatBox(
                         value = "${state.ratingState.rating.roundToInt()}",
                         label = "Puzzle rating",
@@ -152,7 +153,8 @@ fun PuzzlesScreen(
                             OutlinedButton(
                                 onClick = { startRatingOpen = true },
                                 border = BorderStroke(1.dp, BorderSubtle),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                                modifier = Modifier.heightIn(min = DiggySpacing.touchTargetMin)
                             ) {
                                 Text("${state.ratingState.rating.roundToInt()}", color = TextPrimary)
                             }
@@ -174,77 +176,62 @@ fun PuzzlesScreen(
                     }
                 } else {
                     Text(
-                        text = "You get puzzles close to your rating. Solving a harder puzzle raises it more; failing an easier one costs more.",
+                        text = "Adaptive tactical puzzles matched to your current ELO rating.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted
                     )
                 }
 
-                Button(
+                DiggyButton(
+                    text = "Start Rated Puzzles",
                     onClick = onStartRated,
                     enabled = !state.isLoadingPool,
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .testTag("start_rated_puzzles")
-                ) {
-                    Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Start rated puzzles", fontWeight = FontWeight.Bold)
-                }
+                    icon = Icons.Rounded.PlayArrow,
+                    testTag = "start_rated_puzzles",
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                Text("QUICK DIFFICULTY DRILLS", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { onStartQuickDifficulty("easy") },
-                        enabled = !state.isLoadingPool,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("puzzle_quick_easy")
-                    ) {
-                        Text("Easy", color = AccentGreenHover, fontWeight = FontWeight.SemiBold)
-                    }
-                    OutlinedButton(
-                        onClick = { onStartQuickDifficulty("medium") },
-                        enabled = !state.isLoadingPool,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("puzzle_quick_medium")
-                    ) {
-                        Text("Medium", color = StudioCyan, fontWeight = FontWeight.SemiBold)
-                    }
-                    OutlinedButton(
-                        onClick = { onStartQuickDifficulty("hard") },
-                        enabled = !state.isLoadingPool,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("puzzle_quick_hard")
-                    ) {
-                        Text("Hard", color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                    }
+                Text(
+                    text = "Quick Difficulty Drills",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextMuted
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyChip(
+                        label = "Easy",
+                        selected = false,
+                        onClick = { if (!state.isLoadingPool) onStartQuickDifficulty("easy") },
+                        accentColor = FeedbackCorrectGreen,
+                        testTag = "puzzle_quick_easy",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyChip(
+                        label = "Medium",
+                        selected = false,
+                        onClick = { if (!state.isLoadingPool) onStartQuickDifficulty("medium") },
+                        accentColor = StudioCyan,
+                        testTag = "puzzle_quick_medium",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyChip(
+                        label = "Hard",
+                        selected = false,
+                        onClick = { if (!state.isLoadingPool) onStartQuickDifficulty("hard") },
+                        accentColor = AccentGreen,
+                        testTag = "puzzle_quick_hard",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
 
         // Levels Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("LEVELS", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Levels", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 val levels = PuzzlesViewModel.LEVELS
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     levels.chunked(2).forEach { pair ->
@@ -260,36 +247,42 @@ fun PuzzlesScreen(
                                 Surface(
                                     onClick = { if (unlocked) onStartLevel(lv.index) },
                                     enabled = unlocked,
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = SurfaceDark.copy(alpha = if (unlocked) 0.9f else 0.45f),
-                                    border = BorderStroke(1.dp, LineSubtle),
+                                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                                    color = if (unlocked) CardSurfaceElevated else BgDark.copy(alpha = 0.6f),
+                                    border = BorderStroke(1.dp, if (unlocked) BorderSubtle else LineSubtle),
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("puzzle_level_${lv.index}")
                                 ) {
-                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Text(
-                                                text = "Level ${lv.index + 1} · ${lv.name}",
+                                                text = "L${lv.index + 1} · ${lv.name}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.SemiBold,
-                                                color = if (unlocked) TextPrimary else TextMuted
+                                                color = if (unlocked) TextPrimary else TextDisabled,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
                                             )
                                             if (!unlocked) {
                                                 Icon(
-                                                    Icons.Filled.Lock,
+                                                    Icons.Rounded.Lock,
                                                     contentDescription = "Locked",
-                                                    tint = TextMuted,
-                                                    modifier = Modifier.size(14.dp)
+                                                    tint = TextDisabled,
+                                                    modifier = Modifier.size(16.dp)
                                                 )
                                             }
                                         }
                                         Text(
-                                            text = "$rangeStr · $totalInLv puzzles",
+                                            text = "$rangeStr · $totalInLv",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextMuted
                                         )
@@ -304,9 +297,9 @@ fun PuzzlesScreen(
                                         )
                                         Text(
                                             text = if (unlocked) {
-                                                "Solved ${minOf(solved, PuzzlesViewModel.LEVEL_GOAL)} / ${PuzzlesViewModel.LEVEL_GOAL} to unlock next"
+                                                "${minOf(solved, PuzzlesViewModel.LEVEL_GOAL)}/${PuzzlesViewModel.LEVEL_GOAL} solved"
                                             } else {
-                                                "Solve ${PuzzlesViewModel.LEVEL_GOAL} in Level ${lv.index} or reach ${lv.minRating}"
+                                                "Reach ${lv.minRating} ELO"
                                             },
                                             style = MaterialTheme.typography.labelSmall,
                                             color = TextMuted
@@ -322,15 +315,10 @@ fun PuzzlesScreen(
         }
 
         // Practice Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("PRACTICE", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Custom Practice", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
 
-                // Category multi-select pills
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PuzzleCategory.entries.chunked(2).forEach { rowCats ->
                         Row(
@@ -342,22 +330,22 @@ fun PuzzlesScreen(
                                 val count = state.categoryCounts[cat] ?: 0
                                 Surface(
                                     onClick = { onToggleCategory(cat) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) AccentGreen.copy(alpha = 0.14f) else SurfaceDark,
+                                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                                    color = if (selected) AccentGreen.copy(alpha = 0.16f) else CardSurfaceElevated,
                                     border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("puzzle_cat_${cat.id}")
                                 ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
                                         Text(
                                             text = cat.label,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = TextPrimary
+                                            color = if (selected) AccentGreen else TextPrimary
                                         )
                                         Text(
-                                            text = "${cat.rangeLabel} · $count puzzles",
+                                            text = "${cat.rangeLabel} · $count",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextMuted
                                         )
@@ -369,15 +357,14 @@ fun PuzzlesScreen(
                     }
                 }
 
-                // Theme Dropdown
                 Box {
                     OutlinedButton(
                         onClick = { themeMenuOpen = true },
                         border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = DiggySpacing.touchTargetMin)
                             .testTag("puzzle_theme_dropdown")
                     ) {
                         Text(
@@ -410,107 +397,87 @@ fun PuzzlesScreen(
                     }
                 }
 
-                // Practice Mode Action Buttons
-                Button(
+                DiggyButton(
+                    text = "Start Practice",
                     onClick = onStartPractice,
                     enabled = !state.isLoadingPool,
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .testTag("start_practice_button")
+                    icon = Icons.Rounded.FitnessCenter,
+                    testTag = "start_practice_button",
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Start practice", fontWeight = FontWeight.Bold)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                    DiggyChip(
+                        label = "Daily",
+                        selected = false,
                         onClick = onStartDaily,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("daily_puzzle_button")
-                    ) {
-                        Text("Daily puzzle", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        icon = Icons.Rounded.Today,
+                        testTag = "daily_puzzle_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyChip(
+                        label = "Random",
+                        selected = false,
                         onClick = onStartRandom,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("random_puzzle_button")
-                    ) {
-                        Text("Random", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        icon = Icons.Rounded.Shuffle,
+                        testTag = "random_puzzle_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyChip(
+                        label = "Timed 3:00",
+                        selected = false,
                         onClick = onStartTimed,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("timed_puzzle_button")
-                    ) {
-                        Text("Timed 3:00", color = TextPrimary)
-                    }
+                        icon = Icons.Rounded.Timer,
+                        testTag = "timed_puzzle_button",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Mistakes (${state.reviewMistakesCount})",
                         onClick = onStartReviewMistakes,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("review_mistakes_button")
-                    ) {
-                        Text("Review mistakes (${state.reviewMistakesCount})", color = TextPrimary, fontSize = 12.sp)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        testTag = "review_mistakes_button",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "My Game Fixes",
                         onClick = onStartMyGameMistakes,
-                        border = BorderStroke(1.dp, LineSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .testTag("my_game_mistakes_button")
-                    ) {
-                        Text("My game mistakes", color = TextPrimary, fontSize = 12.sp)
-                    }
+                        variant = DiggyButtonVariant.OUTLINED,
+                        testTag = "my_game_mistakes_button",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 state.menuError?.let { err ->
-                    Text(err, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFFFF8A80))
+                    DiggyErrorState(message = err)
                 }
             }
         }
 
-        // Your Progress Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("YOUR PROGRESS", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+        // Progress Card
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Your Progress", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 if (state.attempts.isEmpty()) {
-                    Text(
-                        text = "No attempts yet. Solve a puzzle and your statistics will appear here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
+                    DiggyEmptyState(
+                        title = "No puzzle attempts yet",
+                        subtitle = "Solve puzzles to track your ELO rating, streak, and 14-day chart.",
+                        icon = Icons.Rounded.Extension
                     )
                 } else {
                     val total = state.attempts.size
                     val solved = state.attempts.count { it.ok }
                     val accPct = ((solved.toDouble() / total) * 100.0).roundToInt()
                     var curStreak = 0
-                    var bestStreak = 0
+                    var bestStreak = state.bestPuzzleStreak
                     state.attempts.forEach { a ->
                         curStreak = if (a.ok) curStreak + 1 else 0
                         bestStreak = maxOf(bestStreak, curStreak)
@@ -568,7 +535,7 @@ fun PuzzlesScreen(
                     DailyBarChart(counts = dailyCounts)
 
                     Text(
-                        text = "Solved per day, last 14 days. A puzzle counts as solved when you finish it without hints, wrong moves or the solution.",
+                        text = "Solved per day over the last 14 days (unassisted clean solves).",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted
                     )
@@ -577,18 +544,22 @@ fun PuzzlesScreen(
         }
 
         // Import Lichess CSV Puzzles Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.85f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = { importExpanded = !importExpanded },
-                    contentPadding = PaddingValues(0.dp)
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.heightIn(min = DiggySpacing.touchTargetMin)
                 ) {
+                    Icon(
+                        imageVector = if (importExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = AccentGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (importExpanded) "Hide CSV puzzle import" else "Import Lichess CSV puzzles",
+                        text = if (importExpanded) "Hide CSV Puzzle Import" else "Import Lichess CSV Puzzles",
                         color = AccentGreen,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -601,24 +572,22 @@ fun PuzzlesScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(100.dp),
-                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMonoFontFamily, color = TextPrimary),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = TextPrimary),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = SurfaceDark,
-                            unfocusedContainerColor = SurfaceDark,
+                            focusedContainerColor = BgDark,
+                            unfocusedContainerColor = BgDark,
                             focusedBorderColor = AccentGreen,
                             unfocusedBorderColor = BorderSubtle
-                        )
+                        ),
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
+                    DiggyButton(
+                        text = "Import CSV Rows",
                         onClick = { onImportCsv(csvText) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Text("Import CSV rows", fontWeight = FontWeight.Bold)
-                    }
+                        icon = Icons.Rounded.UploadFile,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     state.importStatus?.let {
-                        Spacer(modifier = Modifier.height(6.dp))
                         Text(it, style = MaterialTheme.typography.bodySmall, color = AccentGreen)
                     }
                 }
@@ -630,14 +599,23 @@ fun PuzzlesScreen(
 @Composable
 private fun StatBox(value: String, label: String, modifier: Modifier = Modifier) {
     Surface(
-        color = SurfaceDark,
-        shape = RoundedCornerShape(12.dp),
+        color = BgDark,
+        shape = RoundedCornerShape(DiggySpacing.controlRadius),
         border = BorderStroke(1.dp, BorderSubtle),
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text(label, style = MaterialTheme.typography.bodySmall, color = TextMuted)
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = value,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted
+            )
         }
     }
 }
@@ -660,7 +638,7 @@ private fun RatingSparkline(history: List<Pair<Long, Int>>) {
             val y = size.height - 6f - ((v - minV) / span) * (size.height - 12f)
             if (idx == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, color = lineColor, style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(path, color = lineColor, style = Stroke(width = 2.5.dp.toPx(), join = StrokeJoin.Round))
     }
 }
 
@@ -684,14 +662,14 @@ private fun DailyBarChart(counts: List<Int>) {
                     color = barColor,
                     topLeft = Offset(x, y),
                     size = Size(barW, h),
-                    cornerRadius = CornerRadius(4f, 4f)
+                    cornerRadius = CornerRadius(6f, 6f)
                 )
             }
         }
     }
 }
 
-private fun computeLast14DaysCounts(attempts: List<com.example.chess.PuzzleAttempt>): List<Int> {
+private fun computeLast14DaysCounts(attempts: List<PuzzleAttempt>): List<Int> {
     val cal = Calendar.getInstance()
     fun dayKey(ms: Long): String {
         cal.timeInMillis = ms

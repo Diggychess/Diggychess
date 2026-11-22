@@ -3,6 +3,13 @@ package com.example.chess
 import com.example.ui.theme.ClassBook
 import com.example.ui.theme.ClassGreat
 import com.example.ui.theme.ClassMiss
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.ceil
 
 class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
@@ -41,26 +48,47 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
         }
 
         if (!usingSavedOrPgn) {
-            engineLabel = "Stockfish Multi-PV + On-device Engine"
+            engineLabel = "Diggy Chess Stockfish Engine"
             val startFen = parsed.headers["FEN"]?.takeIf { it.isNotBlank() } ?: ChessBoard.START_FEN
             val fens = listOf(startFen) + plies.map { it.fenAfter }
-            val cache = HashMap<String, EngineEval>()
-            val total = fens.size
-            val timePerPos = (11500L / total.coerceAtLeast(1)).coerceIn(220L, 1100L)
+            val cache = ConcurrentHashMap<String, EngineEval>()
+
+            // Deduplicate identical positions (transpositions / repetitions) before dispatching
+            val uniqueFens = LinkedHashMap<String, String>()
+            val fenKeys = fens.map { fen ->
+                val key = fen.split(' ').take(4).joinToString(" ")
+                uniqueFens.putIfAbsent(key, fen)
+                key
+            }
+
+            val total = uniqueFens.size
+            val timePerPos = (4500L / total.coerceAtLeast(1)).coerceIn(120L, 450L)
+            val depth = settings.depth.coerceIn(4, 12)
+            val semaphore = Semaphore(permits = 6)
+            val completed = AtomicInteger(0)
 
             onProgress(0, total)
+            coroutineScope {
+                uniqueFens.entries.map { (key, fen) ->
+                    async {
+                        val ev = semaphore.withPermit {
+                            engine.evaluateMultiPv(
+                                fen = fen,
+                                depth = depth,
+                                multiPv = 3,
+                                timeLimitMs = timePerPos,
+                                allowCloud = true,
+                                quickBatch = true
+                            )
+                        }
+                        cache[key] = ev
+                        onProgress(completed.incrementAndGet(), total)
+                    }
+                }.awaitAll()
+            }
+
             for (i in fens.indices) {
-                val fen = fens[i]
-                val cacheKey = fen.split(' ').take(4).joinToString(" ")
-                val ev = cache[cacheKey] ?: engine.evaluateMultiPv(
-                    fen = fen,
-                    depth = settings.depth.coerceIn(4, 12),
-                    multiPv = 3,
-                    timeLimitMs = timePerPos,
-                    allowCloud = true
-                ).also { cache[cacheKey] = it }
-                evalPerFen[i] = ev
-                onProgress(i + 1, total)
+                evalPerFen[i] = cache[fenKeys[i]]
             }
 
             for (k in plies.indices) {

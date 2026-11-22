@@ -12,11 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,9 +20,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.chess.ChessPiece
+import com.example.chess.PieceColor
+import com.example.chess.PieceType
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AnalysisPreset
 import com.example.ui.viewmodel.SettingsUiState
@@ -37,7 +39,11 @@ fun SettingsScreen(
     state: SettingsUiState,
     onSetDarkMode: (Boolean) -> Unit,
     onSelectBoardTheme: (BoardTheme) -> Unit,
+    onSelectPieceStyle: (PieceStyle) -> Unit,
+    onSetBoard3dEnabled: (Boolean) -> Unit,
     onSetPieceAnimations: (Boolean) -> Unit,
+    onSetSoundEnabled: (Boolean) -> Unit,
+    onSetHapticsEnabled: (Boolean) -> Unit,
     onSelectAnalysisPreset: (AnalysisPreset) -> Unit,
     onSelectDailyGoal: (Int) -> Unit,
     onRunSelfTest: () -> Unit,
@@ -93,136 +99,386 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Settings & About", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+            Text("Settings", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
             Text(
-                text = "Customize themes, board aesthetics, analysis speed, local backups, and open-source licenses.",
+                text = "Customize themes, board style, pieces, sound, haptics, analysis depth, and local backups.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
         }
 
-        // Appearance & Board Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("APPEARANCE & BOARD", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
+        // Appearance, Board & Pieces Card
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Appearance & Board", style = MaterialTheme.typography.titleMedium, color = AccentGreen)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                SettingsToggleRow(
+                    icon = Icons.Rounded.DarkMode,
+                    title = "Dark Theme",
+                    subtitle = if (state.isDarkMode) "Dark mode active" else "Light mode active",
+                    checked = state.isDarkMode,
+                    onCheckedChange = onSetDarkMode,
+                    testTag = "settings_dark_mode_switch"
+                )
+
+                HorizontalDivider(color = LineSubtle)
+
+                SettingsToggleRow(
+                    icon = Icons.Rounded.ViewInAr,
+                    title = "3D Perspective Board",
+                    subtitle = "Tilted wooden cabinet frame with upright 3D Staunton pieces",
+                    checked = state.board3dEnabled,
+                    onCheckedChange = onSetBoard3dEnabled,
+                    testTag = "settings_3d_board_switch"
+                )
+
+                HorizontalDivider(color = LineSubtle)
+
+                SettingsToggleRow(
+                    icon = Icons.Rounded.Animation,
+                    title = "Smooth Piece Animations",
+                    subtitle = "200ms lifted piece movement across all boards",
+                    checked = state.pieceAnimations,
+                    onCheckedChange = onSetPieceAnimations,
+                    testTag = "settings_animations_switch"
+                )
+
+                HorizontalDivider(color = LineSubtle)
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.testTag("settings_theme_selector")
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = AccentGreenHover)
-                        Column {
-                            Text("Royal Obsidian Theme", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                            Text(if (state.isDarkMode) "Royal Gold & Obsidian active" else "Alabaster & Antique Gold active", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Theme Selector", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                            Text(
+                                text = "Preview with ${state.pieceStyle.label} pieces · Switch anytime",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted
+                            )
                         }
                     }
-                    Switch(
-                        checked = state.isDarkMode,
-                        onCheckedChange = onSetDarkMode,
-                        modifier = Modifier.testTag("settings_dark_mode_switch")
-                    )
-                }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Smooth Piece Animations", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                        Text("Animated piece slides across all boards", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                    }
-                    Switch(
-                        checked = state.pieceAnimations,
-                        onCheckedChange = onSetPieceAnimations,
-                        modifier = Modifier.testTag("settings_animations_switch")
-                    )
-                }
-
-                Text("Board Colors", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoardTheme.entries.chunked(3).forEach { rowThemes ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BoardTheme.entries.chunked(2).forEach { rowThemes ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             rowThemes.forEach { theme ->
                                 val selected = theme == state.boardTheme
                                 Surface(
                                     onClick = { onSelectBoardTheme(theme) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selected) AccentGreen.copy(alpha = 0.16f) else SurfaceDark,
-                                    border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
-                                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("settings_board_${theme.id}")
+                                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                                    color = if (selected) AccentGreen.copy(alpha = 0.14f) else CardSurfaceElevated,
+                                    border = BorderStroke(
+                                        width = if (selected) 1.5.dp else 1.dp,
+                                        color = if (selected) AccentGreen else BorderSubtle
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 68.dp)
+                                        .testTag("settings_board_${theme.id}")
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(modifier = Modifier.size(30.dp, 14.dp).clip(RoundedCornerShape(4.dp))) {
-                                            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.lightSquare))
-                                            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(theme.darkSquare))
+                                        // 2x2 mini checkerboard preview with live piece set contrast
+                                        Column(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = if (selected) AccentGreen else BorderSubtle,
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                        ) {
+                                            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(theme.lightSquare),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    ChessPieceIcon(
+                                                        piece = ChessPiece(PieceColor.BLACK, PieceType.QUEEN),
+                                                        pieceStyle = state.pieceStyle,
+                                                        modifier = Modifier.fillMaxSize(0.84f)
+                                                    )
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(theme.darkSquare)
+                                                )
+                                            }
+                                            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(theme.darkSquare),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    ChessPieceIcon(
+                                                        piece = ChessPiece(PieceColor.WHITE, PieceType.KNIGHT),
+                                                        pieceStyle = state.pieceStyle,
+                                                        modifier = Modifier.fillMaxSize(0.84f)
+                                                    )
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(theme.lightSquare)
+                                                )
+                                            }
                                         }
-                                        Text(theme.label, style = MaterialTheme.typography.labelSmall, color = TextPrimary, maxLines = 1)
+
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                text = theme.label,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (selected) AccentGreen else TextPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                if (selected) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.CheckCircle,
+                                                        contentDescription = "${theme.label} selected",
+                                                        tint = AccentGreen,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = when {
+                                                        selected && theme == BoardTheme.GOLD -> "Active · Default"
+                                                        selected -> "Active"
+                                                        theme == BoardTheme.GOLD -> "Default"
+                                                        else -> "Palette"
+                                                    },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (selected) AccentGreen.copy(alpha = 0.9f) else TextMuted,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            repeat(3 - rowThemes.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                            if (rowThemes.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                }
+
+                HorizontalDivider(color = LineSubtle)
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Piece Style", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                    DiggySegmentedControl(
+                        options = PieceStyle.entries,
+                        selectedOption = state.pieceStyle,
+                        onSelect = onSelectPieceStyle,
+                        labelFor = { it.label },
+                        tagFor = { "settings_piece_${it.id}" }
+                    )
+                    Text(
+                        text = state.pieceStyle.subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
                 }
             }
         }
 
-        // Analysis & Training Presets Card (Clean user-friendly presets replacing raw thresholds)
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("ANALYSIS & TRAINING", style = MaterialTheme.typography.titleSmall, color = TextMuted)
-                Text("Game Review Depth Preset", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Sound & Haptics Card
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Sound & Haptics", style = MaterialTheme.typography.titleMedium, color = AccentGreen)
+
+                SettingsToggleRow(
+                    icon = Icons.Rounded.VolumeUp,
+                    title = "Move & Check Sounds",
+                    subtitle = "Warm boxwood taps, double-clack captures, checkmate fanfare & draw cues",
+                    checked = state.soundEnabled,
+                    onCheckedChange = { enabled ->
+                        onSetSoundEnabled(enabled)
+                        if (enabled) {
+                            com.example.audio.ChessSoundPlayer.ensureInit(context)
+                            com.example.audio.ChessSoundPlayer.playMove()
+                        }
+                    },
+                    testTag = "settings_sound_switch"
+                )
+
+                AnimatedVisibility(visible = state.soundEnabled) {
+                    var activePreview by remember { mutableStateOf<String?>(null) }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.testTag("settings_sound_preview_group")
+                    ) {
+                        Text(
+                            text = "Preview Audio Cues",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TextPrimary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyChip(
+                                label = "Move",
+                                selected = activePreview == "move",
+                                onClick = {
+                                    activePreview = "move"
+                                    com.example.audio.ChessSoundPlayer.ensureInit(context)
+                                    com.example.audio.ChessSoundPlayer.playMove()
+                                },
+                                testTag = "settings_preview_move",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Capture",
+                                selected = activePreview == "capture",
+                                onClick = {
+                                    activePreview = "capture"
+                                    com.example.audio.ChessSoundPlayer.ensureInit(context)
+                                    com.example.audio.ChessSoundPlayer.playCapture()
+                                },
+                                testTag = "settings_preview_capture",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Check",
+                                selected = activePreview == "check",
+                                onClick = {
+                                    activePreview = "check"
+                                    com.example.audio.ChessSoundPlayer.ensureInit(context)
+                                    com.example.audio.ChessSoundPlayer.playCheck()
+                                },
+                                testTag = "settings_preview_check",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyChip(
+                                label = "Checkmate",
+                                selected = activePreview == "checkmate",
+                                onClick = {
+                                    activePreview = "checkmate"
+                                    com.example.audio.ChessSoundPlayer.ensureInit(context)
+                                    com.example.audio.ChessSoundPlayer.playCheckmate()
+                                },
+                                testTag = "settings_preview_checkmate",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Draw",
+                                selected = activePreview == "draw",
+                                onClick = {
+                                    activePreview = "draw"
+                                    com.example.audio.ChessSoundPlayer.ensureInit(context)
+                                    com.example.audio.ChessSoundPlayer.playDraw()
+                                },
+                                testTag = "settings_preview_draw",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = LineSubtle)
+
+                SettingsToggleRow(
+                    icon = Icons.Rounded.Vibration,
+                    title = "Haptic Feedback",
+                    subtitle = "Subtle tactile response on moves and taps",
+                    checked = state.hapticsEnabled,
+                    onCheckedChange = onSetHapticsEnabled,
+                    testTag = "settings_haptics_switch"
+                )
+            }
+        }
+
+        // Analysis & Training Presets Card
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Analysis & Training", style = MaterialTheme.typography.titleMedium, color = AccentGreen)
+                Text("Game Review Depth Preset", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     AnalysisPreset.entries.forEach { preset ->
                         val selected = state.reviewSettings.depth == preset.depth
                         Surface(
                             onClick = { onSelectAnalysisPreset(preset) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (selected) AccentGreen.copy(alpha = 0.18f) else SurfaceDark,
+                            shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                            color = if (selected) AccentGreen.copy(alpha = 0.16f) else CardSurfaceElevated,
                             border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("settings_preset_${preset.label.lowercase()}")
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 52.dp)
+                                .testTag("settings_preset_${preset.label.lowercase()}")
                         ) {
-                            Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(preset.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = if (selected) AccentGreenHover else TextPrimary)
-                                Text(preset.subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = preset.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selected) AccentGreen else TextPrimary
+                                )
+                                Text(
+                                    text = preset.subtitle,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
                             }
                         }
                     }
                 }
 
-                Text("Daily Puzzle Goal", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Daily Puzzle Goal", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     listOf(3, 5, 10, 20).forEach { goal ->
-                        FilterChip(
+                        DiggyChip(
+                            label = "$goal / day",
                             selected = state.dailyGoal == goal,
                             onClick = { onSelectDailyGoal(goal) },
-                            label = { Text("$goal / day") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
-                                selectedLabelColor = AccentGreenHover
-                            )
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -230,184 +486,225 @@ fun SettingsScreen(
         }
 
         // Data Backup & Engine Diagnostics
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("BACKUP & SELF-TEST", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Backup & Diagnostics", style = MaterialTheme.typography.titleMedium, color = AccentGreen)
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Save Backup",
                         onClick = { exportLauncher.launch("diggy-chess-backup.json") },
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("settings_backup_export")
-                    ) {
-                        Text("Save Backup", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.UploadFile,
+                        testTag = "settings_backup_export",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Restore",
                         onClick = { importLauncher.launch(arrayOf("application/json")) },
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("settings_backup_restore")
-                    ) {
-                        Text("Restore", color = TextPrimary)
-                    }
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Download,
+                        testTag = "settings_backup_restore",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 state.backupMessage?.let { msg ->
-                    Text(msg, style = MaterialTheme.typography.bodySmall, color = AccentGreenHover)
+                    Text(msg, style = MaterialTheme.typography.bodySmall, color = AccentGreen)
                 }
 
-                OutlinedButton(
+                DiggyButton(
+                    text = if (state.isTesting) "Running Diagnostics…" else "Run Engine & Rules Self-Test",
                     onClick = onRunSelfTest,
-                    enabled = !state.isTesting,
-                    border = BorderStroke(1.dp, BorderSubtle),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings_self_test_button")
-                ) {
-                    Text(
-                        text = if (state.isTesting) "Running diagnostics…" else "Run Engine & Rules Self-Test",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    variant = DiggyButtonVariant.SECONDARY,
+                    loading = state.isTesting,
+                    icon = Icons.Rounded.VerifiedUser,
+                    testTag = "settings_self_test_button",
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 if (state.testResults.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.testResults.forEach { row ->
-                            Text(
-                                text = (if (row.passed) "✔ " else "✖ ") + row.name +
-                                    if (!row.passed && row.detail.isNotEmpty()) " — ${row.detail}" else "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (row.passed) AccentGreenHover else ClassBlunder
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Optional Contact & Support Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, if (contactExpanded) AccentGreen.copy(alpha = 0.5f) else LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clickable { contactExpanded = !contactExpanded }
-                        .padding(14.dp)
-                        .testTag("settings_contact_toggle"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.MailOutline, contentDescription = "Contact & Support", tint = AccentGreen)
-                        Text("Contact & Support", style = MaterialTheme.typography.titleSmall, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                    }
-                    Icon(
-                        imageVector = if (contactExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = if (contactExpanded) "Collapse" else "Expand",
-                        tint = TextMuted
-                    )
-                }
-
-                AnimatedVisibility(visible = contactExpanded) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (!state.contactConfigured) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = SurfaceDark,
-                                border = BorderStroke(1.dp, BorderSubtle),
-                                modifier = Modifier.fillMaxWidth().testTag("settings_contact_unconfigured_notice")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Icon(Icons.Outlined.Info, contentDescription = "Notice", tint = TextMuted, modifier = Modifier.size(16.dp))
-                                    Text(
-                                        text = "Contact delivery is optional and currently disabled because no email service (Formspree or EmailJS) is configured.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextMuted
-                                    )
-                                }
+                                Icon(
+                                    imageVector = if (row.passed) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                                    contentDescription = if (row.passed) "Passed" else "Failed",
+                                    tint = if (row.passed) FeedbackCorrectGreen else FeedbackDangerRed,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = row.name + if (!row.passed && row.detail.isNotEmpty()) " — ${row.detail}" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (row.passed) TextPrimary else FeedbackDangerRed
+                                )
                             }
                         }
+                    }
+                }
+            }
+        }
 
-                        OutlinedTextField(
-                            value = senderName,
-                            onValueChange = { senderName = it },
-                            label = { Text("Your Name (optional)") },
-                            singleLine = true,
-                            enabled = state.contactConfigured,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = senderEmail,
-                            onValueChange = { senderEmail = it },
-                            label = { Text("Your Email") },
-                            singleLine = true,
-                            enabled = state.contactConfigured,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = subject,
-                            onValueChange = { subject = it },
-                            label = { Text("Subject") },
-                            singleLine = true,
-                            enabled = state.contactConfigured,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = message,
-                            onValueChange = { message = it },
-                            label = { Text("Message / Feedback") },
-                            minLines = 3,
-                            enabled = state.contactConfigured,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Button(
-                            onClick = {
-                                onSendContact(senderName, senderEmail, subject, message) { message = "" }
-                            },
-                            enabled = state.contactConfigured && !state.isSendingContact,
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        // Optional Contact & Support Card (shown only when a delivery service is configured)
+        if (state.contactConfigured) {
+            DiggyCard(
+                borderColor = if (contactExpanded) AccentGreen.copy(alpha = 0.5f) else BorderSubtle,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = DiggySpacing.touchTargetMin)
+                            .clickable { contactExpanded = !contactExpanded }
+                            .padding(16.dp)
+                            .testTag("settings_contact_toggle"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(if (state.contactConfigured) "Send Message" else "Send Unavailable", fontWeight = FontWeight.Bold)
+                            Icon(
+                                Icons.Rounded.MailOutline,
+                                contentDescription = "Contact & Support",
+                                tint = AccentGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Contact & Support",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary
+                            )
                         }
-                        state.contactStatus?.let { msg ->
-                            Text(msg, style = MaterialTheme.typography.bodySmall, color = if (state.contactIsError) ClassBlunder else AccentGreenHover)
+                        Icon(
+                            imageVector = if (contactExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            contentDescription = if (contactExpanded) "Collapse" else "Expand",
+                            tint = TextMuted,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = contactExpanded) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = senderName,
+                                onValueChange = { senderName = it },
+                                label = { Text("Your Name (optional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = senderEmail,
+                                onValueChange = { senderEmail = it },
+                                label = { Text("Your Email") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = subject,
+                                onValueChange = { subject = it },
+                                label = { Text("Subject") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = message,
+                                onValueChange = { message = it },
+                                label = { Text("Message / Feedback") },
+                                minLines = 3,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DiggyButton(
+                                text = "Send Message",
+                                onClick = {
+                                    onSendContact(senderName, senderEmail, subject, message) { message = "" }
+                                },
+                                enabled = !state.isSendingContact,
+                                loading = state.isSendingContact,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            state.contactStatus?.let { msg ->
+                                Text(
+                                    text = msg,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (state.contactIsError) FeedbackDangerRed else FeedbackCorrectGreen
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Open-Source Credits & Licenses
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(18.dp)
+        Text(
+            text = "Diggy Chess · Vector pieces inspired by Cburnett (CC BY-SA 3.0) · Inter Font (OFL 1.1)",
+            style = MaterialTheme.typography.labelSmall,
+            color = TextDisabled,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = DiggySpacing.touchTargetMin),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f)
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("OPEN-SOURCE CREDITS & LICENSES", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
-                Text("• Stockfish Online / Local Alpha-Beta Chess Engine (GPL-3.0)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Lichess Open Puzzle Database & Opening Explorer (CC0 Public Domain)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Lichess Cloud Eval, Open Challenge & Game APIs (Free Public API)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Chess.com Published Data API (Public Game Importer)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Cburnett-Inspired Staunton Vector Pieces (CC BY-SA 3.0)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                Text("• Cinzel, Plus Jakarta Sans & JetBrains Mono Typography (SIL OFL 1.1)", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = AccentGreen,
+                modifier = Modifier.size(24.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
             }
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag(testTag)
+        )
     }
 }

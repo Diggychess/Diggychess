@@ -11,15 +11,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PersonSearch
+import androidx.compose.material.icons.rounded.Analytics
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.PersonSearch
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -67,11 +68,10 @@ fun PlatformImporterSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Import by Username",
+                        text = "Import Games",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Text(
@@ -82,38 +82,27 @@ fun PlatformImporterSheet(
                 }
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.testTag("importer_close_button")
+                    modifier = Modifier
+                        .size(DiggySpacing.touchTargetMin)
+                        .testTag("importer_close_button")
                 ) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close importer", tint = TextMuted)
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = "Close importer",
+                        tint = TextMuted,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
             // Platform selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ChessPlatform.entries.forEach { platform ->
-                    val active = state.importPlatform == platform
-                    FilterChip(
-                        selected = active,
-                        onClick = { onSelectPlatform(platform) },
-                        label = {
-                            Text(
-                                text = platform.label,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentGreen.copy(alpha = 0.20f),
-                            selectedLabelColor = AccentGreenHover
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("platform_chip_${platform.id}")
-                    )
-                }
-            }
+            DiggySegmentedControl(
+                options = ChessPlatform.entries,
+                selectedOption = state.importPlatform,
+                onSelect = onSelectPlatform,
+                labelFor = { it.label },
+                tagFor = { "platform_chip_${it.id}" }
+            )
 
             // Username search bar
             Row(
@@ -132,78 +121,50 @@ fun PlatformImporterSheet(
                         .weight(1f)
                         .testTag("import_username_input"),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CardDark,
-                        unfocusedContainerColor = CardDark,
-                        focusedBorderColor = StudioCyan,
-                        unfocusedBorderColor = BorderSubtle
+                        focusedContainerColor = CardSurfaceElevated,
+                        unfocusedContainerColor = CardSurfaceElevated,
+                        focusedBorderColor = AccentGreen,
+                        unfocusedBorderColor = BorderSubtle,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
-                Button(
+                DiggyButton(
+                    text = "Fetch",
                     onClick = onFetch,
-                    enabled = !state.isFetchingPlatform,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentGreen,
-                        contentColor = OnAccentDark
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .heightIn(min = 54.dp)
-                        .testTag("import_fetch_button")
-                ) {
-                    if (state.isFetchingPlatform) {
-                        CircularProgressIndicator(
-                            color = OnAccentDark,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    } else {
-                        Icon(Icons.Filled.PersonSearch, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Fetch", fontWeight = FontWeight.Bold)
-                    }
-                }
+                    loading = state.isFetchingPlatform,
+                    icon = Icons.Rounded.PersonSearch,
+                    testTag = "import_fetch_button"
+                )
             }
 
             AnimatedVisibility(visible = state.platformError != null) {
-                Surface(
-                    color = ClassBlunder.copy(alpha = 0.14f),
-                    border = BorderStroke(1.dp, ClassBlunder.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = state.platformError.orEmpty(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextPrimary,
-                        modifier = Modifier.padding(10.dp)
-                    )
-                }
+                DiggyErrorState(
+                    message = state.platformError.orEmpty(),
+                    onRetry = if (state.importUsername.isNotBlank()) onFetch else null
+                )
             }
 
             // Player Profile & Ratings Card
             state.platformProfile?.let { profile ->
-                Surface(
-                    color = CardDark,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.45f)),
-                    modifier = Modifier.fillMaxWidth()
+                DiggyCard(
+                    elevated = true,
+                    borderColor = StudioCyan.copy(alpha = 0.45f),
+                    contentPadding = PaddingValues(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             profile.title?.let { t ->
-                                Surface(color = ClassMistake, shape = RoundedCornerShape(5.dp)) {
+                                Surface(color = ClassMistake, shape = RoundedCornerShape(6.dp)) {
                                     Text(
                                         text = t,
                                         color = OnAccentDark,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -230,7 +191,7 @@ fun PlatformImporterSheet(
                             ) {
                                 profile.stats.forEach { st ->
                                     Surface(
-                                        color = SurfaceDark,
+                                        color = BgDark,
                                         shape = RoundedCornerShape(10.dp),
                                         border = BorderStroke(1.dp, BorderSubtle)
                                     ) {
@@ -241,8 +202,7 @@ fun PlatformImporterSheet(
                                             Text(st.mode, fontSize = 11.sp, color = TextMuted)
                                             Text(
                                                 text = "${st.rating}",
-                                                fontSize = 16.sp,
-                                                fontFamily = JetBrainsMonoFontFamily,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextPrimary
                                             )
@@ -274,14 +234,11 @@ fun PlatformImporterSheet(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         ImportSpeedFilter.entries.forEach { f ->
-                            FilterChip(
+                            DiggyChip(
+                                label = f.label,
                                 selected = state.speedFilter == f,
                                 onClick = { onSpeedFilter(f) },
-                                label = { Text(f.label, fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = StudioCyan.copy(alpha = 0.2f),
-                                    selectedLabelColor = StudioCyan
-                                )
+                                accentColor = StudioCyan
                             )
                         }
                     }
@@ -289,54 +246,80 @@ fun PlatformImporterSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         ImportResultFilter.entries.forEach { f ->
-                            FilterChip(
+                            DiggyChip(
+                                label = f.label,
                                 selected = state.resultFilter == f,
-                                onClick = { onResultFilter(f) },
-                                label = { Text(f.label, fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
-                                    selectedLabelColor = AccentGreenHover
-                                )
+                                onClick = { onResultFilter(f) }
                             )
                         }
-                        VerticalDivider(modifier = Modifier.height(28.dp), color = BorderSubtle)
+                        VerticalDivider(modifier = Modifier.height(24.dp), color = BorderSubtle)
                         ImportColorFilter.entries.forEach { f ->
-                            FilterChip(
+                            DiggyChip(
+                                label = f.label,
                                 selected = state.colorFilter == f,
-                                onClick = { onColorFilter(f) },
-                                label = { Text(f.label, fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
-                                    selectedLabelColor = AccentGreenHover
-                                )
+                                onClick = { onColorFilter(f) }
                             )
                         }
                     }
                 }
             }
 
-            // Virtualized Game Results List
-            if (state.allImportedGames.isNotEmpty() && state.filteredImportedGames.isEmpty()) {
-                Text(
-                    text = "No games match the active filters. Adjust Time, Result, or Color above.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    items(state.filteredImportedGames, key = { "${it.platform.id}_${it.id}" }) { game ->
-                        ImportedGameCard(
-                            game = game,
-                            onAnalyze = { onAnalyzeImportedGame(game) }
+            // Skeleton loader / Empty state / Virtualized list with pull-to-refresh
+            when {
+                state.isFetchingPlatform && state.allImportedGames.isEmpty() -> {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        repeat(4) {
+                            DiggySkeletonBox(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(92.dp),
+                                cornerRadius = DiggySpacing.cardRadius
+                            )
+                        }
+                    }
+                }
+                state.allImportedGames.isEmpty() && state.platformError == null -> {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                        DiggyEmptyState(
+                            title = "Search any player",
+                            subtitle = "Enter a Chess.com or Lichess username above to pull their latest games for coach review.",
+                            icon = Icons.Rounded.CloudDownload
                         )
+                    }
+                }
+                state.allImportedGames.isNotEmpty() && state.filteredImportedGames.isEmpty() -> {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                        DiggyEmptyState(
+                            title = "No matching games",
+                            subtitle = "No games match the active filters. Adjust Speed, Result, or Color above."
+                        )
+                    }
+                }
+                else -> {
+                    PullToRefreshBox(
+                        isRefreshing = state.isFetchingPlatform,
+                        onRefresh = onFetch,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            items(state.filteredImportedGames, key = { "${it.platform.id}_${it.id}" }) { game ->
+                                ImportedGameCard(
+                                    game = game,
+                                    onAnalyze = { onAnalyzeImportedGame(game) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -353,7 +336,7 @@ private fun ImportedGameCard(
         SimpleDateFormat("d MMM · HH:mm", Locale.getDefault()).format(Date(game.playedAtMillis))
     }
     val outcomeColor = when (game.userOutcome) {
-        "win" -> AccentGreenHover
+        "win" -> ClassBest
         "loss" -> ClassBlunder
         else -> ClassInaccuracy
     }
@@ -363,18 +346,14 @@ private fun ImportedGameCard(
         else -> "DRAW"
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark),
-        border = BorderStroke(1.dp, BorderSubtle),
-        shape = RoundedCornerShape(14.dp),
+    DiggyCard(
+        elevated = false,
+        contentPadding = PaddingValues(14.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("imported_game_${game.id}")
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -411,7 +390,7 @@ private fun ImportedGameCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "⚪ ${game.whiteName}" + (game.whiteRating?.let { " ($it)" } ?: ""),
+                    text = "White: ${game.whiteName}" + (game.whiteRating?.let { " ($it)" } ?: ""),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (game.userColor == "white") FontWeight.Bold else FontWeight.Normal,
                     color = TextPrimary,
@@ -419,7 +398,7 @@ private fun ImportedGameCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "⚫ ${game.blackName}" + (game.blackRating?.let { " ($it)" } ?: ""),
+                    text = "Black: ${game.blackName}" + (game.blackRating?.let { " ($it)" } ?: ""),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (game.userColor == "black") FontWeight.Bold else FontWeight.Normal,
                     color = TextPrimary,
@@ -442,22 +421,12 @@ private fun ImportedGameCard(
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(
+                DiggyButton(
+                    text = "Analyse",
                     onClick = onAnalyze,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentGreen,
-                        contentColor = OnAccentDark
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    modifier = Modifier
-                        .heightIn(min = 44.dp)
-                        .testTag("analyze_imported_${game.id}")
-                ) {
-                    Icon(Icons.Filled.Analytics, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Analyse", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+                    icon = Icons.Rounded.Analytics,
+                    testTag = "analyze_imported_${game.id}"
+                )
             }
         }
     }

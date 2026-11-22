@@ -7,6 +7,7 @@ import com.example.data.KnightScopeRepository
 import com.example.service.ContactSender
 import com.example.service.ContactSubmission
 import com.example.ui.theme.BoardTheme
+import com.example.ui.theme.PieceStyle
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -19,8 +20,12 @@ enum class AnalysisPreset(val label: String, val depth: Int, val subtitle: Strin
 
 data class SettingsUiState(
     val isDarkMode: Boolean = true,
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val pieceStyle: PieceStyle = PieceStyle.NEO,
+    val board3dEnabled: Boolean = false,
     val pieceAnimations: Boolean = true,
+    val soundEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
     val reviewSettings: ReviewSettings = ReviewSettings(),
     val dailyGoal: Int = 5,
     val isTesting: Boolean = false,
@@ -58,6 +63,26 @@ class SettingsViewModel(
             }
         }
         viewModelScope.launch {
+            repo.pieceStyleFlow.collect { style ->
+                _uiState.update { it.copy(pieceStyle = style) }
+            }
+        }
+        viewModelScope.launch {
+            repo.board3dEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(board3dEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            repo.soundEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(soundEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            repo.hapticsEnabledFlow.collect { enabled ->
+                _uiState.update { it.copy(hapticsEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
             repo.settingsFlow.collect { s ->
                 _uiState.update { it.copy(reviewSettings = s) }
             }
@@ -82,8 +107,24 @@ class SettingsViewModel(
         viewModelScope.launch { repo.setBoardTheme(theme) }
     }
 
+    fun setPieceStyle(style: PieceStyle) {
+        viewModelScope.launch { repo.setPieceStyle(style) }
+    }
+
+    fun setBoard3dEnabled(enabled: Boolean) {
+        viewModelScope.launch { repo.setBoard3dEnabled(enabled) }
+    }
+
     fun setPieceAnimations(enabled: Boolean) {
         viewModelScope.launch { repo.setPieceAnimations(enabled) }
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { repo.setSoundEnabled(enabled) }
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        viewModelScope.launch { repo.setHapticsEnabled(enabled) }
     }
 
     fun setAnalysisPreset(preset: AnalysisPreset) {
@@ -203,7 +244,7 @@ class SettingsViewModel(
 
         val cleanName = name.trim()
         val cleanEmail = email.trim()
-        val cleanSubject = subject.trim().ifBlank { "KnightScope Feedback" }
+        val cleanSubject = subject.trim().ifBlank { "Diggy Chess Feedback" }
         val cleanMessage = message.trim()
 
         if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
@@ -224,7 +265,7 @@ class SettingsViewModel(
             repo.updateContactEmail(cleanEmail)
             val result = ContactSender.send(
                 ContactSubmission(
-                    senderName = cleanName.ifBlank { "KnightScope Player" },
+                    senderName = cleanName.ifBlank { "Diggy Chess Player" },
                     senderEmail = cleanEmail,
                     subject = cleanSubject,
                     message = cleanMessage

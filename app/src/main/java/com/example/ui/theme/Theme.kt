@@ -11,6 +11,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.dp
 
 val LocalPieceAnimations = staticCompositionLocalOf { true }
+val LocalPieceStyle = staticCompositionLocalOf { PieceStyle.NEO }
+val LocalBoard3dEnabled = staticCompositionLocalOf { false }
+val LocalSoundEnabled = staticCompositionLocalOf { true }
+val LocalHapticsEnabled = staticCompositionLocalOf { true }
 
 private val KnightScopeDarkColorScheme = darkColorScheme(
     primary = DarkStudioPalette.accentGreen,
@@ -27,11 +31,11 @@ private val KnightScopeDarkColorScheme = darkColorScheme(
     onBackground = DarkStudioPalette.textPrimary,
     surface = DarkStudioPalette.surface,
     onSurface = DarkStudioPalette.textPrimary,
-    surfaceVariant = DarkStudioPalette.card,
+    surfaceVariant = DarkStudioPalette.cardElevated,
     onSurfaceVariant = DarkStudioPalette.textMuted,
     outline = DarkStudioPalette.borderSubtle,
     outlineVariant = DarkStudioPalette.lineSubtle,
-    error = ClassBlunder,
+    error = DarkStudioPalette.danger,
     onError = DarkStudioPalette.textPrimary
 )
 
@@ -39,36 +43,40 @@ private val KnightScopeLightColorScheme = lightColorScheme(
     primary = LightClassicPalette.accentGreen,
     onPrimary = LightClassicPalette.onAccent,
     primaryContainer = LightClassicPalette.accentGreenDark,
-    onPrimaryContainer = LightClassicPalette.onAccent,
+    onPrimaryContainer = LightClassicPalette.textPrimary,
     secondary = LightClassicPalette.studioCyan,
-    onSecondary = LightClassicPalette.onAccent,
+    onSecondary = LightClassicPalette.surface,
     secondaryContainer = LightClassicPalette.cardElevated,
     onSecondaryContainer = LightClassicPalette.textPrimary,
     tertiary = ClassBrilliant,
-    onTertiary = LightClassicPalette.onAccent,
+    onTertiary = LightClassicPalette.surface,
     background = LightClassicPalette.bg,
     onBackground = LightClassicPalette.textPrimary,
     surface = LightClassicPalette.surface,
     onSurface = LightClassicPalette.textPrimary,
-    surfaceVariant = LightClassicPalette.card,
+    surfaceVariant = LightClassicPalette.cardElevated,
     onSurfaceVariant = LightClassicPalette.textMuted,
     outline = LightClassicPalette.borderSubtle,
     outlineVariant = LightClassicPalette.lineSubtle,
-    error = ClassBlunder,
-    onError = LightClassicPalette.onAccent
+    error = LightClassicPalette.danger,
+    onError = LightClassicPalette.surface
 )
 
 private val KnightScopeShapes = Shapes(
     small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(12.dp),
     large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(22.dp)
+    extraLarge = RoundedCornerShape(20.dp)
 )
 
 @Composable
 fun KnightScopeTheme(
     darkTheme: Boolean = true,
     pieceAnimations: Boolean = true,
+    pieceStyle: PieceStyle = PieceStyle.NEO,
+    board3dEnabled: Boolean = false,
+    soundEnabled: Boolean = true,
+    hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val palette = if (darkTheme) DarkStudioPalette else LightClassicPalette
@@ -76,7 +84,11 @@ fun KnightScopeTheme(
 
     CompositionLocalProvider(
         LocalKnightScopeColors provides palette,
-        LocalPieceAnimations provides pieceAnimations
+        LocalPieceAnimations provides pieceAnimations,
+        LocalPieceStyle provides pieceStyle,
+        LocalBoard3dEnabled provides board3dEnabled,
+        LocalSoundEnabled provides soundEnabled,
+        LocalHapticsEnabled provides hapticsEnabled
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

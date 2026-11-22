@@ -1,6 +1,6 @@
 {
   "name": "Diggy Chess",
-  "description": "Royal Gold & Obsidian chess studio with Stockfish play, Chess.com & Lichess game analysis, tactical puzzles, and opening drills.",
+  "description": "Play, analyse, and master chess with Stockfish opponents, Chess.com & Lichess game review, tactical puzzles, and interactive lessons.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

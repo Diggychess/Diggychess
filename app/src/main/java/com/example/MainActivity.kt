@@ -17,10 +17,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.example.audio.ChessSoundPlayer.ensureInit(applicationContext)
         val repository = KnightScopeRepository(applicationContext)
         setContent {
             val isDarkMode by repository.darkModeFlow.collectAsStateWithLifecycle(initialValue = true)
             val pieceAnimations by repository.pieceAnimationsFlow.collectAsStateWithLifecycle(initialValue = true)
+            val pieceStyle by repository.pieceStyleFlow.collectAsStateWithLifecycle(initialValue = com.example.ui.theme.PieceStyle.NEO)
+            val board3dEnabled by repository.board3dEnabledFlow.collectAsStateWithLifecycle(initialValue = false)
+            val soundEnabled by repository.soundEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
+            val hapticsEnabled by repository.hapticsEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
             LaunchedEffect(isDarkMode) {
                 enableEdgeToEdge(
                     statusBarStyle = if (isDarkMode) {
@@ -36,7 +41,14 @@ class MainActivity : ComponentActivity() {
                 )
             }
             val repo = remember { repository }
-            KnightScopeTheme(darkTheme = isDarkMode, pieceAnimations = pieceAnimations) {
+            KnightScopeTheme(
+                darkTheme = isDarkMode,
+                pieceAnimations = pieceAnimations,
+                pieceStyle = pieceStyle,
+                board3dEnabled = board3dEnabled,
+                soundEnabled = soundEnabled,
+                hapticsEnabled = hapticsEnabled
+            ) {
                 KnightScopeApp(repo = repo)
             }
         }

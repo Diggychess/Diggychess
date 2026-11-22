@@ -7,12 +7,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,8 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
-import com.example.ui.components.ChessBoardView
-import com.example.ui.components.PromotionPickerDialog
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.ChessLessonsUiState
 
@@ -51,8 +48,8 @@ fun ChessLessonsScreen(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+            verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -61,11 +58,13 @@ fun ChessLessonsScreen(
             ) {
                 TextButton(
                     onClick = onCloseLesson,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("lesson_back_button")
+                    modifier = Modifier
+                        .heightIn(min = DiggySpacing.touchTargetMin)
+                        .testTag("lesson_back_button")
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to lessons", tint = AccentGreenHover)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("All Lessons", color = AccentGreenHover, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to lessons", tint = AccentGreen)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("All Lessons", color = AccentGreen, fontWeight = FontWeight.SemiBold)
                 }
                 Text(
                     text = "Step ${state.stepIndex + 1} / ${activeLesson.steps.size}",
@@ -74,12 +73,8 @@ fun ChessLessonsScreen(
                 )
             }
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-                border = BorderStroke(1.dp, LineSubtle),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            DiggyCard(contentPadding = PaddingValues(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(activeLesson.title, style = MaterialTheme.typography.labelMedium, color = StudioCyan)
                     Text(step.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Text(step.prompt, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
@@ -88,7 +83,10 @@ fun ChessLessonsScreen(
                         progress = { progressFrac },
                         color = AccentGreen,
                         trackColor = BorderSubtle,
-                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp))
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
                     )
 
                     ChessBoardView(
@@ -106,55 +104,57 @@ fun ChessLessonsScreen(
 
                     if (state.feedbackText.isNotEmpty()) {
                         val color = when (state.feedbackOk) {
-                            true -> AccentGreenHover
-                            false -> ClassBlunder
+                            true -> FeedbackCorrectGreen
+                            false -> FeedbackDangerRed
                             null -> StudioCyan
                         }
                         Surface(
-                            color = SurfaceDark,
-                            shape = RoundedCornerShape(10.dp),
+                            color = BgDark,
+                            shape = RoundedCornerShape(DiggySpacing.controlRadius),
                             border = BorderStroke(1.dp, color.copy(alpha = 0.55f)),
-                            modifier = Modifier.fillMaxWidth().testTag("lesson_feedback")
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("lesson_feedback")
                         ) {
                             Text(
                                 text = state.feedbackText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextPrimary,
-                                modifier = Modifier.padding(10.dp)
+                                modifier = Modifier.padding(12.dp)
                             )
                         }
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DiggyButton(
+                            text = "Hint",
                             onClick = onHint,
                             enabled = !state.stepSolved,
-                            border = BorderStroke(1.dp, BorderSubtle),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lesson_hint")
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = TextPrimary)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Hint", color = TextPrimary)
-                        }
-                        OutlinedButton(
+                            variant = DiggyButtonVariant.OUTLINED,
+                            icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                            testTag = "lesson_hint",
+                            modifier = Modifier.weight(1f)
+                        )
+                        DiggyButton(
+                            text = "Reset",
                             onClick = onRetry,
-                            border = BorderStroke(1.dp, BorderSubtle),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lesson_retry")
-                        ) {
-                            Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(16.dp), tint = TextPrimary)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Reset", color = TextPrimary)
-                        }
-                        Button(
+                            variant = DiggyButtonVariant.OUTLINED,
+                            icon = Icons.Rounded.Replay,
+                            testTag = "lesson_retry",
+                            modifier = Modifier.weight(1f)
+                        )
+                        DiggyButton(
+                            text = if (state.lessonFinished) "Finish" else "Next",
                             onClick = onNextStep,
                             enabled = state.stepSolved,
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lesson_next_step")
-                        ) {
-                            Text(if (state.lessonFinished) "Finish" else "Next", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp))
-                        }
+                            variant = DiggyButtonVariant.PRIMARY,
+                            icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                            testTag = "lesson_next_step",
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -175,8 +175,8 @@ fun ChessLessonsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Chess Lessons", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
@@ -187,56 +187,61 @@ fun ChessLessonsScreen(
             )
         }
 
-        Surface(
-            color = CardSurfaceElevated,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f)),
-            modifier = Modifier.fillMaxWidth()
+        DiggyCard(
+            elevated = true,
+            borderColor = AccentGreen.copy(alpha = 0.4f),
+            contentPadding = PaddingValues(16.dp)
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "Curriculum Progress: ${state.completedLessonIds.size} / ${state.lessons.size} completed",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = AccentGreenHover
+                    color = AccentGreen
                 )
                 LinearProgressIndicator(
                     progress = { (state.completedLessonIds.size.toFloat() / state.lessons.size.coerceAtLeast(1)).coerceIn(0f, 1f) },
                     color = AccentGreen,
                     trackColor = BorderSubtle,
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(999.dp))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
                 )
             }
         }
 
         state.lessons.forEach { lesson ->
             val completed = lesson.id in state.completedLessonIds
-            Card(
+            DiggyCard(
                 onClick = { onOpenLesson(lesson.id) },
-                colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.90f)),
-                border = BorderStroke(1.dp, if (completed) AccentGreen.copy(alpha = 0.5f) else LineSubtle),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().testTag("lesson_card_${lesson.id}")
+                borderColor = if (completed) FeedbackCorrectGreen.copy(alpha = 0.55f) else BorderSubtle,
+                contentPadding = PaddingValues(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("lesson_card_${lesson.id}")
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (completed) Icons.Filled.CheckCircle else Icons.Filled.School,
+                        imageVector = if (completed) Icons.Rounded.CheckCircle else Icons.Rounded.School,
                         contentDescription = if (completed) "Completed" else "Start lesson",
-                        tint = if (completed) AccentGreenHover else StudioCyan,
+                        tint = if (completed) FeedbackCorrectGreen else StudioCyan,
                         modifier = Modifier.size(28.dp)
                     )
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(lesson.levelTag, style = MaterialTheme.typography.labelSmall, color = StudioCyan)
                         Text(lesson.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Text(lesson.summary, style = MaterialTheme.typography.bodySmall, color = TextMuted)
                         Text(
                             text = "${lesson.steps.size} interactive challenges",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (completed) AccentGreenHover else TextMuted
+                            color = if (completed) FeedbackCorrectGreen else TextMuted
                         )
                     }
                 }

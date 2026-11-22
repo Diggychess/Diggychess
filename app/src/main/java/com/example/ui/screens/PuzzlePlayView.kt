@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,37 +21,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.chess.ChessPiece
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
-import com.example.ui.components.BoardArrow
-import com.example.ui.components.ChessBoardView
-import com.example.ui.components.ChessPieceIcon
-import com.example.ui.components.PromotionPickerDialog
-import com.example.ui.components.SquareMoveBadge
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PuzzleMode
 import com.example.ui.viewmodel.PuzzlesUiState
@@ -79,16 +79,16 @@ fun PuzzlePlayView(
 
     val cur = state.currentPuzzle ?: return
     val turnLabel = when {
-        state.isFinished || state.correctMoveSquares.isNotEmpty() -> "✔ Correct"
-        state.isWrongMove -> "✖ Wrong Move"
-        state.lastResultOk == true -> "✔ Correct"
-        state.lastResultOk == false -> "✖ Wrong"
+        state.isFinished || state.correctMoveSquares.isNotEmpty() -> "Correct"
+        state.isWrongMove -> "Wrong Move"
+        state.lastResultOk == true -> "Correct"
+        state.lastResultOk == false -> "Wrong"
         state.playerColor == PieceColor.WHITE -> "White to play"
         else -> "Black to play"
     }
     val turnColor = when {
         state.isFinished || state.correctMoveSquares.isNotEmpty() || state.lastResultOk == true -> FeedbackCorrectGreen
-        state.isWrongMove || state.lastResultOk == false -> ClassBlunder
+        state.isWrongMove || state.lastResultOk == false -> FeedbackDangerRed
         else -> TextPrimary
     }
 
@@ -106,19 +106,19 @@ fun PuzzlePlayView(
 
     val boardFrameColor by animateColorAsState(
         targetValue = when {
-            isCorrectFeedback -> ClassBest
-            isWrongFeedback -> ClassBlunder
+            isCorrectFeedback -> FeedbackCorrectGreen
+            isWrongFeedback -> FeedbackDangerRed
             else -> Color.Transparent
         },
-        animationSpec = tween(durationMillis = 220),
+        animationSpec = tween(durationMillis = 200),
         label = "puzzleBoardFeedbackBorder"
     )
 
     val moveBadge = when {
         isWrongFeedback && state.lastMoveSquares.size >= 2 ->
-            SquareMoveBadge(state.lastMoveSquares[1], "✖", ClassBlunder)
+            SquareMoveBadge(state.lastMoveSquares[1], "✖", FeedbackDangerRed)
         state.correctMoveSquares.size >= 2 ->
-            SquareMoveBadge(state.correctMoveSquares[1], "✔", ClassBest)
+            SquareMoveBadge(state.correctMoveSquares[1], "✔", FeedbackCorrectGreen)
         else -> null
     }
 
@@ -130,21 +130,16 @@ fun PuzzlePlayView(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+        DiggyCard(elevated = false, contentPadding = PaddingValues(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Header: Side to play + ELO
                 Surface(
-                    color = SurfaceDark,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, LineSubtle),
+                    color = BgDark,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -163,24 +158,29 @@ fun PuzzlePlayView(
                                     piece = ChessPiece(state.playerColor, PieceType.KING),
                                     modifier = Modifier.size(22.dp)
                                 )
+                            } else {
+                                Icon(
+                                    imageVector = if (isWrongFeedback || state.lastResultOk == false) Icons.Rounded.Cancel else Icons.Rounded.CheckCircle,
+                                    contentDescription = turnLabel,
+                                    tint = turnColor,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                             Text(
                                 text = turnLabel,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = turnColor
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "ELO ",
-                                fontSize = 12.sp,
-                                color = TextMuted,
-                                fontWeight = FontWeight.Medium
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted
                             )
                             Text(
                                 text = "${state.ratingState.rating.roundToInt()}",
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
@@ -188,25 +188,49 @@ fun PuzzlePlayView(
                                 val dText = (if (delta >= 0) "+" else "") + delta
                                 Text(
                                     text = " $dText",
-                                    fontSize = 16.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (delta >= 0) AccentGreenHover else ClassBlunder
+                                    color = if (delta >= 0) FeedbackCorrectGreen else FeedbackDangerRed
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(counterLabel, style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                    IconButton(onClick = onToggleFlip, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Flip, contentDescription = "Flip board", tint = TextMuted)
+                    Text(
+                        text = counterLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        PuzzleStreakHeaderBadge(
+                            currentStreak = state.currentPuzzleStreak,
+                            bestStreak = state.bestPuzzleStreak,
+                            isNewBest = state.isNewBestStreak,
+                            milestoneReached = state.streakMilestoneReached
+                        )
+                        IconButton(
+                            onClick = onToggleFlip,
+                            modifier = Modifier.size(DiggySpacing.touchTargetMin)
+                        ) {
+                            Icon(
+                                Icons.Rounded.SwapVert,
+                                contentDescription = "Flip board",
+                                tint = TextMuted,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
 
@@ -219,8 +243,6 @@ fun PuzzlePlayView(
                         .height(6.dp)
                         .clip(RoundedCornerShape(999.dp))
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 // Interactive Board + Immediate Visual Feedback Overlay Container
                 Box(
@@ -261,6 +283,9 @@ fun PuzzlePlayView(
                             isWrong = isWrongFeedback,
                             isSolved = state.isFinished,
                             eloDelta = if (state.isFinished) state.lastEloDelta else null,
+                            currentStreak = state.currentPuzzleStreak,
+                            isNewBest = state.isNewBestStreak,
+                            milestoneReached = state.streakMilestoneReached,
                             onUndo = onUndo
                         )
                     }
@@ -271,32 +296,29 @@ fun PuzzlePlayView(
                             modifier = Modifier
                                 .matchParentSize()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xC8090D12))
+                                .background(Color(0xD0121212))
                                 .padding(16.dp)
                                 .testTag("puzzle_timed_overlay"),
                             contentAlignment = Alignment.Center
                         ) {
-                            Surface(
-                                color = CardDark,
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.55f)),
-                                modifier = Modifier.fillMaxWidth(0.9f)
+                            DiggyCard(
+                                elevated = true,
+                                borderColor = AccentGreen.copy(alpha = 0.6f),
+                                modifier = Modifier.fillMaxWidth(0.92f)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(18.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Timer,
+                                        imageVector = Icons.Rounded.Timer,
                                         contentDescription = "Time expired",
-                                        tint = AccentGreenHover,
+                                        tint = AccentGreen,
                                         modifier = Modifier.size(32.dp)
                                     )
                                     Text(
                                         text = "Time's Up!",
                                         style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
                                         color = TextPrimary
                                     )
                                     Text(
@@ -308,29 +330,18 @@ fun PuzzlePlayView(
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        OutlinedButton(
+                                        DiggyButton(
+                                            text = "Menu",
                                             onClick = onBack,
-                                            border = BorderStroke(1.dp, BorderSubtle),
-                                            shape = RoundedCornerShape(10.dp),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 48.dp)
-                                        ) {
-                                            Text("Menu", color = TextPrimary)
-                                        }
-                                        Button(
+                                            variant = DiggyButtonVariant.OUTLINED,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        DiggyButton(
+                                            text = "Retry",
                                             onClick = onRestart,
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = AccentGreen,
-                                                contentColor = OnAccentDark
-                                            ),
-                                            shape = RoundedCornerShape(10.dp),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 48.dp)
-                                        ) {
-                                            Text("Retry", fontWeight = FontWeight.Bold)
-                                        }
+                                            variant = DiggyButtonVariant.PRIMARY,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -338,13 +349,11 @@ fun PuzzlePlayView(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
                 // 4-button Puzzle Control Bar
                 Surface(
-                    color = SurfaceDark,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, LineSubtle),
+                    color = CardSurfaceElevated,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -352,44 +361,45 @@ fun PuzzlePlayView(
                             onClick = onRestart,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(54.dp)
+                                .height(52.dp)
                                 .testTag("puzzle_restart")
                         ) {
-                            Icon(Icons.Filled.Replay, contentDescription = "Restart puzzle", tint = AccentGreenHover)
+                            Icon(Icons.Rounded.Replay, contentDescription = "Restart puzzle", tint = AccentGreen, modifier = Modifier.size(24.dp))
                         }
-                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(54.dp))
+                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(52.dp))
                         IconButton(
                             onClick = onUndo,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(54.dp)
+                                .height(52.dp)
                                 .testTag("puzzle_undo")
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo move", tint = AccentGreenHover)
+                            Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = "Undo move", tint = AccentGreen, modifier = Modifier.size(24.dp))
                         }
-                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(54.dp))
+                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(52.dp))
                         IconButton(
                             onClick = onHint,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(54.dp)
+                                .height(52.dp)
                                 .testTag("puzzle_hint")
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.HelpOutline,
+                                Icons.AutoMirrored.Rounded.HelpOutline,
                                 contentDescription = "Open hint modal",
-                                tint = if (state.hintLevel > 0) StudioCyan else AccentGreenHover
+                                tint = if (state.hintLevel > 0) StudioCyan else AccentGreen,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(54.dp))
+                        VerticalDivider(color = LineSubtle, modifier = Modifier.height(52.dp))
                         IconButton(
                             onClick = onNext,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(54.dp)
+                                .height(52.dp)
                                 .testTag("puzzle_next")
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next puzzle", tint = AccentGreenHover)
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next puzzle", tint = AccentGreen, modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -397,13 +407,8 @@ fun PuzzlePlayView(
         }
 
         // Feedback & Details Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val mateCount = ceil(cur.solution.size / 2.0).toInt()
                 Text(
                     text = "Find the best move." + if (cur.isMate) " Mate in $mateCount." else "",
@@ -414,7 +419,7 @@ fun PuzzlePlayView(
                 if (state.feedbackText.isNotEmpty()) {
                     val fbColor = when (state.feedbackOk) {
                         true -> FeedbackCorrectGreen
-                        false -> ClassBlunder
+                        false -> FeedbackDangerRed
                         null -> TextPrimary
                     }
                     Text(
@@ -428,8 +433,8 @@ fun PuzzlePlayView(
 
                 if (state.solutionExplanation.isNotEmpty() && (state.isFinished || state.hintLevel >= 2)) {
                     Surface(
-                        color = SurfaceDark,
-                        shape = RoundedCornerShape(10.dp),
+                        color = CardSurfaceElevated,
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.45f)),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -439,7 +444,7 @@ fun PuzzlePlayView(
                             text = state.solutionExplanation,
                             style = MaterialTheme.typography.bodySmall,
                             color = TextPrimary,
-                            modifier = Modifier.padding(10.dp)
+                            modifier = Modifier.padding(12.dp)
                         )
                     }
                 }
@@ -447,12 +452,23 @@ fun PuzzlePlayView(
                 if (state.mode == PuzzleMode.TIMED) {
                     val mins = state.timedRemainingSec / 60
                     val secs = state.timedRemainingSec % 60
-                    Text(
-                        text = "⏱ $mins:${secs.toString().padStart(2, '0')} · solved ${state.timedSolvedCount}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AccentGreenHover
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = AccentGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "$mins:${secs.toString().padStart(2, '0')} · solved ${state.timedSolvedCount}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AccentGreen
+                        )
+                    }
                 }
 
                 val filteredThemes = cur.themes
@@ -474,19 +490,14 @@ fun PuzzlePlayView(
             }
         }
 
-        OutlinedButton(
+        DiggyButton(
+            text = "Back to Puzzles",
             onClick = onBack,
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .testTag("puzzle_back_button")
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = TextPrimary)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Back to puzzles", color = TextPrimary)
-        }
+            variant = DiggyButtonVariant.OUTLINED,
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            testTag = "puzzle_back_button",
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 
     if (state.showHintModal) {
@@ -501,7 +512,7 @@ fun PuzzlePlayView(
         AlertDialog(
             onDismissRequest = onDismissSkip,
             containerColor = CardDark,
-            title = { Text("Confirm", color = TextPrimary) },
+            title = { Text("Skip Puzzle?", color = TextPrimary) },
             text = {
                 Text(
                     "Do you want to skip this puzzle? It will be counted as a loss.",
@@ -510,12 +521,12 @@ fun PuzzlePlayView(
             },
             confirmButton = {
                 TextButton(onClick = onConfirmSkip, modifier = Modifier.testTag("confirm_skip_puzzle")) {
-                    Text("OK", color = AccentGreenHover, fontWeight = FontWeight.Bold)
+                    Text("Skip", color = AccentGreen, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismissSkip) {
-                    Text("CANCEL", color = TextMuted)
+                    Text("Cancel", color = TextMuted)
                 }
             }
         )
@@ -531,14 +542,164 @@ fun PuzzlePlayView(
 }
 
 @Composable
+private fun PuzzleStreakHeaderBadge(
+    currentStreak: Int,
+    bestStreak: Int,
+    isNewBest: Boolean,
+    milestoneReached: Int?,
+    modifier: Modifier = Modifier
+) {
+    val pulseScale = remember { Animatable(1f) }
+    var prevStreak by remember { mutableIntStateOf(currentStreak) }
+
+    LaunchedEffect(currentStreak) {
+        if (currentStreak > prevStreak && currentStreak > 0) {
+            pulseScale.snapTo(1f)
+            pulseScale.animateTo(
+                targetValue = if (milestoneReached != null || isNewBest) 1.22f else 1.14f,
+                animationSpec = spring(dampingRatio = 0.45f, stiffness = 520f)
+            )
+            pulseScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.65f, stiffness = 360f)
+            )
+        }
+        prevStreak = currentStreak
+    }
+
+    val isHotTier = currentStreak >= 5 || milestoneReached != null || isNewBest
+    val isActive = currentStreak > 0
+
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            isHotTier -> ClassMistake.copy(alpha = 0.20f)
+            isActive -> AccentGreen.copy(alpha = 0.16f)
+            else -> BgDark
+        },
+        animationSpec = tween(220),
+        label = "streakBadgeBg"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isHotTier -> ClassMistake.copy(alpha = 0.72f)
+            isActive -> AccentGreen.copy(alpha = 0.50f)
+            else -> BorderSubtle
+        },
+        animationSpec = tween(220),
+        label = "streakBadgeBorder"
+    )
+    val flameTint by animateColorAsState(
+        targetValue = when {
+            isHotTier -> ClassMistake
+            isActive -> AccentGreen
+            else -> TextMuted
+        },
+        animationSpec = tween(220),
+        label = "streakBadgeFlame"
+    )
+    val countColor by animateColorAsState(
+        targetValue = when {
+            isHotTier -> AccentGreen
+            isActive -> AccentGreen
+            else -> TextMuted
+        },
+        animationSpec = tween(220),
+        label = "streakBadgeCount"
+    )
+
+    val a11yLabel = buildString {
+        append("Puzzle streak $currentStreak")
+        if (bestStreak > 0) append(", best streak $bestStreak")
+        if (isNewBest) append(", new personal best")
+        if (milestoneReached != null) append(", milestone $milestoneReached")
+    }
+
+    Surface(
+        color = containerColor,
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.dp, borderColor),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = pulseScale.value
+                scaleY = pulseScale.value
+            }
+            .semantics(mergeDescendants = true) {
+                contentDescription = a11yLabel
+            }
+            .testTag("puzzle_streak_badge")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.LocalFireDepartment,
+                contentDescription = null,
+                tint = flameTint,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "$currentStreak",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = countColor,
+                maxLines = 1
+            )
+            when {
+                isNewBest && milestoneReached != null -> {
+                    Text(
+                        text = "★ Best!",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ClassMistake,
+                        maxLines = 1
+                    )
+                }
+                isNewBest -> {
+                    Text(
+                        text = "Best!",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ClassMistake,
+                        maxLines = 1
+                    )
+                }
+                milestoneReached != null -> {
+                    Text(
+                        text = "★ · Best $bestStreak",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary.copy(alpha = 0.85f),
+                        maxLines = 1
+                    )
+                }
+                bestStreak > 0 -> {
+                    Text(
+                        text = "· Best $bestStreak",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun PuzzleMoveFeedbackOverlay(
     isWrong: Boolean,
     isSolved: Boolean,
     eloDelta: Int?,
+    currentStreak: Int,
+    isNewBest: Boolean,
+    milestoneReached: Int?,
     onUndo: () -> Unit
 ) {
-    val containerColor = if (isWrong) ClassBlunder.copy(alpha = 0.95f) else FeedbackCorrectGreen.copy(alpha = 0.95f)
-    val borderColor = if (isWrong) Color.White.copy(alpha = 0.35f) else ClassBest.copy(alpha = 0.85f)
+    val containerColor = if (isWrong) FeedbackDangerRed.copy(alpha = 0.96f) else FeedbackCorrectGreen.copy(alpha = 0.96f)
+    val borderColor = Color.White.copy(alpha = 0.3f)
 
     Surface(
         color = containerColor,
@@ -562,41 +723,41 @@ private fun PuzzleMoveFeedbackOverlay(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
-                    imageVector = if (isWrong) Icons.Filled.Cancel else Icons.Filled.CheckCircle,
+                    imageVector = if (isWrong) Icons.Rounded.Cancel else Icons.Rounded.CheckCircle,
                     contentDescription = if (isWrong) "Incorrect move" else "Correct move",
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
                 Text(
                     text = when {
                         isWrong -> "Wrong Move — Try Again"
-                        isSolved -> "Solved!"
+                        isSolved -> "Solved! Next puzzle…"
                         else -> "Correct Move!"
                     },
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             if (isWrong) {
                 Surface(
                     onClick = onUndo,
-                    color = Color.White.copy(alpha = 0.2f),
+                    color = Color.White.copy(alpha = 0.22f),
                     shape = RoundedCornerShape(999.dp),
                     modifier = Modifier
-                        .heightIn(min = 38.dp)
-                        .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                        .defaultMinSize(minWidth = DiggySpacing.touchTargetMin, minHeight = DiggySpacing.touchTargetMin)
                         .testTag("puzzle_overlay_undo")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                            imageVector = Icons.AutoMirrored.Rounded.Undo,
                             contentDescription = "Undo wrong move",
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)
@@ -609,19 +770,65 @@ private fun PuzzleMoveFeedbackOverlay(
                         )
                     }
                 }
-            } else if (isSolved && eloDelta != null) {
-                val deltaStr = (if (eloDelta >= 0) "+" else "") + eloDelta + " ELO"
-                Surface(
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(999.dp)
+            } else if (isSolved) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = deltaStr,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                    if (currentStreak > 0) {
+                        val isHighlightedStreak = milestoneReached != null || isNewBest
+                        val streakPillBg = if (isHighlightedStreak) AccentGreen else Color.White.copy(alpha = 0.22f)
+                        val streakPillInk = if (isHighlightedStreak) OnAccentDark else Color.White
+                        val streakText = when {
+                            milestoneReached != null && eloDelta == null -> "$currentStreak Milestone!"
+                            milestoneReached != null -> "$currentStreak ★"
+                            isNewBest && eloDelta == null -> "$currentStreak Best!"
+                            isNewBest -> "$currentStreak Best"
+                            eloDelta == null -> "$currentStreak Streak"
+                            else -> "$currentStreak"
+                        }
+                        Surface(
+                            color = streakPillBg,
+                            shape = RoundedCornerShape(999.dp),
+                            modifier = Modifier.testTag("puzzle_overlay_streak")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LocalFireDepartment,
+                                    contentDescription = "Puzzle streak $currentStreak",
+                                    tint = streakPillInk,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = streakText,
+                                    color = streakPillInk,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                    if (eloDelta != null) {
+                        val deltaStr = (if (eloDelta >= 0) "+" else "") + eloDelta + " ELO"
+                        Surface(
+                            color = Color.White.copy(alpha = 0.22f),
+                            shape = RoundedCornerShape(999.dp)
+                        ) {
+                            Text(
+                                text = deltaStr,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -635,22 +842,14 @@ private fun PuzzleHintDialog(
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = CardDark,
-            border = BorderStroke(1.dp, BorderSubtle),
-            tonalElevation = 8.dp,
+        DiggyCard(
+            elevated = true,
+            contentPadding = PaddingValues(18.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("puzzle_hint_modal")
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Header
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -663,13 +862,13 @@ private fun PuzzleHintDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(StudioCyan.copy(alpha = 0.16f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Lightbulb,
+                                imageVector = Icons.Rounded.Lightbulb,
                                 contentDescription = "Tactical Hint",
                                 tint = StudioCyan,
                                 modifier = Modifier.size(22.dp)
@@ -695,11 +894,11 @@ private fun PuzzleHintDialog(
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(DiggySpacing.touchTargetMin)
                             .testTag("hint_modal_close")
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Close,
+                            imageVector = Icons.Rounded.Close,
                             contentDescription = "Close hint modal",
                             tint = TextMuted
                         )
@@ -714,8 +913,8 @@ private fun PuzzleHintDialog(
 
                 // Stage 1: Piece Clue Card
                 Surface(
-                    color = SurfaceDark,
-                    shape = RoundedCornerShape(14.dp),
+                    color = BgDark,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.45f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -752,8 +951,8 @@ private fun PuzzleHintDialog(
                 // Stage 2: Target Square & Line
                 if (state.hintLevel < 2) {
                     Surface(
-                        color = SurfaceDark.copy(alpha = 0.7f),
-                        shape = RoundedCornerShape(14.dp),
+                        color = BgDark.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -766,27 +965,19 @@ private fun PuzzleHintDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextMuted
                             )
-                            OutlinedButton(
+                            DiggyButton(
+                                text = "Reveal Target Square & Line",
                                 onClick = onRevealDestination,
-                                border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.65f)),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
-                                    .testTag("hint_reveal_destination")
-                            ) {
-                                Text(
-                                    text = "Reveal Target Square & Line",
-                                    color = StudioCyan,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                                variant = DiggyButtonVariant.OUTLINED,
+                                testTag = "hint_reveal_destination",
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 } else {
                     Surface(
                         color = FeedbackCorrectGreen.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, FeedbackCorrectGreen.copy(alpha = 0.55f)),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -800,7 +991,7 @@ private fun PuzzleHintDialog(
                                 text = "STAGE 2 · TARGET & LINE",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = ClassBest
+                                color = FeedbackCorrectGreen
                             )
                             if (state.hintFromSquare.isNotEmpty() && state.hintToSquare.isNotEmpty()) {
                                 val sanTag = if (state.hintSanMove.isNotEmpty()) " (${state.hintSanMove})" else ""
@@ -822,20 +1013,13 @@ private fun PuzzleHintDialog(
                     }
                 }
 
-                Button(
+                DiggyButton(
+                    text = "Try on Board",
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentGreen,
-                        contentColor = OnAccentDark
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .testTag("hint_dismiss_button")
-                ) {
-                    Text("Try on Board", fontWeight = FontWeight.Bold)
-                }
+                    variant = DiggyButtonVariant.PRIMARY,
+                    testTag = "hint_dismiss_button",
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

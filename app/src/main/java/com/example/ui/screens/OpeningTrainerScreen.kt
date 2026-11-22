@@ -7,10 +7,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,7 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.chess.PieceColor
-import com.example.ui.components.ChessBoardView
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.OpeningTrainerUiState
 
@@ -41,8 +40,8 @@ fun OpeningTrainerScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -57,6 +56,7 @@ fun OpeningTrainerScreen(
                     color = TextMuted
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Surface(
                 color = AccentGreen.copy(alpha = 0.16f),
                 shape = RoundedCornerShape(999.dp),
@@ -67,12 +67,17 @@ fun OpeningTrainerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(Icons.Filled.LocalFireDepartment, contentDescription = "Clean drill streak", tint = AccentGreenHover, modifier = Modifier.size(16.dp))
+                    Icon(
+                        Icons.Rounded.LocalFireDepartment,
+                        contentDescription = "Clean drill streak",
+                        tint = AccentGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Text(
                         text = "${state.streak}",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = AccentGreenHover
+                        color = AccentGreen
                     )
                 }
             }
@@ -86,30 +91,19 @@ fun OpeningTrainerScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             state.repertoires.forEach { rep ->
-                val selected = rep.id == state.selectedId
-                FilterChip(
-                    selected = selected,
+                val side = if (rep.playerColor == PieceColor.WHITE) "White" else "Black"
+                DiggyChip(
+                    label = "${rep.eco} ${rep.title} ($side)",
+                    selected = rep.id == state.selectedId,
                     onClick = { onSelectRepertoire(rep.id) },
-                    label = {
-                        val side = if (rep.playerColor == PieceColor.WHITE) "White" else "Black"
-                        Text("${rep.eco} ${rep.title} ($side)", fontWeight = FontWeight.SemiBold)
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
-                        selectedLabelColor = AccentGreenHover
-                    ),
-                    modifier = Modifier.testTag("trainer_rep_${rep.id}")
+                    testTag = "trainer_rep_${rep.id}"
                 )
             }
         }
 
         // Interactive Drill Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DiggyCard(contentPadding = PaddingValues(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -122,7 +116,7 @@ fun OpeningTrainerScreen(
                     Text(
                         text = "${state.stepIndex} / ${state.totalSteps}",
                         style = MaterialTheme.typography.labelLarge,
-                        color = AccentGreenHover,
+                        color = AccentGreen,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -131,7 +125,10 @@ fun OpeningTrainerScreen(
                     progress = { progressFrac },
                     color = AccentGreen,
                     trackColor = BorderSubtle,
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
                 )
 
                 ChessBoardView(
@@ -149,8 +146,8 @@ fun OpeningTrainerScreen(
 
                 if (state.feedbackText.isNotEmpty()) {
                     val fbColor = when (state.feedbackOk) {
-                        true -> AccentGreenHover
-                        false -> ClassBlunder
+                        true -> FeedbackCorrectGreen
+                        false -> FeedbackDangerRed
                         null -> StudioCyan
                     }
                     Text(
@@ -164,8 +161,8 @@ fun OpeningTrainerScreen(
 
                 if (state.coachNote.isNotEmpty()) {
                     Surface(
-                        color = SurfaceDark,
-                        shape = RoundedCornerShape(10.dp),
+                        color = BgDark,
+                        shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -173,40 +170,40 @@ fun OpeningTrainerScreen(
                             text = "Idea: ${state.coachNote}",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
-                            modifier = Modifier.padding(10.dp)
+                            modifier = Modifier.padding(12.dp)
                         )
                     }
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Hint",
                         onClick = onHint,
                         enabled = !state.isLineComplete,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("trainer_hint")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = TextPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Hint", color = TextPrimary)
-                    }
-                    OutlinedButton(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                        testTag = "trainer_hint",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Restart",
                         onClick = onRestart,
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("trainer_restart")
-                    ) {
-                        Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(16.dp), tint = TextPrimary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Restart", color = TextPrimary)
-                    }
-                    Button(
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Replay,
+                        testTag = "trainer_restart",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Next Line",
                         onClick = onNextRepertoire,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = OnAccentDark),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("trainer_next")
-                    ) {
-                        Text("Next line", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(16.dp))
-                    }
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        testTag = "trainer_next",
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

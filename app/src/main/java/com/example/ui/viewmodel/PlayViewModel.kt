@@ -4,18 +4,41 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.*
 import com.example.data.KnightScopeRepository
+import com.example.data.RecentPlayGameSummary
 import com.example.ui.theme.BoardTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+enum class QuickPlayTimeControl(
+    val id: String,
+    val label: String,
+    val category: String,
+    val baseMinutes: Int,
+    val incrementSec: Int
+) {
+    UNTIMED("untimed", "Untimed", "Casual", 0, 0),
+    BULLET_1("bullet_1", "1+0", "Bullet", 1, 0),
+    BULLET_2_1("bullet_2_1", "2+1", "Bullet", 2, 1),
+    BLITZ_3("blitz_3", "3+0", "Blitz", 3, 0),
+    BLITZ_5("blitz_5", "5+0", "Blitz", 5, 0),
+    RAPID_10("rapid_10", "10+0", "Rapid", 10, 0),
+    RAPID_15_10("rapid_15_10", "15+10", "Rapid", 15, 10);
+
+    val baseMillis: Long? get() = if (baseMinutes > 0) baseMinutes * 60_000L else null
+    val incrementMillis: Long get() = incrementSec * 1_000L
+}
+
 data class PlayUiState(
     val inGame: Boolean = false,
     val difficulty: EngineDifficulty = EngineDifficulty.MEDIUM,
     val colorChoice: ColorChoice = ColorChoice.WHITE,
+    val timeControl: QuickPlayTimeControl = QuickPlayTimeControl.UNTIMED,
+    val whiteTimeMs: Long? = null,
+    val blackTimeMs: Long? = null,
     val showLiveEval: Boolean = true,
-    val boardTheme: BoardTheme = BoardTheme.GREEN,
+    val boardTheme: BoardTheme = BoardTheme.GOLD,
     val playerName: String = "You",
     val playerColor: PieceColor = PieceColor.WHITE,
     val fen: String = ChessBoard.START_FEN,
@@ -29,16 +52,20 @@ data class PlayUiState(
     val isEngineThinking: Boolean = false,
     val liveEvalCp: Double = 0.2,
     val liveEvalMate: Int? = null,
-    val engineSourceLabel: String = "Stockfish API",
+    val engineSourceLabel: String = "Stockfish Engine",
+    val openingEco: String? = null,
+    val openingName: String? = null,
     val hintFrom: String? = null,
     val hintTo: String? = null,
     val hintText: String? = null,
     val isHintLoading: Boolean = false,
     val isGameOver: Boolean = false,
+    val isPlayerWin: Boolean? = null,
     val resultString: String = "*",
     val endMessage: String = "",
     val canTakeback: Boolean = false,
-    val pendingPromotion: Pair<String, String>? = null
+    val pendingPromotion: Pair<String, String>? = null,
+    val recentGames: List<RecentPlayGameSummary> = emptyList()
 )
 
 class PlayViewModel(
@@ -57,6 +84,7 @@ class PlayViewModel(
     private var botJob: Job? = null
     private var liveEvalJob: Job? = null
     private var hintJob: Job? = null
+    private var clockJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -79,6 +107,11 @@ class PlayViewModel(
                 _uiState.update { it.copy(playerName = profile.displayName) }
             }
         }
+        viewModelScope.launch {
+            repo.recentPlayGamesFlow.collect { recents ->
+                _uiState.update { it.copy(recentGames = recents) }
+            }
+        }
     }
 
     fun setDifficulty(difficulty: EngineDifficulty) {
@@ -90,6 +123,15 @@ class PlayViewModel(
 
     fun selectColorChoice(choice: ColorChoice) {
         _uiState.update { it.copy(colorChoice = choice) }
+    }
+
+    fun selectTimeControl(tc: QuickPlayTimeControl) {
+        _uiState.update { it.copy(timeControl = tc) }
+    }
+
+    fun startQuickPlay(tc: QuickPlayTimeControl) {
+        _uiState.update { it.copy(timeControl = tc) }
+        startGame()
     }
 
     fun setShowLiveEval(show: Boolean) {
@@ -116,11 +158,14 @@ class PlayViewModel(
             ColorChoice.BLACK -> PieceColor.BLACK
             ColorChoice.RANDOM -> if (kotlin.random.Random.nextBoolean()) PieceColor.WHITE else PieceColor.BLACK
         }
+        val initialTimeMs = s.timeControl.baseMillis
 
         _uiState.update {
             it.copy(
                 inGame = true,
                 playerColor = pColor,
+                whiteTimeMs = initialTimeMs,
+                blackTimeMs = initialTimeMs,
                 fen = board.toFen(),
                 turn = PieceColor.WHITE,
                 flipped = (pColor == PieceColor.BLACK),
@@ -132,11 +177,14 @@ class PlayViewModel(
                 isEngineThinking = (pColor == PieceColor.BLACK),
                 liveEvalCp = 0.2,
                 liveEvalMate = null,
+                openingEco = null,
+                openingName = null,
                 hintFrom = null,
                 hintTo = null,
                 hintText = null,
                 isHintLoading = false,
                 isGameOver = false,
+                isPlayerWin = null,
                 resultString = "*",
                 endMessage = "",
                 canTakeback = false,
@@ -144,6 +192,9 @@ class PlayViewModel(
             )
         }
 
+        if (initialTimeMs != null) {
+            startClockTicker(gameToken)
+        }
         if (pColor == PieceColor.BLACK) {
             triggerBotTurn(gameToken)
         }
@@ -308,10 +359,28 @@ class PlayViewModel(
                 (board.turn != s.playerColor && board.moveHistoryCount() >= 1)
             )
 
+        // Apply increment to the side that just moved when playing a timed mode
+        val incMs = s.timeControl.incrementMillis
+        val nextWhiteMs = if (!over && incMs > 0L && lastMove.color == PieceColor.WHITE && s.whiteTimeMs != null) {
+            s.whiteTimeMs + incMs
+        } else s.whiteTimeMs
+        val nextBlackMs = if (!over && incMs > 0L && lastMove.color == PieceColor.BLACK && s.blackTimeMs != null) {
+            s.blackTimeMs + incMs
+        } else s.blackTimeMs
+
+        val recognizedOpening = if (sans.size <= 30) OpeningBook.lookup(board.toFen()) else null
+        val nextOpeningEco = recognizedOpening?.eco ?: s.openingEco
+        val nextOpeningName = recognizedOpening?.name ?: s.openingName
+        val playerWinOutcome: Boolean? = if (over) {
+            if (board.inCheckmate()) playerWon else null
+        } else null
+
         _uiState.update {
             it.copy(
                 fen = board.toFen(),
                 turn = nextTurn,
+                whiteTimeMs = nextWhiteMs,
+                blackTimeMs = nextBlackMs,
                 selectedSquare = null,
                 legalTargets = emptyMap(),
                 lastMoveSquares = listOf(lastMove.fromName, lastMove.toName),
@@ -321,10 +390,13 @@ class PlayViewModel(
                 liveEvalCp = cp,
                 liveEvalMate = precomputedEval?.mate,
                 engineSourceLabel = precomputedEval?.sourceLabel ?: it.engineSourceLabel,
+                openingEco = nextOpeningEco,
+                openingName = nextOpeningName,
                 hintFrom = null,
                 hintTo = null,
                 hintText = null,
                 isGameOver = over,
+                isPlayerWin = playerWinOutcome,
                 resultString = resStr,
                 endMessage = endMsg,
                 canTakeback = canTakebackNow
@@ -332,10 +404,75 @@ class PlayViewModel(
         }
 
         if (over) {
+            clockJob?.cancel()
             recordMatchOnce(playerWon)
         } else if (precomputedEval == null && _uiState.value.showLiveEval) {
             refreshLiveEval(gameToken)
         }
+    }
+
+    private fun startClockTicker(tok: Int) {
+        clockJob?.cancel()
+        clockJob = viewModelScope.launch {
+            var lastTick = System.currentTimeMillis()
+            while (tok == gameToken) {
+                delay(200)
+                if (tok != gameToken) break
+                val now = System.currentTimeMillis()
+                val elapsed = (now - lastTick).coerceAtLeast(0L)
+                lastTick = now
+
+                val s = _uiState.value
+                if (!s.inGame || s.isGameOver) break
+                if (s.sanMoves.isEmpty()) continue // clocks begin on first move
+
+                if (s.turn == PieceColor.WHITE && s.whiteTimeMs != null) {
+                    val remaining = (s.whiteTimeMs - elapsed).coerceAtLeast(0L)
+                    if (remaining == 0L) {
+                        onFlagged(PieceColor.WHITE)
+                        break
+                    } else {
+                        _uiState.update { it.copy(whiteTimeMs = remaining) }
+                    }
+                } else if (s.turn == PieceColor.BLACK && s.blackTimeMs != null) {
+                    val remaining = (s.blackTimeMs - elapsed).coerceAtLeast(0L)
+                    if (remaining == 0L) {
+                        onFlagged(PieceColor.BLACK)
+                        break
+                    } else {
+                        _uiState.update { it.copy(blackTimeMs = remaining) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onFlagged(flaggedSide: PieceColor) {
+        val s = _uiState.value
+        if (!s.inGame || s.isGameOver) return
+        cancelEngineJobs()
+        gameToken++
+        val winner = flaggedSide.opposite()
+        val playerWon = (winner == s.playerColor)
+        val resStr = if (winner == PieceColor.WHITE) "1-0" else "0-1"
+        val endMsg = if (playerWon) {
+            "Stockfish flagged on time — you win!"
+        } else {
+            "Time expired — Stockfish wins."
+        }
+        _uiState.update {
+            it.copy(
+                whiteTimeMs = if (flaggedSide == PieceColor.WHITE) 0L else it.whiteTimeMs,
+                blackTimeMs = if (flaggedSide == PieceColor.BLACK) 0L else it.blackTimeMs,
+                isEngineThinking = false,
+                isGameOver = true,
+                isPlayerWin = playerWon,
+                resultString = resStr,
+                endMessage = endMsg,
+                canTakeback = false
+            )
+        }
+        recordMatchOnce(playerWon)
     }
 
     private fun refreshLiveEval(tok: Int) {
@@ -416,6 +553,7 @@ class PlayViewModel(
         } else emptyList()
 
         val canTakebackAgain = board.turn == s.playerColor && board.moveHistoryCount() >= 2
+        val updatedOpening = findDeepestOpening(sans)
 
         _uiState.update {
             it.copy(
@@ -429,6 +567,8 @@ class PlayViewModel(
                 isEngineThinking = false,
                 liveEvalCp = evalHistory.lastOrNull() ?: 0.2,
                 liveEvalMate = null,
+                openingEco = updatedOpening?.eco,
+                openingName = updatedOpening?.name,
                 hintFrom = null,
                 hintTo = null,
                 hintText = null,
@@ -442,6 +582,17 @@ class PlayViewModel(
         }
     }
 
+    private fun findDeepestOpening(sans: List<String>): OpeningEntry? {
+        if (sans.isEmpty()) return null
+        val replay = ChessBoard()
+        var latest: OpeningEntry? = null
+        for (san in sans.take(30)) {
+            if (replay.makeSanMove(san) == null) break
+            OpeningBook.lookup(replay.toFen())?.let { latest = it }
+        }
+        return latest
+    }
+
     fun resign() {
         val s = _uiState.value
         if (!s.inGame || s.isGameOver) return
@@ -452,6 +603,7 @@ class PlayViewModel(
             it.copy(
                 isEngineThinking = false,
                 isGameOver = true,
+                isPlayerWin = false,
                 resultString = resStr,
                 endMessage = "You resigned — Stockfish wins.",
                 canTakeback = false
@@ -466,7 +618,7 @@ class PlayViewModel(
         val botLabel = "Stockfish (${s.difficulty.label})"
         val white = if (s.playerColor == PieceColor.WHITE) s.playerName else botLabel
         val black = if (s.playerColor == PieceColor.BLACK) s.playerName else botLabel
-        copy.setHeader("Event", "KnightScope Single-Player (${s.difficulty.label})")
+        copy.setHeader("Event", "Diggy Chess vs Stockfish (${s.difficulty.label})")
         copy.setHeader("White", white)
         copy.setHeader("Black", black)
         copy.setHeader("Result", s.resultString)
@@ -476,8 +628,22 @@ class PlayViewModel(
     private fun recordMatchOnce(playerWon: Boolean) {
         if (recordedFinish) return
         recordedFinish = true
+        val s = _uiState.value
+        val pgn = buildFinishedPgn()
+        val now = System.currentTimeMillis()
+        val summary = RecentPlayGameSummary(
+            id = "play_$now",
+            title = "${s.playerName} vs Stockfish (${s.difficulty.label})",
+            result = s.resultString,
+            timeControlLabel = s.timeControl.label,
+            difficultyLabel = s.difficulty.label,
+            movesCount = (s.sanMoves.size + 1) / 2,
+            timestamp = now,
+            pgn = pgn
+        )
         viewModelScope.launch {
             repo.recordBotGameResult(playerWon)
+            repo.recordPlayGameSummary(summary)
         }
     }
 
@@ -485,6 +651,7 @@ class PlayViewModel(
         botJob?.cancel()
         liveEvalJob?.cancel()
         hintJob?.cancel()
+        clockJob?.cancel()
     }
 
     override fun onCleared() {

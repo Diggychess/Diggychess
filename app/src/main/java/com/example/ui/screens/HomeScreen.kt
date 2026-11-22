@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -9,16 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,12 +23,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.DiggyButton
+import com.example.ui.components.DiggyButtonVariant
+import com.example.ui.components.DiggyCard
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.HomeUiState
 
-private data class HomeHubTile(
+private data class HomeQuickTile(
     val route: String,
     val title: String,
     val subtitle: String,
@@ -49,40 +41,91 @@ private data class HomeHubTile(
 @Composable
 fun HomeScreen(
     state: HomeUiState,
+    hasActivePlayGame: Boolean,
     onNavigate: (String) -> Unit,
     onStartDailyPuzzle: () -> Unit,
+    onContinuePlay: () -> Unit,
+    onAnalysePgn: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hubTiles = listOf(
-        HomeHubTile("play", "Play Bot", "Engine levels & live eval", Icons.Filled.SmartToy, "home_tile_play"),
-        HomeHubTile("analyse", "Analyse Game", "Chess.com & Lichess import", Icons.Filled.Analytics, "home_tile_analyse"),
-        HomeHubTile("puzzles", "Puzzles", "Rated tactics & hints", Icons.Filled.Extension, "home_tile_puzzles"),
-        HomeHubTile("friends", "Friendly Match", "Invite links, Wi-Fi & Pass", Icons.Filled.Group, "home_tile_friends"),
-        HomeHubTile("explorer", "Opening Explorer", "Live DB stats & lines", Icons.Filled.Explore, "home_tile_explorer"),
-        HomeHubTile("trainer", "Opening Trainer", "ECO repertoire drills", Icons.Filled.FitnessCenter, "home_tile_trainer"),
-        HomeHubTile("lessons", "Chess Lessons", "Interactive masterclasses", Icons.Filled.School, "home_tile_lessons"),
-        HomeHubTile("history", "Game History", "Local report & archives", Icons.Filled.History, "home_tile_history"),
-        HomeHubTile("settings", "Settings", "Theme, board & backups", Icons.Filled.Settings, "home_tile_settings")
+    val quickTiles = listOf(
+        HomeQuickTile("play", "Play Bot", "Stockfish & timed modes", Icons.Rounded.SmartToy, "home_tile_play"),
+        HomeQuickTile("analyse", "Analyse Game", "Chess.com & Lichess import", Icons.Rounded.Analytics, "home_tile_analyse"),
+        HomeQuickTile("puzzles", "Puzzles", "Tactics & hint trainer", Icons.Rounded.Extension, "home_tile_puzzles"),
+        HomeQuickTile("friends", "Friendly Match", "Invite links & Wi-Fi", Icons.Rounded.Group, "home_tile_friends"),
+        HomeQuickTile("explorer", "Opening Explorer", "Live DB win rates", Icons.Rounded.Explore, "home_tile_explorer"),
+        HomeQuickTile("trainer", "Opening Trainer", "ECO repertoire drills", Icons.Rounded.FitnessCenter, "home_tile_trainer"),
+        HomeQuickTile("lessons", "Chess Lessons", "Interactive masterclasses", Icons.Rounded.School, "home_tile_lessons"),
+        HomeQuickTile("history", "Game History", "Local reports & games", Icons.Rounded.History, "home_tile_history")
     )
+
+    val totalGames = state.userProfile.gamesPlayedBot + state.recentGamesCount
+    val bestStreak = maxOf(state.userProfile.winStreak, state.openingStreak)
+    val latestPlay = state.recentPlayGames.firstOrNull()
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
+        verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
-        // Diggy Chess Royal Gold & Obsidian Floating Hero Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardSurfaceElevated),
-            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.50f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            shape = RoundedCornerShape(22.dp)
+        // Greeting Header
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = "Welcome back, ${state.userProfile.displayName}",
+                style = MaterialTheme.typography.headlineMedium,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Ready for your next game, review, or tactical warm-up.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted
+            )
+        }
+
+        // Stats Row (Rating, Streak, Games Played)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(DiggySpacing.s1)
+        ) {
+            HomeStatCard(
+                label = "Rating",
+                value = state.puzzleRating.toString(),
+                icon = Icons.Rounded.EmojiEvents,
+                accentColor = AccentGreen,
+                modifier = Modifier.weight(1f)
+            )
+            HomeStatCard(
+                label = "Streak",
+                value = "$bestStreak",
+                icon = Icons.Rounded.LocalFireDepartment,
+                accentColor = ClassMistake,
+                modifier = Modifier.weight(1f)
+            )
+            HomeStatCard(
+                label = "Games",
+                value = "$totalGames",
+                icon = Icons.Rounded.SportsEsports,
+                accentColor = StudioCyan,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Daily Puzzle Hero Card
+        Surface(
+            color = CardSurfaceElevated,
+            shape = RoundedCornerShape(DiggySpacing.cardRadius),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen.copy(alpha = 0.45f)),
+            shadowElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Image(
                     painter = painterResource(id = R.drawable.img_diggy_hero),
-                    contentDescription = "Diggy Chess royal studio board",
+                    contentDescription = "Daily tactical board",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize()
                 )
@@ -92,175 +135,201 @@ fun HomeScreen(
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
-                                    Color(0xF0080A0F),
-                                    Color(0xD60C0F16),
-                                    Color(0x66080A0F)
+                                    Color(0xF2121212),
+                                    Color(0xDA121212),
+                                    Color(0x88121212)
                                 )
                             )
                         )
                 )
                 Column(
-                    modifier = Modifier.padding(18.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Surface(
-                        color = AccentGreen.copy(alpha = 0.18f),
-                        shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.55f))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Bolt,
+                            contentDescription = null,
+                            tint = AccentGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
                         Text(
-                            text = "DIGGY CHESS STUDIO",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentGreenHover,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            text = "Daily Puzzle",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AccentGreen
                         )
                     }
                     Text(
-                        text = "Command the board.\nMaster every line.",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color(0xFFF6F2E9),
-                        fontWeight = FontWeight.Bold
+                        text = "Sharpen your tactical vision with today's hand-picked challenge.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFFFFFFF)
                     )
-                    Text(
-                        text = "Import Chess.com & Lichess games by username, train rated tactics with instant feedback, and challenge Stockfish.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFD0D5DD)
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = { onNavigate("play") },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentGreen,
-                                contentColor = OnAccentDark
-                            ),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .testTag("home_quick_play")
-                        ) {
-                            Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Play Bot", fontWeight = FontWeight.Bold)
-                        }
-                        OutlinedButton(
-                            onClick = onStartDailyPuzzle,
-                            border = BorderStroke(1.dp, AccentGreenHover),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color(0x8810131C),
-                                contentColor = AccentGreenHover
-                            ),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .testTag("home_daily_puzzle")
-                        ) {
-                            Icon(
-                                Icons.Outlined.Bolt,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = AccentGreenHover
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Daily Puzzle", color = AccentGreenHover, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Session Overview Floating Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.94f)),
-            border = BorderStroke(1.dp, LineSubtle),
-            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("YOUR TRAINING PROGRESS", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeMetricChip("Puzzle ELO", state.puzzleRating.toString(), Modifier.weight(1f))
-                    HomeMetricChip("Bot Games", state.userProfile.gamesPlayedBot.toString(), Modifier.weight(1f))
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeMetricChip("Opening Streak", state.openingStreak.toString(), Modifier.weight(1f))
-                    HomeMetricChip("Lessons Done", "${state.completedLessonsCount}/${state.totalLessonsCount}", Modifier.weight(1f))
-                }
-                state.lastAnalysedTitle?.let { lastTitle ->
-                    Surface(
-                        onClick = { onNavigate("history") },
-                        shape = RoundedCornerShape(14.dp),
-                        color = SurfaceDark,
-                        border = BorderStroke(1.dp, BorderSubtle),
+                    DiggyButton(
+                        text = "Solve Daily Puzzle",
+                        onClick = onStartDailyPuzzle,
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.Rounded.PlayArrow,
+                        testTag = "home_daily_puzzle",
                         modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        // Continue Game Card
+        DiggyCard(
+            elevated = false,
+            borderColor = if (hasActivePlayGame) AccentGreen.copy(alpha = 0.55f) else BorderSubtle,
+            contentPadding = PaddingValues(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("LAST ANALYSED GAME", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                                Text(
-                                    text = lastTitle,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Text(
-                                text = "${state.recentGamesCount} saved",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = AccentGreenHover
+                        Icon(
+                            imageVector = Icons.Rounded.PlayCircle,
+                            contentDescription = null,
+                            tint = StudioCyan,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "Continue Game",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary
+                        )
+                    }
+                    Text(
+                        text = if (hasActivePlayGame) "In progress" else if (latestPlay != null) latestPlay.result else "New match",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (hasActivePlayGame) AccentGreen else TextMuted
+                    )
+                }
+
+                when {
+                    hasActivePlayGame -> {
+                        Text(
+                            text = "Your match against Stockfish is waiting on the board.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                        DiggyButton(
+                            text = "Resume Match",
+                            onClick = onContinuePlay,
+                            variant = DiggyButtonVariant.PRIMARY,
+                            icon = Icons.Rounded.SmartToy,
+                            testTag = "home_continue_active",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    latestPlay != null -> {
+                        Text(
+                            text = "${latestPlay.title} · ${latestPlay.timeControlLabel} · ${latestPlay.movesCount} moves",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiggyButton(
+                                text = "New Game",
+                                onClick = { onNavigate("play") },
+                                variant = DiggyButtonVariant.PRIMARY,
+                                icon = Icons.Rounded.SmartToy,
+                                testTag = "home_quick_play",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Analyse Last",
+                                onClick = { onAnalysePgn(latestPlay.pgn) },
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Analytics,
+                                testTag = "home_analyse_last",
+                                modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                    state.lastAnalysedTitle != null -> {
+                        Text(
+                            text = "Last reviewed: ${state.lastAnalysedTitle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiggyButton(
+                                text = "Play Computer",
+                                onClick = { onNavigate("play") },
+                                variant = DiggyButtonVariant.PRIMARY,
+                                icon = Icons.Rounded.SmartToy,
+                                testTag = "home_quick_play",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "History",
+                                onClick = { onNavigate("history") },
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.History,
+                                testTag = "home_open_history",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    else -> {
+                        Text(
+                            text = "Challenge Stockfish across Easy, Medium, or Master strengths, or import games by username.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                        DiggyButton(
+                            text = "Play vs Computer",
+                            onClick = { onNavigate("play") },
+                            variant = DiggyButtonVariant.PRIMARY,
+                            icon = Icons.Rounded.SmartToy,
+                            testTag = "home_quick_play",
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
         }
 
-        // Studio Feature Floating Cards
+        // Quick Actions Grid
         Text(
-            text = "ROYAL STUDIO TOOLS",
-            style = MaterialTheme.typography.titleSmall,
-            color = AccentGreenHover
+            text = "Quick Actions",
+            style = MaterialTheme.typography.titleMedium,
+            color = TextPrimary
         )
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            hubTiles.chunked(2).forEach { pair ->
+
+        Column(verticalArrangement = Arrangement.spacedBy(DiggySpacing.s1)) {
+            quickTiles.chunked(2).forEach { pair ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(DiggySpacing.s1)
                 ) {
                     pair.forEach { tile ->
-                        Surface(
+                        DiggyCard(
                             onClick = { onNavigate(tile.route) },
-                            color = CardDark.copy(alpha = 0.94f),
-                            border = BorderStroke(1.dp, LineSubtle),
-                            shadowElevation = 4.dp,
-                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(14.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 92.dp)
+                                .heightIn(min = 104.dp)
                                 .testTag(tile.testTag)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(
                                     modifier = Modifier
-                                        .size(34.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
                                         .background(AccentGreen.copy(alpha = 0.14f)),
                                     contentAlignment = Alignment.Center
@@ -268,15 +337,14 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = tile.icon,
                                         contentDescription = tile.title,
-                                        tint = AccentGreenHover,
-                                        modifier = Modifier.size(19.dp)
+                                        tint = AccentGreen,
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
                                 Text(
                                     text = tile.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -285,7 +353,7 @@ fun HomeScreen(
                                     text = tile.subtitle,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextMuted,
-                                    maxLines = 2,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
@@ -299,22 +367,42 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeMetricChip(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(
-        color = SurfaceDark,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, BorderSubtle),
+private fun HomeStatCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    DiggyCard(
+        elevated = false,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Text(
                 text = value,
-                fontFamily = JetBrainsMonoFontFamily,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = AccentGreenHover
+                style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                color = TextPrimary
             )
-            Text(label, style = MaterialTheme.typography.bodySmall, color = TextMuted)
         }
     }
 }

@@ -113,14 +113,15 @@ data class EngineEval(
 enum class EngineDifficulty(
     val id: String,
     val label: String,
+    val eloLabel: String,
     val description: String,
     val apiDepth: Int,
     val localDepth: Int,
     val thinkingTimeMs: Int
 ) {
-    EASY("easy", "Easy", "Casual (~900) · relaxed tactical depth", 2, 2, 15),
-    MEDIUM("medium", "Medium", "Club (~1400) · balanced middlegame play", 6, 4, 45),
-    HARD("hard", "Hard", "Master (~2000+) · deep tactical calculation", 12, 6, 95);
+    EASY("easy", "Easy", "900 ELO", "Relaxed opponent for learning patterns", 2, 2, 15),
+    MEDIUM("medium", "Medium", "1400 ELO", "Balanced club-level middlegame play", 6, 4, 45),
+    HARD("hard", "Hard", "2000+ ELO", "Master strength with deep tactical search", 12, 6, 95);
 
     companion object {
         fun fromId(id: String?): EngineDifficulty = entries.find { it.id == id } ?: MEDIUM

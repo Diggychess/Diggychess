@@ -72,7 +72,7 @@ class AboutViewModel(
 
         val cleanName = name.trim()
         val cleanEmail = email.trim()
-        val cleanSubject = subject.trim().ifBlank { "KnightScope Feedback" }
+        val cleanSubject = subject.trim().ifBlank { "Diggy Chess Feedback" }
         val cleanMessage = message.trim()
 
         if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
@@ -105,7 +105,7 @@ class AboutViewModel(
             repo.updateContactEmail(cleanEmail)
             val result = ContactSender.send(
                 ContactSubmission(
-                    senderName = cleanName.ifBlank { "KnightScope Player" },
+                    senderName = cleanName.ifBlank { "Diggy Chess Player" },
                     senderEmail = cleanEmail,
                     subject = cleanSubject,
                     message = cleanMessage

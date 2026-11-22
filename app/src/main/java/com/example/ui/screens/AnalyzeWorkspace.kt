@@ -5,17 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.LastPage
-import androidx.compose.material.icons.filled.FirstPage
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.LastPage
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -23,21 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.chess.*
-import com.example.ui.components.BoardArrow
-import com.example.ui.components.ChessBoardView
-import com.example.ui.components.CoachCommentaryCard
-import com.example.ui.components.EvalBar
-import com.example.ui.components.EvalGraph
-import com.example.ui.components.MultiPvLinesCard
-import com.example.ui.components.PromotionPickerDialog
-import com.example.ui.components.SquareMoveBadge
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.VariationBranch
 import java.util.Locale
@@ -75,7 +64,7 @@ fun AnalyzeWorkspace(
         if (isWide) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(DiggySpacing.s2),
                 verticalAlignment = Alignment.Top
             ) {
                 Box(modifier = Modifier.weight(1.05f)) {
@@ -108,7 +97,7 @@ fun AnalyzeWorkspace(
                 }
                 Column(
                     modifier = Modifier.weight(0.95f),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
                 ) {
                     AnalysisRightCards(
                         result = result,
@@ -121,7 +110,7 @@ fun AnalyzeWorkspace(
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
             ) {
                 BoardAndMoveCard(
                     result = result,
@@ -196,6 +185,8 @@ private fun BoardAndMoveCard(
         else -> activePly.fenAfter
     }
 
+    val turnColor = remember(displayFen) { ChessBoard(displayFen).turn }
+
     val highlightSquares = when {
         variation != null -> variation.lastMoveSquares
         activePly != null && !isShowingBest -> listOf(activePly.move.fromName, activePly.move.toName)
@@ -242,61 +233,38 @@ private fun BoardAndMoveCard(
         activePly?.opening != null -> {
             val late = activePly.index > result.openingSummary.lastBookIndex && result.openingSummary.lastBookIndex >= 0
             "${activePly.opening.name} · ${activePly.opening.eco}" +
-                if (late) " (list ends after move ${(result.openingSummary.lastBookIndex + 1) / 2 + 1})" else ""
+                if (late) " (book ends after move ${(result.openingSummary.lastBookIndex + 1) / 2 + 1})" else ""
         }
         result.openingSummary.entry != null && currentPly - 1 > result.openingSummary.lastBookIndex -> {
             val op = result.openingSummary.entry
-            "${op.name} · ${op.eco} (list ends after move ${(result.openingSummary.lastBookIndex + 2) / 2})"
+            "${op.name} · ${op.eco} (book ends after move ${(result.openingSummary.lastBookIndex + 2) / 2})"
         }
         else -> ""
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, if (variation != null) StudioCyan.copy(alpha = 0.45f) else LineSubtle),
-        shape = RoundedCornerShape(14.dp)
+    val topIsBlack = !flipped
+    val topColor = if (topIsBlack) PieceColor.BLACK else PieceColor.WHITE
+    val botColor = if (topIsBlack) PieceColor.WHITE else PieceColor.BLACK
+    val topName = if (topIsBlack) result.summaryStats.blackName else result.summaryStats.whiteName
+    val botName = if (topIsBlack) result.summaryStats.whiteName else result.summaryStats.blackName
+    val topElo = (if (topIsBlack) result.summaryStats.blackElo else result.summaryStats.whiteElo)?.toString()
+    val botElo = (if (topIsBlack) result.summaryStats.whiteElo else result.summaryStats.blackElo)?.toString()
+
+    DiggyCard(
+        elevated = false,
+        borderColor = if (variation != null) StudioCyan.copy(alpha = 0.5f) else BorderSubtle,
+        contentPadding = PaddingValues(14.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Player Names Header
-            Surface(
-                color = SurfaceDark,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderSubtle),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "⚪ ${result.summaryStats.whiteName}" +
-                            (result.summaryStats.whiteElo?.let { " ($it)" } ?: ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "⚫ ${result.summaryStats.blackName}" +
-                            (result.summaryStats.blackElo?.let { " ($it)" } ?: ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            PlayerBar(
+                name = topName,
+                pieceColor = topColor,
+                isActiveTurn = turnColor == topColor,
+                fen = displayFen,
+                rating = topElo
+            )
 
             if (opLabelText.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = opLabelText,
                     style = MaterialTheme.typography.bodySmall,
@@ -304,83 +272,129 @@ private fun BoardAndMoveCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Eval bar + Interactive Chessboard
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // Eval bar height-matched pixel-for-pixel to ChessBoardView
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val boardSize = (maxWidth - DiggySpacing.evalBarWidth - 8.dp).coerceAtLeast(200.dp)
                 val curEval = variation?.liveEvalCp ?: result.evals.getOrElse(currentPly) { 0.0 }
-                EvalBar(
-                    evalPawns = curEval,
-                    flipped = flipped,
-                    modifier = Modifier
-                        .height(260.dp)
-                        .fillMaxHeight()
-                )
-                ChessBoardView(
-                    fen = displayFen,
-                    boardTheme = boardTheme,
-                    flipped = flipped,
-                    selectedSquare = selectedSq,
-                    lastMoveSquares = highlightSquares,
-                    legalTargets = legalTargets,
-                    arrows = arrows,
-                    moveBadge = moveBadge,
-                    onSquareClick = onBoardSquareClick,
-                    modifier = Modifier.weight(1f)
-                )
+                val curMate = variation?.liveEvalMate ?: activePly?.mate
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EvalBar(
+                        evalPawns = curEval,
+                        flipped = flipped,
+                        mate = curMate,
+                        modifier = Modifier.height(boardSize)
+                    )
+                    ChessBoardView(
+                        fen = displayFen,
+                        boardTheme = boardTheme,
+                        flipped = flipped,
+                        selectedSquare = selectedSq,
+                        lastMoveSquares = highlightSquares,
+                        legalTargets = legalTargets,
+                        arrows = arrows,
+                        moveBadge = moveBadge,
+                        onSquareClick = onBoardSquareClick,
+                        modifier = Modifier.size(boardSize)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            PlayerBar(
+                name = botName,
+                pieceColor = botColor,
+                isActiveTurn = turnColor == botColor,
+                fen = displayFen,
+                rating = botElo
+            )
 
-            // Move Navigation Controls
+            // Large 48dp Move Navigation Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val navModifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .height(DiggySpacing.touchTargetMin)
                 OutlinedButton(
                     onClick = { onGoToPly(0, false) },
-                    shape = RoundedCornerShape(12.dp),
+                    enabled = currentPly > 0,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardSurfaceElevated,
+                        disabledContainerColor = SurfaceDark
+                    ),
                     modifier = navModifier.testTag("nav_first")
                 ) {
-                    Icon(Icons.Filled.FirstPage, contentDescription = "First move", tint = TextPrimary)
+                    Icon(
+                        Icons.Rounded.FirstPage,
+                        contentDescription = "First move",
+                        tint = if (currentPly > 0) TextPrimary else TextDisabled,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 OutlinedButton(
                     onClick = { onGoToPly(currentPly - 1, false) },
-                    shape = RoundedCornerShape(12.dp),
+                    enabled = currentPly > 0,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardSurfaceElevated,
+                        disabledContainerColor = SurfaceDark
+                    ),
                     modifier = navModifier.testTag("nav_prev")
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous move", tint = TextPrimary)
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        contentDescription = "Previous move",
+                        tint = if (currentPly > 0) TextPrimary else TextDisabled,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 OutlinedButton(
                     onClick = { onGoToPly(currentPly + 1, false) },
-                    shape = RoundedCornerShape(12.dp),
+                    enabled = currentPly < result.plies.size,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardSurfaceElevated,
+                        disabledContainerColor = SurfaceDark
+                    ),
                     modifier = navModifier.testTag("nav_next")
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next move", tint = TextPrimary)
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Next move",
+                        tint = if (currentPly < result.plies.size) TextPrimary else TextDisabled,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 OutlinedButton(
                     onClick = { onGoToPly(result.plies.size, false) },
-                    shape = RoundedCornerShape(12.dp),
+                    enabled = currentPly < result.plies.size,
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = CardSurfaceElevated,
+                        disabledContainerColor = SurfaceDark
+                    ),
                     modifier = navModifier.testTag("nav_last")
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.LastPage, contentDescription = "Last move", tint = TextPrimary)
+                    Icon(
+                        Icons.AutoMirrored.Rounded.LastPage,
+                        contentDescription = "Last move",
+                        tint = if (currentPly < result.plies.size) TextPrimary else TextDisabled,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Chess.com-style Coach Commentary & Move Badges
+            // Coach Commentary & Move Classification Badges
             CoachCommentaryCard(
                 activePly = activePly,
                 currentPly = currentPly,
@@ -390,9 +404,7 @@ private fun BoardAndMoveCard(
                 onPracticeMistake = { idx -> onPracticeMistakes(idx) }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // UnCappio Studio Multi-PV Top 3 Engine Lines & Variation Explorer
+            // Multi-PV Top 3 Engine Lines & Variation Explorer
             MultiPvLinesCard(
                 lines = plyLiveLines,
                 isLoading = isLoadingPlyLines,
@@ -403,51 +415,42 @@ private fun BoardAndMoveCard(
                 onExitVariation = onExitVariation
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Flip, Share, Board Themes
+            // Flip, Share, Quick Board Themes
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                    DiggyChip(
+                        label = "Flip",
+                        selected = flipped,
                         onClick = onToggleFlip,
-                        shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.testTag("flip_board_button")
-                    ) {
-                        Icon(Icons.Filled.Flip, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentGreen)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Flip", color = AccentGreen)
-                    }
-                    OutlinedButton(
+                        icon = Icons.Rounded.SwapVert,
+                        testTag = "flip_board_button"
+                    )
+                    DiggyChip(
+                        label = "Share",
+                        selected = false,
                         onClick = onShareAnalysis,
-                        shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        modifier = Modifier.testTag("share_analysis_button")
-                    ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentGreen)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Share", color = AccentGreen)
-                    }
+                        icon = Icons.Rounded.Share,
+                        testTag = "share_analysis_button"
+                    )
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Board", style = MaterialTheme.typography.bodySmall, color = TextMuted)
                     BoardTheme.entries.forEach { theme ->
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(theme.darkSquare)
                                 .border(
                                     width = if (theme == boardTheme) 2.5.dp else 1.dp,
-                                    color = if (theme == boardTheme) StudioCyan else BorderSubtle,
+                                    color = if (theme == boardTheme) AccentGreen else BorderSubtle,
                                     shape = CircleShape
                                 )
                                 .clickable { onBoardThemeChange(theme) }
@@ -461,13 +464,21 @@ private fun BoardAndMoveCard(
 
     val pendingPromo = variation?.pendingPromotion ?: boardPendingPromotion
     if (pendingPromo != null) {
-        val sideToMove = ChessBoard(displayFen).turn
         PromotionPickerDialog(
-            color = sideToMove,
+            color = turnColor,
             onSelect = onSelectVariationPromotion,
             onDismiss = onDismissVariationPromotion
         )
     }
+}
+
+private fun summaryClassIcon(cls: MoveClass): ImageVector = when (cls) {
+    MoveClass.BRILLIANT -> Icons.Rounded.AutoAwesome
+    MoveClass.BEST -> Icons.Rounded.Star
+    MoveClass.GOOD -> Icons.Rounded.CheckCircle
+    MoveClass.INACCURACY -> Icons.Rounded.ReportProblem
+    MoveClass.MISTAKE -> Icons.Rounded.ErrorOutline
+    MoveClass.BLUNDER -> Icons.Rounded.Dangerous
 }
 
 @Composable
@@ -498,23 +509,21 @@ private fun AnalysisRightCards(
     }
 
     // Evaluation Graph Card
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, LineSubtle),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text("EVALUATION", style = MaterialTheme.typography.titleSmall, color = TextMuted)
-            Spacer(modifier = Modifier.height(8.dp))
+    DiggyCard(contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Evaluation Graph",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary
+            )
             EvalGraph(
                 evals = result.evals,
                 currentPly = currentPly,
                 onSelectPly = { onGoToPly(it, false) },
                 criticalPlies = criticalPlies
             )
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Tap the graph to jump to a move. Coloured dots highlight critical moments.",
+                text = "Tap any point on the chart to jump directly to that move.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
@@ -523,71 +532,73 @@ private fun AnalysisRightCards(
 
     // Opening Summary Card
     val op = result.openingSummary
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, LineSubtle),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("OPENING", style = MaterialTheme.typography.titleSmall, color = TextMuted)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    DiggyCard(contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = op.entry?.name ?: "Opening not identified",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f, fill = false)
+                    text = "Opening",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextMuted
                 )
                 op.entry?.let {
-                    Surface(color = AccentGreen, shape = RoundedCornerShape(6.dp)) {
+                    Surface(
+                        color = AccentGreen,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
                         Text(
                             text = it.eco,
                             color = OnAccentDark,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
             Text(
-                text = listOf(op.matchedText, op.nextMoveNote).filter { it.isNotEmpty() }.joinToString(" "),
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted
+                text = op.entry?.name ?: "Opening not identified",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text("ENGINE VIEW", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+            val bookLine = listOf(op.matchedText, op.nextMoveNote).filter { it.isNotEmpty() }.joinToString(" ")
+            if (bookLine.isNotEmpty()) {
+                Text(bookLine, style = MaterialTheme.typography.bodySmall, color = TextMuted)
+            }
+            HorizontalDivider(color = LineSubtle)
+            Text("Engine Perspective", style = MaterialTheme.typography.labelMedium, color = StudioCyan)
             Text(op.engineFirstNote, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
             Text(op.engineEvalNote, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(op.phaseHeading.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextMuted)
+            HorizontalDivider(color = LineSubtle)
+            Text(op.phaseHeading, style = MaterialTheme.typography.labelMedium, color = AccentGreen)
             Text("White: ${op.whiteObs}", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
             Text("Black: ${op.blackObs}", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
         }
     }
 
-    // Game Summary Table
+    // Accuracy & Game Summary Card
     val st = result.summaryStats
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, LineSubtle),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text("GAME SUMMARY", style = MaterialTheme.typography.titleSmall, color = TextMuted)
-            Spacer(modifier = Modifier.height(8.dp))
+    DiggyCard(contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Accuracy & Summary", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+            Spacer(modifier = Modifier.height(2.dp))
             SummaryRow("", "White", "Black", isHeader = true)
             SummaryRow(
-                "Accuracy",
-                String.format(Locale.US, "%.1f%%", st.whiteAccuracy),
-                String.format(Locale.US, "%.1f%%", st.blackAccuracy),
+                label = "Accuracy",
+                whiteVal = String.format(Locale.US, "%.1f%%", st.whiteAccuracy),
+                blackVal = String.format(Locale.US, "%.1f%%", st.blackAccuracy),
                 boldValues = true
             )
             MoveClass.entries.forEach { cls ->
                 SummaryRow(
-                    label = "${cls.glyph} ${cls.label}",
+                    label = cls.label,
                     whiteVal = (st.whiteCounts[cls] ?: 0).toString(),
                     blackVal = (st.blackCounts[cls] ?: 0).toString(),
-                    dotColor = cls.color
+                    icon = summaryClassIcon(cls),
+                    badgeColor = cls.color
                 )
             }
             SummaryRow("Opening", st.openingStats.whiteAccuracy, st.openingStats.blackAccuracy)
@@ -596,144 +607,98 @@ private fun AnalysisRightCards(
         }
     }
 
-    // Key Mistakes Card + One-Tap Practice My Mistakes CTA
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, LineSubtle),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+    // Key Mistakes & Practice CTA Card
+    DiggyCard(contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("KEY MISTAKES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
+                Text("Key Mistakes", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 if (hasMistakesToPractice) {
-                    Button(
+                    DiggyChip(
+                        label = "Practice All",
+                        selected = true,
                         onClick = { onPracticeMistakes(null) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = StudioCyan,
-                            contentColor = OnAccentDark
-                        ),
-                        shape = RoundedCornerShape(999.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .heightIn(min = 38.dp)
-                            .testTag("practice_all_mistakes_button")
-                    ) {
-                        Icon(Icons.Filled.FitnessCenter, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Practice Mistakes", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+                        icon = Icons.Rounded.FitnessCenter,
+                        accentColor = AccentGreen,
+                        testTag = "practice_all_mistakes_button"
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+
             if (result.keyMistakes.isEmpty()) {
                 Text(
-                    text = "No big mistakes. Well played!",
+                    text = "No major mistakes detected. Clean game!",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
             } else {
                 result.keyMistakes.forEach { p ->
                     val moveLabel = "${p.index / 2 + 1}${if (p.index % 2 == 1) "..." else "."} ${p.san}"
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onGoToPly(p.index + 1, true) }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        onClick = { onGoToPly(p.index + 1, true) },
+                        color = CardSurfaceElevated,
+                        shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(p.badgeColor.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(p.badgeColor.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = summaryClassIcon(p.moveClass),
+                                    contentDescription = p.badgeLabel,
+                                    tint = p.badgeColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                             Text(
-                                text = p.badgeGlyph,
-                                color = p.badgeColor,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                text = moveLabel,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "${p.badgeLabel}${p.bestSan?.let { " · Best $it" } ?: ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                contentDescription = "Jump to mistake",
+                                tint = TextMuted,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = moveLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${p.badgeLabel}${p.bestSan?.let { ", best was $it" } ?: ""}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted,
-                            modifier = Modifier.weight(1f)
-                        )
                     }
-                    HorizontalDivider(color = BorderSubtle, thickness = 0.5.dp)
                 }
             }
         }
     }
 
     // Move List Card
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, LineSubtle),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text("MOVES", style = MaterialTheme.typography.titleSmall, color = TextMuted)
-            Spacer(modifier = Modifier.height(8.dp))
-            val pairCount = (result.plies.size + 1) / 2
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-            ) {
-                items(pairCount, key = { it }) { pairIdx ->
-                    val wPly = result.plies.getOrNull(pairIdx * 2)
-                    val bPly = result.plies.getOrNull(pairIdx * 2 + 1)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "${pairIdx + 1}.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted,
-                            modifier = Modifier.width(30.dp)
-                        )
-                        if (wPly != null) {
-                            MoveListChip(
-                                ply = wPly,
-                                isSelected = currentPly == wPly.index + 1,
-                                onClick = { onGoToPly(wPly.index + 1, false) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        if (bPly != null) {
-                            MoveListChip(
-                                ply = bPly,
-                                isSelected = currentPly == bPly.index + 1,
-                                onClick = { onGoToPly(bPly.index + 1, false) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
+    DiggyCard(contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Moves", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+            AnalyzedMoveList(
+                plies = result.plies,
+                currentPly = currentPly,
+                onSelectPly = { ply -> onGoToPly(ply, false) }
+            )
         }
     }
 }
@@ -745,108 +710,53 @@ private fun SummaryRow(
     blackVal: String,
     isHeader: Boolean = false,
     boldValues: Boolean = false,
-    dotColor: Color? = null
+    icon: ImageVector? = null,
+    badgeColor: Color? = null
 ) {
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.weight(1.3f),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.weight(1.35f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (dotColor != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(9.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
+                if (icon != null && badgeColor != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = badgeColor,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (isHeader) FontWeight.SemiBold else FontWeight.Normal,
-                    color = TextPrimary
+                    color = if (isHeader) TextMuted else TextPrimary
                 )
             }
             Text(
                 text = whiteVal,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Normal,
-                color = TextPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Medium,
+                color = if (boldValues) AccentGreen else TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = blackVal,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Normal,
-                color = TextPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Medium,
+                color = if (boldValues) AccentGreen else TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
         }
-        HorizontalDivider(color = BorderSubtle, thickness = 0.5.dp)
-    }
-}
-
-@Composable
-private fun MoveListChip(
-    ply: AnalyzedPly,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) SurfaceDark else Color.Transparent,
-        border = BorderStroke(1.dp, if (isSelected) StudioCyan else Color.Transparent),
-        modifier = modifier
-            .heightIn(min = 38.dp)
-            .testTag("move_ply_${ply.index + 1}")
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(ply.badgeColor)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = ply.san,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
-                )
-                if (ply.moveClass != MoveClass.GOOD && ply.moveClass != MoveClass.BEST) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = ply.badgeGlyph,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = ply.badgeColor
-                    )
-                }
-            }
-            Text(
-                text = MoveExplainer.formatPlyEval(ply.evalAfter, ply.mate),
-                style = MaterialTheme.typography.labelSmall,
-                color = TextMuted
-            )
-        }
+        HorizontalDivider(color = LineSubtle, thickness = 0.5.dp)
     }
 }
