@@ -8,20 +8,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.R
 
-val NunitoFontFamily = FontFamily(
-    Font(R.font.nunito, FontWeight.Normal),
-    Font(R.font.nunito, FontWeight.Bold),
-    Font(R.font.nunito, FontWeight.ExtraBold)
-)
-
-val PlusJakartaSansFontFamily = NunitoFontFamily
-
 val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Normal),
     Font(R.font.inter, FontWeight.Medium),
     Font(R.font.inter, FontWeight.SemiBold),
     Font(R.font.inter, FontWeight.Bold)
 )
+
+val PlusJakartaSansFontFamily = InterFontFamily
 
 val JetBrainsMonoFontFamily = FontFamily(
     Font(R.font.jetbrains_mono, FontWeight.Normal),
@@ -31,25 +25,25 @@ val JetBrainsMonoFontFamily = FontFamily(
 )
 
 val KnightScopeTypography = Typography(
-    // Display & Screen Title: 24/800 Nunito
+    // Display & Screen Title: 24/700 Inter
     headlineMedium = TextStyle(
-        fontFamily = NunitoFontFamily,
-        fontWeight = FontWeight.ExtraBold,
+        fontFamily = InterFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
         lineHeight = 30.sp,
         letterSpacing = (-0.3).sp
     ),
-    // Dialog & Hero Titles: 20/700 Nunito
+    // Dialog & Hero Titles: 20/700 Inter
     headlineSmall = TextStyle(
-        fontFamily = NunitoFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
         lineHeight = 26.sp,
         letterSpacing = (-0.2).sp
     ),
-    // Section Header: 18/700 Nunito
+    // Section Header: 18/700 Inter
     titleLarge = TextStyle(
-        fontFamily = NunitoFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
         lineHeight = 24.sp,

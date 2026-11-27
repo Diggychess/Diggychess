@@ -442,8 +442,8 @@ private fun HomeHeroCard() {
                 }
                 Text(
                     text = "CHESS ANALYZER",
-                    fontFamily = NunitoFontFamily,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = InterFontFamily,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     letterSpacing = 0.8.sp,
                     color = OnMatteDark,
