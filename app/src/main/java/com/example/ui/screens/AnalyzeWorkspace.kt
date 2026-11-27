@@ -445,6 +445,17 @@ private fun BoardAndMoveCard(
                 onUseOfflineMoveInsight = onUseOfflineMoveInsight
             )
 
+            // Multi-PV Top 3 Engine Lines & Variation Explorer
+            MultiPvLinesCard(
+                lines = plyLiveLines,
+                isLoading = isLoadingPlyLines,
+                variation = variation,
+                onPlayLineMove = onPlayEngineLineMove,
+                onStepVariation = onStepVariation,
+                onUndoVariation = onUndoVariation,
+                onExitVariation = onExitVariation
+            )
+
             // Flip, Share, Quick Board Themes (responsive for 360dp phones)
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val stackThemes = maxWidth < 360.dp
