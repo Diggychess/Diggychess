@@ -10,6 +10,7 @@ import com.example.service.ContactSubmission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -25,6 +26,7 @@ data class AboutUiState(
     val testResults: List<SelfTestRow> = emptyList(),
     val backupMessage: String? = null,
     val userProfile: UserProfile = UserProfile(),
+    val bestPuzzleStreak: Int = 0,
     val contactEmail: String = "",
     val isSendingContact: Boolean = false,
     val contactStatus: String? = null,
@@ -44,6 +46,11 @@ class AboutViewModel(
         viewModelScope.launch {
             repo.userProfileFlow.collect { profile ->
                 _uiState.update { it.copy(userProfile = profile) }
+            }
+        }
+        viewModelScope.launch {
+            repo.bestPuzzleStreakFlow.distinctUntilChanged().collect { best ->
+                _uiState.update { it.copy(bestPuzzleStreak = best) }
             }
         }
         viewModelScope.launch {
@@ -72,7 +79,7 @@ class AboutViewModel(
 
         val cleanName = name.trim()
         val cleanEmail = email.trim()
-        val cleanSubject = subject.trim().ifBlank { "Diggy Chess Feedback" }
+        val cleanSubject = subject.trim().ifBlank { "Chess Analyzer: AI Coach Feedback" }
         val cleanMessage = message.trim()
 
         if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
@@ -105,7 +112,7 @@ class AboutViewModel(
             repo.updateContactEmail(cleanEmail)
             val result = ContactSender.send(
                 ContactSubmission(
-                    senderName = cleanName.ifBlank { "Diggy Chess Player" },
+                    senderName = cleanName.ifBlank { "Chess Analyzer Player" },
                     senderEmail = cleanEmail,
                     subject = cleanSubject,
                     message = cleanMessage

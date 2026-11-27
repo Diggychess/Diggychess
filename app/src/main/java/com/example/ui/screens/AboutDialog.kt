@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.ui.components.diggyInputColors
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AboutUiState
 import kotlinx.coroutines.launch
@@ -44,7 +46,7 @@ fun AboutDialog(
     var contactExpanded by remember { mutableStateOf(false) }
     var senderName by remember { mutableStateOf("") }
     var senderEmail by remember(state.contactEmail) { mutableStateOf(state.contactEmail) }
-    var subject by remember { mutableStateOf("Diggy Chess Feedback") }
+    var subject by remember { mutableStateOf("Chess Analyzer: AI Coach Feedback") }
     var message by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -93,10 +95,10 @@ fun AboutDialog(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("ABOUT DIGGY CHESS", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
+                Text("ABOUT CHESS ANALYZER: AI COACH", style = MaterialTheme.typography.titleSmall, color = AccentGreenHover)
 
                 Text(
-                    text = "Diggy Chess reviews your chess games with engine evaluations and explains the key moments in plain English.",
+                    text = "Chess Analyzer: AI Coach reviews your chess games with engine evaluations and explains the key moments in plain English.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted
                 )
@@ -157,6 +159,56 @@ fun AboutDialog(
                                 value = state.userProfile.winStreak.toString(),
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = TrophyGold.copy(alpha = 0.14f),
+                            border = BorderStroke(1.2.dp, TrophyGold.copy(alpha = 0.60f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("session_best_streak_badge")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.EmojiEvents,
+                                        contentDescription = "All-time best puzzle streak trophy",
+                                        tint = TrophyGold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Best Streak",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TrophyGold
+                                        )
+                                        Text(
+                                            text = "All-time highest consecutive puzzles",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "${state.bestPuzzleStreak}",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontFamily = JetBrainsMonoFontFamily,
+                                        fontFeatureSettings = "tnum"
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = TrophyGold
+                                )
+                            }
                         }
                     }
                 }
@@ -340,18 +392,53 @@ fun AboutDialog(
                     }
                 }
 
-                Text(
-                    text = "Diggy Chess · Vector pieces inspired by Cburnett (CC BY-SA 3.0) · Inter Typography (OFL 1.1).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted
-                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SurfaceDark,
+                    border = BorderStroke(1.dp, BorderSubtle),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("open_source_licenses_card")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "OPEN-SOURCE LICENSES & ATTRIBUTION",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = AccentGreen,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "• Stockfish 19 Engine: GNU GPL-3.0 (github.com/official-stockfish/Stockfish)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "• Lichess Open Puzzles & Chess-Openings ECO TSVs: CC0 Public Domain",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                        Text(
+                            text = "• Chesslib PGN/FEN Validator: Apache-2.0 · Jummania Board UI Ref: MIT",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                        Text(
+                            text = "• Cburnett Vector Pieces: CC BY-SA 3.0 · Inter / JetBrains Mono: OFL 1.1",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { exportLauncher.launch("diggy-chess-backup.json") },
+                        onClick = { exportLauncher.launch("chess-analyzer-backup.json") },
                         border = BorderStroke(1.dp, BorderSubtle),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
@@ -411,7 +498,10 @@ private fun SessionStatTile(
         ) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = JetBrainsMonoFontFamily,
+                    fontFeatureSettings = "tnum"
+                ),
                 fontWeight = FontWeight.Bold,
                 color = AccentGreenHover
             )
@@ -425,12 +515,4 @@ private fun SessionStatTile(
 }
 
 @Composable
-private fun aboutFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = AccentGreen,
-    unfocusedBorderColor = BorderSubtle,
-    focusedLabelColor = AccentGreen,
-    unfocusedLabelColor = TextMuted,
-    focusedTextColor = TextPrimary,
-    unfocusedTextColor = TextPrimary,
-    cursorColor = AccentGreen
-)
+private fun aboutFieldColors() = diggyInputColors()

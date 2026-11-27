@@ -70,7 +70,11 @@ enum class MoveClass(val label: String, val color: Color, val glyph: String) {
     INACCURACY("Inaccuracy", ClassInaccuracy, "?!"),
     MISTAKE("Mistake", ClassMistake, "?"),
     BLUNDER("Blunder", ClassBlunder, "??"),
-    BRILLIANT("Brilliant", ClassBrilliant, "!!")
+    BRILLIANT("Brilliant", ClassBrilliant, "!!"),
+    EXCELLENT("Excellent", ClassExcellent, "✔");
+
+    val isSuboptimal: Boolean
+        get() = this == INACCURACY || this == MISTAKE || this == BLUNDER
 }
 
 data class ParsedPly(
@@ -115,13 +119,15 @@ enum class EngineDifficulty(
     val label: String,
     val eloLabel: String,
     val description: String,
+    val skillLevel: Int,
     val apiDepth: Int,
     val localDepth: Int,
     val thinkingTimeMs: Int
 ) {
-    EASY("easy", "Easy", "900 ELO", "Relaxed opponent for learning patterns", 2, 2, 15),
-    MEDIUM("medium", "Medium", "1400 ELO", "Balanced club-level middlegame play", 6, 4, 45),
-    HARD("hard", "Hard", "2000+ ELO", "Master strength with deep tactical search", 12, 6, 95);
+    EASY("easy", "Easy", "900 ELO", "Skill Level 3 · Relaxed play", 3, 2, 2, 15),
+    MEDIUM("medium", "Medium", "1400 ELO", "Skill Level 8 · Balanced club play", 8, 6, 4, 45),
+    HARD("hard", "Hard", "1950 ELO", "Skill Level 14 · Strong tactical play", 14, 10, 5, 75),
+    EXPERT("expert", "Expert", "2400+ ELO", "Skill Level 20 · Full Stockfish strength", 20, 14, 6, 95);
 
     companion object {
         fun fromId(id: String?): EngineDifficulty = entries.find { it.id == id } ?: MEDIUM
@@ -207,16 +213,48 @@ data class GameAnalysisResult(
     val openingSummary: OpeningSummary,
     val summaryStats: GameSummaryStats,
     val keyMistakes: List<AnalyzedPly>,
-    val engineLabel: String
+    val engineLabel: String,
+    val depth: Int = 12
 )
 
 data class ReviewSettings(
-    val depth: Int = 6,
+    val depth: Int = 12,
     val forceReanalyze: Boolean = false,
     val inaccuracyThreshold: Int = 5,
     val mistakeThreshold: Int = 10,
     val blunderThreshold: Int = 20
 )
+
+enum class PuzzleDifficultyFilter(
+    val id: String,
+    val label: String,
+    val ratingLabel: String
+) {
+    ALL("all", "All", "All ratings"),
+    BEGINNER("beginner", "Beginner", "0–1399"),
+    INTERMEDIATE("intermediate", "Intermediate", "1400–1999"),
+    ADVANCED("advanced", "Advanced", "2000+");
+
+    fun matches(puzzle: Puzzle): Boolean = when (this) {
+        ALL -> true
+        BEGINNER -> puzzle.rating in 0..1399
+        INTERMEDIATE -> puzzle.rating in 1400..1999
+        ADVANCED -> puzzle.rating >= 2000
+    }
+
+    companion object {
+        val TIERS = listOf(BEGINNER, INTERMEDIATE, ADVANCED)
+
+        fun fromId(id: String?): PuzzleDifficultyFilter =
+            entries.firstOrNull { it.id == id } ?: ALL
+
+        fun tierForRating(rating: Int): PuzzleDifficultyFilter = when {
+            rating in 0..1399 -> BEGINNER
+            rating in 1400..1999 -> INTERMEDIATE
+            else -> ADVANCED
+        }
+    }
+}
 
 data class Puzzle(
     val id: String,
@@ -245,8 +283,8 @@ data class PuzzleRatingState(
 )
 
 data class PhaseReport(
-    val whiteCounts: List<Int>, // length 6 corresponding to MoveClass.entries
-    val blackCounts: List<Int>, // length 6
+    val whiteCounts: List<Int>, // length 7 corresponding to MoveClass.entries (backward compatible with 6)
+    val blackCounts: List<Int>, // length 7
     val whitePhaseMistakes: List<Int>, // [opening, middlegame, endgame]
     val blackPhaseMistakes: List<Int>
 )
@@ -261,5 +299,11 @@ data class SavedGameEntry(
     val evals: List<Double>,
     val bestMoves: List<String?>,
     val report: PhaseReport?,
-    val mistakes: List<Puzzle>
+    val mistakes: List<Puzzle>,
+    val result: String = "*",
+    val opponent: String = "",
+    val source: String = "analysed",
+    val depth: Int = 12,
+    val whiteAccuracy: Double? = null,
+    val blackAccuracy: Double? = null
 )

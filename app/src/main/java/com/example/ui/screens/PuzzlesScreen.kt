@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.chess.PieceType
 import com.example.chess.PuzzleAttempt
+import com.example.chess.PuzzleDifficultyFilter
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PuzzleCategory
@@ -55,6 +57,8 @@ fun PuzzlesScreen(
     onStartReviewMistakes: () -> Unit,
     onStartMyGameMistakes: () -> Unit,
     onSetDailyGoal: (Int) -> Unit,
+    onToggleDifficultyFilter: (PuzzleDifficultyFilter) -> Unit,
+    onSetDifficultyFilter: (PuzzleDifficultyFilter) -> Unit,
     onImportCsv: (String) -> Unit,
     onSquareClick: (String) -> Unit,
     onSelectPromotion: (PieceType) -> Unit,
@@ -74,6 +78,7 @@ fun PuzzlesScreen(
     if (state.inPlay) {
         PuzzlePlayView(
             state = state,
+            onSelectDifficultyFilter = onSetDifficultyFilter,
             onSquareClick = onSquareClick,
             onSelectPromotion = onSelectPromotion,
             onDismissPromotion = onDismissPromotion,
@@ -116,6 +121,259 @@ fun PuzzlesScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
+        }
+
+        // Daily Challenge Header Card
+        val dailyGoal = state.dailyGoal.coerceAtLeast(1)
+        val solvedToday = state.dailySolvedToday.coerceAtMost(dailyGoal)
+        val dailyDone = state.dailySolvedToday >= dailyGoal
+        val dailyFrac = (solvedToday.toFloat() / dailyGoal).coerceIn(0f, 1f)
+        val dailyAccent = if (dailyDone) FeedbackCorrectGreen else AccentGreen
+
+        DiggyCard(
+            elevated = true,
+            borderColor = dailyAccent.copy(alpha = 0.55f),
+            contentPadding = PaddingValues(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("daily_challenge_card")
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (dailyDone) Icons.Rounded.EmojiEvents else Icons.Rounded.Today,
+                            contentDescription = "Daily Challenge",
+                            tint = if (dailyDone) TrophyGold else dailyAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Daily Challenge",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = dailyAccent
+                            )
+                            Text(
+                                text = if (dailyDone) {
+                                    "Today's goal completed!"
+                                } else {
+                                    "${dailyGoal - solvedToday} puzzle${if (dailyGoal - solvedToday == 1) "" else "s"} left today"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                    Surface(
+                        color = dailyAccent.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(999.dp),
+                        border = BorderStroke(1.dp, dailyAccent.copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            text = "$solvedToday / $dailyGoal",
+                            fontFamily = JetBrainsMonoFontFamily,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = dailyAccent,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                LinearProgressIndicator(
+                    progress = { dailyFrac },
+                    color = dailyAccent,
+                    trackColor = BorderSubtle,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(9.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .testTag("puzzles_daily_progress_bar")
+                )
+
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 330.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Daily target:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextMuted
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                PuzzlesViewModel.DAILY_GOAL_OPTIONS.forEach { goalOpt ->
+                                    DiggyChip(
+                                        label = "$goalOpt",
+                                        selected = state.dailyGoal == goalOpt,
+                                        onClick = { onSetDailyGoal(goalOpt) },
+                                        accentColor = dailyAccent,
+                                        testTag = "daily_goal_chip_$goalOpt",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (state.dailyGoal !in PuzzlesViewModel.DAILY_GOAL_OPTIONS) {
+                                    DiggyChip(
+                                        label = "${state.dailyGoal}",
+                                        selected = true,
+                                        onClick = {},
+                                        accentColor = dailyAccent,
+                                        testTag = "daily_goal_chip_custom",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Daily target:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextMuted
+                            )
+                            PuzzlesViewModel.DAILY_GOAL_OPTIONS.forEach { goalOpt ->
+                                DiggyChip(
+                                    label = "$goalOpt",
+                                    selected = state.dailyGoal == goalOpt,
+                                    onClick = { onSetDailyGoal(goalOpt) },
+                                    accentColor = dailyAccent,
+                                    testTag = "daily_goal_chip_$goalOpt",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (state.dailyGoal !in PuzzlesViewModel.DAILY_GOAL_OPTIONS) {
+                                DiggyChip(
+                                    label = "${state.dailyGoal}",
+                                    selected = true,
+                                    onClick = {},
+                                    accentColor = dailyAccent,
+                                    testTag = "daily_goal_chip_custom",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Difficulty Filter System for Daily Goal & Practice
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Difficulty filter",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextMuted
+                        )
+                        val allSelected = state.difficultyFilter == PuzzleDifficultyFilter.ALL
+                        Surface(
+                            onClick = { onSetDifficultyFilter(PuzzleDifficultyFilter.ALL) },
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (allSelected) AccentGreen.copy(alpha = 0.16f) else CardSurfaceElevated,
+                            border = BorderStroke(1.dp, if (allSelected) AccentGreen else BorderSubtle),
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("puzzle_diff_all")
+                        ) {
+                            Text(
+                                text = "All (${state.difficultyCounts[PuzzleDifficultyFilter.ALL] ?: state.totalPoolSize})",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (allSelected) AccentGreen else TextMuted,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PuzzleDifficultyFilter.TIERS.forEach { tier ->
+                            val isSelected = state.difficultyFilter == tier
+                            val tierAccent = when (tier) {
+                                PuzzleDifficultyFilter.BEGINNER -> FeedbackCorrectGreen
+                                PuzzleDifficultyFilter.INTERMEDIATE -> StudioCyan
+                                PuzzleDifficultyFilter.ADVANCED -> TrophyGold
+                                PuzzleDifficultyFilter.ALL -> AccentGreen
+                            }
+                            val tierCount = state.difficultyCounts[tier] ?: 0
+                            Surface(
+                                onClick = { onToggleDifficultyFilter(tier) },
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                                color = if (isSelected) tierAccent.copy(alpha = 0.16f) else CardSurfaceElevated,
+                                border = BorderStroke(1.dp, if (isSelected) tierAccent else BorderSubtle),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = DiggySpacing.touchTargetMin)
+                                    .testTag("puzzle_diff_${tier.id}")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = tier.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) tierAccent else TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = tier.ratingLabel,
+                                        fontSize = 10.sp,
+                                        color = if (isSelected) tierAccent.copy(alpha = 0.9f) else TextMuted,
+                                        maxLines = 1
+                                    )
+                                    if (tierCount > 0) {
+                                        Text(
+                                            text = "$tierCount",
+                                            fontSize = 10.sp,
+                                            color = TextMuted,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                DiggyButton(
+                    text = when {
+                        dailyDone -> "Challenge Complete · Play Bonus"
+                        solvedToday > 0 -> "Continue Daily Challenge ($solvedToday/$dailyGoal)"
+                        else -> if (state.difficultyFilter == PuzzleDifficultyFilter.ALL) {
+                            "Start Daily Challenge"
+                        } else {
+                            "Start ${state.difficultyFilter.label} Daily Challenge"
+                        }
+                    },
+                    onClick = onStartDaily,
+                    enabled = !state.isLoadingPool,
+                    icon = if (dailyDone) Icons.Rounded.Bolt else Icons.Rounded.PlayArrow,
+                    testTag = "start_daily_challenge_button",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         // Rated Training Card
@@ -220,7 +478,7 @@ fun PuzzlesScreen(
                         label = "Hard",
                         selected = false,
                         onClick = { if (!state.isLoadingPool) onStartQuickDifficulty("hard") },
-                        accentColor = AccentGreen,
+                        accentColor = TrophyGold,
                         testTag = "puzzle_quick_hard",
                         modifier = Modifier.weight(1f)
                     )
@@ -248,7 +506,7 @@ fun PuzzlesScreen(
                                     onClick = { if (unlocked) onStartLevel(lv.index) },
                                     enabled = unlocked,
                                     shape = RoundedCornerShape(DiggySpacing.controlRadius),
-                                    color = if (unlocked) CardSurfaceElevated else BgDark.copy(alpha = 0.6f),
+                                    color = if (unlocked) CardSurfaceElevated else CardSurfaceElevated.copy(alpha = 0.65f),
                                     border = BorderStroke(1.dp, if (unlocked) BorderSubtle else LineSubtle),
                                     modifier = Modifier
                                         .weight(1f)
@@ -406,54 +664,111 @@ fun PuzzlesScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyChip(
-                        label = "Daily",
-                        selected = false,
-                        onClick = onStartDaily,
-                        icon = Icons.Rounded.Today,
-                        testTag = "daily_puzzle_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyChip(
-                        label = "Random",
-                        selected = false,
-                        onClick = onStartRandom,
-                        icon = Icons.Rounded.Shuffle,
-                        testTag = "random_puzzle_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyChip(
-                        label = "Timed 3:00",
-                        selected = false,
-                        onClick = onStartTimed,
-                        icon = Icons.Rounded.Timer,
-                        testTag = "timed_puzzle_button",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 340.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyChip(
+                                    label = "Daily",
+                                    selected = false,
+                                    onClick = onStartDaily,
+                                    icon = Icons.Rounded.Today,
+                                    testTag = "daily_puzzle_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyChip(
+                                    label = "Random",
+                                    selected = false,
+                                    onClick = onStartRandom,
+                                    icon = Icons.Rounded.Shuffle,
+                                    testTag = "random_puzzle_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            DiggyChip(
+                                label = "Timed 3:00",
+                                selected = false,
+                                onClick = onStartTimed,
+                                icon = Icons.Rounded.Timer,
+                                testTag = "timed_puzzle_button",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyChip(
+                                label = "Daily",
+                                selected = false,
+                                onClick = onStartDaily,
+                                icon = Icons.Rounded.Today,
+                                testTag = "daily_puzzle_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Random",
+                                selected = false,
+                                onClick = onStartRandom,
+                                icon = Icons.Rounded.Shuffle,
+                                testTag = "random_puzzle_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Timed 3:00",
+                                selected = false,
+                                onClick = onStartTimed,
+                                icon = Icons.Rounded.Timer,
+                                testTag = "timed_puzzle_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyButton(
-                        text = "Mistakes (${state.reviewMistakesCount})",
-                        onClick = onStartReviewMistakes,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        testTag = "review_mistakes_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "My Game Fixes",
-                        onClick = onStartMyGameMistakes,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        testTag = "my_game_mistakes_button",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 310.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiggyButton(
+                                text = "Mistakes (${state.reviewMistakesCount})",
+                                onClick = onStartReviewMistakes,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                testTag = "review_mistakes_button",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DiggyButton(
+                                text = "My Game Fixes",
+                                onClick = onStartMyGameMistakes,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                testTag = "my_game_mistakes_button",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Mistakes (${state.reviewMistakesCount})",
+                                onClick = onStartReviewMistakes,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                testTag = "review_mistakes_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "My Game Fixes",
+                                onClick = onStartMyGameMistakes,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                testTag = "my_game_mistakes_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
 
                 state.menuError?.let { err ->
@@ -568,17 +883,12 @@ fun PuzzlesScreen(
                     OutlinedTextField(
                         value = csvText,
                         onValueChange = { csvText = it },
-                        placeholder = { Text("Paste Lichess puzzle CSV rows here", color = TextMuted) },
+                        placeholder = { Text("Paste Lichess puzzle CSV rows here", color = InputHint) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(100.dp),
-                        textStyle = MaterialTheme.typography.bodySmall.copy(color = TextPrimary),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = BgDark,
-                            unfocusedContainerColor = BgDark,
-                            focusedBorderColor = AccentGreen,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = InputText),
+                        colors = diggyInputColors(),
                         shape = RoundedCornerShape(DiggySpacing.controlRadius)
                     )
                     DiggyButton(
@@ -599,7 +909,7 @@ fun PuzzlesScreen(
 @Composable
 private fun StatBox(value: String, label: String, modifier: Modifier = Modifier) {
     Surface(
-        color = BgDark,
+        color = CardSurfaceElevated,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
         border = BorderStroke(1.dp, BorderSubtle),
         modifier = modifier
@@ -607,6 +917,7 @@ private fun StatBox(value: String, label: String, modifier: Modifier = Modifier)
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = value,
+                fontFamily = JetBrainsMonoFontFamily,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary

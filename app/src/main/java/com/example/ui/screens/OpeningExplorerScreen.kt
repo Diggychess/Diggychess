@@ -87,7 +87,10 @@ fun OpeningExplorerScreen(
                     }.joinToString(" ")
                     Text(
                         text = pgnPreview,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
+                            fontFeatureSettings = "tnum"
+                        ),
                         color = TextPrimary
                     )
                 }
@@ -103,36 +106,74 @@ fun OpeningExplorerScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyButton(
-                        text = "Back",
-                        onClick = onUndo,
-                        enabled = state.canUndo,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.AutoMirrored.Rounded.Undo,
-                        testTag = "explorer_undo",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Reset",
-                        onClick = onReset,
-                        enabled = state.canUndo,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Refresh,
-                        testTag = "explorer_reset",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Flip",
-                        onClick = onToggleFlip,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.SwapVert,
-                        testTag = "explorer_flip",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 330.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Back",
+                                    onClick = onUndo,
+                                    enabled = state.canUndo,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.AutoMirrored.Rounded.Undo,
+                                    testTag = "explorer_undo",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Reset",
+                                    onClick = onReset,
+                                    enabled = state.canUndo,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Refresh,
+                                    testTag = "explorer_reset",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            DiggyButton(
+                                text = "Flip",
+                                onClick = onToggleFlip,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.SwapVert,
+                                testTag = "explorer_flip",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Back",
+                                onClick = onUndo,
+                                enabled = state.canUndo,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.AutoMirrored.Rounded.Undo,
+                                testTag = "explorer_undo",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Reset",
+                                onClick = onReset,
+                                enabled = state.canUndo,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Refresh,
+                                testTag = "explorer_reset",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Flip",
+                                onClick = onToggleFlip,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.SwapVert,
+                                testTag = "explorer_flip",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
 
                 if (state.sanHistory.isNotEmpty()) {
@@ -200,7 +241,10 @@ fun OpeningExplorerScreen(
                                     ) {
                                         Text(
                                             text = mv.san,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontFamily = JetBrainsMonoFontFamily,
+                                                fontFeatureSettings = "tnum"
+                                            ),
                                             fontWeight = FontWeight.Bold,
                                             color = TextPrimary
                                         )
@@ -214,7 +258,10 @@ fun OpeningExplorerScreen(
                                         }
                                         Text(
                                             text = meta,
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = JetBrainsMonoFontFamily,
+                                                fontFeatureSettings = "tnum"
+                                            ),
                                             color = TextMuted,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -233,7 +280,7 @@ fun OpeningExplorerScreen(
                                                     modifier = Modifier
                                                         .weight(mv.whitePct.coerceAtLeast(0.02f))
                                                         .fillMaxHeight()
-                                                        .background(Color(0xFFECEFF1))
+                                                        .background(Color(0xFFF5F4F1))
                                                 )
                                             }
                                             if (mv.drawPct > 0f) {
@@ -241,7 +288,7 @@ fun OpeningExplorerScreen(
                                                     modifier = Modifier
                                                         .weight(mv.drawPct.coerceAtLeast(0.02f))
                                                         .fillMaxHeight()
-                                                        .background(Color(0xFF78909C))
+                                                        .background(Color(0xFF7C7870))
                                                 )
                                             }
                                             if (mv.blackPct > 0f) {
@@ -249,7 +296,7 @@ fun OpeningExplorerScreen(
                                                     modifier = Modifier
                                                         .weight(mv.blackPct.coerceAtLeast(0.02f))
                                                         .fillMaxHeight()
-                                                        .background(Color(0xFF263238))
+                                                        .background(Color(0xFF1D1B18))
                                                 )
                                             }
                                         }

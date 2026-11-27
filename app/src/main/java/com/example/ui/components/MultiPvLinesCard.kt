@@ -83,7 +83,10 @@ fun MultiPvLinesCard(
                         ) {
                             Text(
                                 text = "Depth $depth",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
                                 color = TextMuted,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -166,7 +169,10 @@ fun MultiPvLinesCard(
                                     ) {
                                         Text(
                                             text = step.san,
-                                            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontFamily = JetBrainsMonoFontFamily,
+                                                fontFeatureSettings = "tnum"
+                                            ),
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (isCurrent) OnAccentDark else TextPrimary,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -209,13 +215,13 @@ private fun EngineVariationRow(
     val isBlackFav = (line.mate != null && line.mate < 0) || (line.mate == null && line.cp <= -0.25)
 
     val evalBg = when {
-        isWhiteFav -> Color(0xFFF3F3F5)
-        isBlackFav -> Color(0xFF2B2B30)
+        isWhiteFav -> Color(0xFFF5F4F1)
+        isBlackFav -> Color(0xFF1D1B18)
         else -> CardSurfaceElevated
     }
     val evalFg = when {
-        isWhiteFav -> Color(0xFF121212)
-        else -> Color(0xFFFFFFFF)
+        isWhiteFav -> Color(0xFF1D1B18)
+        else -> Color(0xFFF5F4F1)
     }
 
     Surface(
@@ -238,7 +244,10 @@ private fun EngineVariationRow(
         ) {
             Text(
                 text = "#${line.rank}",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontFamily = JetBrainsMonoFontFamily,
+                    fontFeatureSettings = "tnum"
+                ),
                 fontWeight = FontWeight.Bold,
                 color = if (line.rank == 1) StudioCyan else TextMuted
             )
@@ -254,7 +263,10 @@ private fun EngineVariationRow(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = evalFg,
-                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontFeatureSettings = "tnum"
+                    ),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -280,7 +292,10 @@ private fun EngineVariationRow(
                     ) {
                         Text(
                             text = san,
-                            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontFeatureSettings = "tnum"
+                            ),
                             fontWeight = if (idx == 0) FontWeight.Bold else FontWeight.Medium,
                             color = if (idx == 0 && line.rank == 1) AccentGreen else TextPrimary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)

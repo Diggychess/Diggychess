@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -63,17 +64,39 @@ fun DiggyButton(
     val feedback = rememberChessFeedback()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) 0.97f else 1f,
-        animationSpec = tween(durationMillis = 150),
+        targetValue = if (pressed && enabled && !loading) 0.975f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessHigh
+        ),
         label = "diggy_button_scale"
     )
+    val pressOffsetY by animateFloatAsState(
+        targetValue = when {
+            pressed && enabled && !loading -> 2.5f
+            hovered && enabled && !loading -> -2f
+            else -> 0f
+        },
+        animationSpec = tween(durationMillis = 100),
+        label = "diggy_button_press_y"
+    )
 
-    val containerColor = when (variant) {
-        DiggyButtonVariant.PRIMARY -> AccentGreen
-        DiggyButtonVariant.SECONDARY -> CardSurfaceElevated
-        DiggyButtonVariant.OUTLINED -> Color.Transparent
-        DiggyButtonVariant.DANGER -> FeedbackDangerRed
+    val isTactile = enabled && !loading && (variant == DiggyButtonVariant.PRIMARY || variant == DiggyButtonVariant.DANGER)
+    val lipHeight = if (isTactile) 3.dp else 0.dp
+    val lipColor = when {
+        !enabled || loading -> CardSurfaceElevated
+        variant == DiggyButtonVariant.PRIMARY -> AccentGreenDark
+        variant == DiggyButtonVariant.DANGER -> Color(0xFFB3262A)
+        else -> Color.Transparent
+    }
+    val containerColor = when {
+        !enabled || loading -> CardSurfaceElevated
+        variant == DiggyButtonVariant.PRIMARY -> if (hovered) AccentGreenHover else AccentGreen
+        variant == DiggyButtonVariant.DANGER -> FeedbackDangerRed
+        variant == DiggyButtonVariant.SECONDARY -> CardSurfaceElevated
+        else -> SurfaceDark
     }
     val contentColor = when (variant) {
         DiggyButtonVariant.PRIMARY -> OnAccentDark
@@ -84,72 +107,129 @@ fun DiggyButton(
     val border = when (variant) {
         DiggyButtonVariant.OUTLINED -> BorderStroke(1.dp, BorderSubtle)
         DiggyButtonVariant.SECONDARY -> BorderStroke(1.dp, BorderSubtle)
+        DiggyButtonVariant.PRIMARY -> if (enabled && !loading) BorderStroke(1.dp, AccentGreenHover.copy(alpha = 0.45f)) else null
         else -> null
     }
 
     val tagMod = if (testTag != null) Modifier.testTag(testTag) else Modifier
+    val shape = RoundedCornerShape(DiggySpacing.controlRadius)
 
-    Button(
-        onClick = {
-            feedback.onTap()
-            onClick()
-        },
-        enabled = enabled && !loading,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(DiggySpacing.controlRadius),
-        border = border,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-            disabledContainerColor = CardSurfaceElevated,
-            disabledContentColor = TextDisabled
-        ),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    Box(
+        propagateMinConstraints = true,
         modifier = modifier
             .heightIn(min = DiggySpacing.primaryButtonHeight)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .then(tagMod)
+            .clip(shape)
+            .then(
+                if (isTactile) {
+                    Modifier.background(lipColor)
+                } else Modifier
+            )
+            .padding(bottom = lipHeight)
     ) {
-        if (loading) {
-            CircularProgressIndicator(
-                color = contentColor,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        } else if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+        Surface(
+            onClick = {
+                if (enabled && !loading) {
+                    feedback.onTap()
+                    onClick()
+                }
+            },
+            enabled = enabled && !loading,
+            interactionSource = interactionSource,
+            shape = shape,
+            color = containerColor,
+            border = border,
+            modifier = Modifier
+                .heightIn(min = DiggySpacing.primaryButtonHeight - lipHeight)
+                .graphicsLayer {
+                    translationY = if (isTactile) pressOffsetY else 0f
+                }
+                .then(tagMod)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                val fg = if (enabled && !loading) contentColor else TextDisabled
+                if (loading) {
+                    CircularProgressIndicator(
+                        color = fg,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = fg,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(modifier = Modifier.width(7.dp))
+                }
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = fg,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
+
+@Composable
+fun diggyInputColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = InputBg,
+    unfocusedContainerColor = InputBg,
+    disabledContainerColor = InputBg.copy(alpha = 0.72f),
+    focusedTextColor = InputText,
+    unfocusedTextColor = InputText,
+    disabledTextColor = InputHint,
+    focusedLabelColor = AccentGreen,
+    unfocusedLabelColor = InputHint,
+    disabledLabelColor = InputHint,
+    focusedPlaceholderColor = InputHint,
+    unfocusedPlaceholderColor = InputHint,
+    focusedLeadingIconColor = InputHint,
+    unfocusedLeadingIconColor = InputHint,
+    focusedTrailingIconColor = InputHint,
+    unfocusedTrailingIconColor = InputHint,
+    focusedBorderColor = AccentGreen,
+    unfocusedBorderColor = InputBorder,
+    cursorColor = AccentGreen
+)
 
 @Composable
 fun DiggyCard(
     modifier: Modifier = Modifier,
     elevated: Boolean = false,
+    darkMatte: Boolean = false,
     borderColor: Color? = null,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val bg = if (elevated) CardSurfaceElevated else CardDark
-    val border = BorderStroke(1.dp, borderColor ?: BorderSubtle)
+    val bg = when {
+        darkMatte && elevated -> MatteDarkSecondary
+        darkMatte -> MatteDarkCard
+        elevated -> CardSurfaceElevated
+        else -> CardDark
+    }
+    val resolvedBorder = borderColor ?: if (darkMatte) MatteDarkBorder else BorderSubtle
+    val border = BorderStroke(1.dp, resolvedBorder)
     val shape = RoundedCornerShape(DiggySpacing.cardRadius)
+    val shadow = when {
+        darkMatte -> 6.dp
+        elevated -> 3.dp
+        else -> 2.dp
+    }
 
     if (onClick != null) {
         val feedback = rememberChessFeedback()
@@ -157,7 +237,10 @@ fun DiggyCard(
         val pressed by interactionSource.collectIsPressedAsState()
         val scale by animateFloatAsState(
             targetValue = if (pressed) 0.985f else 1f,
-            animationSpec = tween(durationMillis = 150),
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessHigh
+            ),
             label = "diggy_card_scale"
         )
         Surface(
@@ -169,8 +252,8 @@ fun DiggyCard(
             color = bg,
             shape = shape,
             border = border,
-            tonalElevation = if (elevated) 3.dp else 1.dp,
-            shadowElevation = if (elevated) 6.dp else 2.dp,
+            tonalElevation = 0.dp,
+            shadowElevation = shadow,
             modifier = modifier.graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -186,8 +269,8 @@ fun DiggyCard(
             color = bg,
             shape = shape,
             border = border,
-            tonalElevation = if (elevated) 3.dp else 1.dp,
-            shadowElevation = if (elevated) 4.dp else 1.dp,
+            tonalElevation = 0.dp,
+            shadowElevation = shadow,
             modifier = modifier
         ) {
             Column(
@@ -210,18 +293,18 @@ fun DiggyChip(
 ) {
     val activeAccent = accentColor ?: AccentGreen
     val bg by animateColorAsState(
-        targetValue = if (selected) activeAccent.copy(alpha = 0.16f) else CardSurfaceElevated,
-        animationSpec = tween(durationMillis = 200),
+        targetValue = if (selected) activeAccent.copy(alpha = 0.18f) else CardSurfaceElevated,
+        animationSpec = tween(durationMillis = 180),
         label = "chip_bg"
     )
     val borderColor by animateColorAsState(
         targetValue = if (selected) activeAccent else BorderSubtle,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = 180),
         label = "chip_border"
     )
     val textColor by animateColorAsState(
         targetValue = if (selected) activeAccent else TextMuted,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = 180),
         label = "chip_text"
     )
     val tagMod = if (testTag != null) Modifier.testTag(testTag) else Modifier
@@ -230,7 +313,7 @@ fun DiggyChip(
         onClick = onClick,
         shape = RoundedCornerShape(DiggySpacing.chipRadius),
         color = bg,
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(if (selected) 1.25.dp else 1.dp, borderColor),
         modifier = modifier
             .heightIn(min = DiggySpacing.touchTargetMin)
             .then(tagMod)
@@ -252,7 +335,7 @@ fun DiggyChip(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = textColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -272,7 +355,7 @@ fun <T> DiggySegmentedControl(
 ) {
     val feedback = rememberChessFeedback()
     Surface(
-        color = BgDark,
+        color = SurfaceDark,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
         border = BorderStroke(1.dp, BorderSubtle),
         modifier = modifier.fillMaxWidth()
@@ -287,12 +370,12 @@ fun <T> DiggySegmentedControl(
                 val selected = option == selectedOption
                 val pillBg by animateColorAsState(
                     targetValue = if (selected) AccentGreen else Color.Transparent,
-                    animationSpec = tween(durationMillis = 200),
+                    animationSpec = tween(durationMillis = 180),
                     label = "seg_bg"
                 )
                 val labelColor by animateColorAsState(
                     targetValue = if (selected) OnAccentDark else TextMuted,
-                    animationSpec = tween(durationMillis = 200),
+                    animationSpec = tween(durationMillis = 180),
                     label = "seg_fg"
                 )
                 val tagMod = if (tagFor != null) Modifier.testTag(tagFor(option)) else Modifier
@@ -301,7 +384,7 @@ fun <T> DiggySegmentedControl(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = DiggySpacing.touchTargetMin)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(9.dp))
                         .background(pillBg)
                         .clickable {
                             feedback.onTap()

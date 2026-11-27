@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.example.chess.*
+import com.example.service.AiGameSummaryReport
+import com.example.service.AiMoveInsight
 import com.example.ui.theme.BoardTheme
 import com.example.ui.theme.PieceStyle
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +50,7 @@ data class RecentPlayGameSummary(
 data class UserProfile(
     val id: String = "local",
     val userId: String = "local",
-    val displayName: String = "Diggy Chess Player",
+    val displayName: String = "Chess Analyzer Player",
     val avatarUrl: String? = null,
     val preferredDifficulty: String = "medium",
     val gamesPlayedBot: Int = 0,
@@ -58,6 +60,9 @@ data class UserProfile(
 )
 
 class KnightScopeRepository(private val context: Context) {
+
+    val appContext: Context
+        get() = context.applicationContext ?: context
 
     private val dataStore: DataStore<Preferences>
         get() = getKnightScopeDataStore(context)
@@ -70,6 +75,7 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_SETTINGS = stringPreferencesKey("ks_set")
         private val KEY_BOARD_THEME = stringPreferencesKey("ks_bt")
         private val KEY_DAILY_GOAL = stringPreferencesKey("ks_goal")
+        private val KEY_PUZZLE_DIFFICULTY = stringPreferencesKey("ks_puzzle_diff")
         private val KEY_FRIEND_NAME = stringPreferencesKey("ks_name")
         private val KEY_REPORT_SIDE = stringPreferencesKey("ks_side")
         private val KEY_PLAY_DIFFICULTY = stringPreferencesKey("ks_play_diff")
@@ -86,52 +92,80 @@ class KnightScopeRepository(private val context: Context) {
         private val KEY_OPENING_STREAK = stringPreferencesKey("ks_opening_streak")
         private val KEY_BEST_PUZZLE_STREAK = stringPreferencesKey("ks_best_puzzle_streak")
         private val KEY_COMPLETED_LESSONS = stringPreferencesKey("ks_completed_lessons")
+        private val KEY_AI_MOVE_CACHE = stringPreferencesKey("ks_ai_move_cache")
+        private val KEY_AI_REPORT_CACHE = stringPreferencesKey("ks_ai_report_cache")
+        private val KEY_AI_DAILY_USAGE = stringPreferencesKey("ks_ai_daily_usage")
+        private val KEY_GROQ_API_KEY = stringPreferencesKey("ks_groq_api_key")
+        private val KEY_TINYFISH_API_KEY = stringPreferencesKey("ks_tinyfish_api_key")
+        const val MAX_DAILY_AI_REQUESTS = 35
 
         val STARTER_PUZZLES = listOf(
-            Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-02", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", null, "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", listOf("e8e1"), 0, listOf("Back-rank mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-03", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", null, "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", listOf("h5f7"), 0, listOf("Scholar’s mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-04", "7k/8/6K1/8/8/8/8/R7 w - - 0 1", null, "7k/8/6K1/8/8/8/8/R7 w - - 0 1", listOf("a1a8"), 0, listOf("Rook mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-05", "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", null, "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", listOf("a7g7"), 0, listOf("Queen mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-06", "8/8/8/8/8/5k2/q7/7K b - - 0 1", null, "8/8/8/8/8/5k2/q7/7K b - - 0 1", listOf("a2g2"), 0, listOf("Queen mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-07", "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", null, "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", listOf("b1b8"), 0, listOf("Two-rook mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-08", "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", null, "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", listOf("b8b1"), 0, listOf("Two-rook mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-09", "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", null, "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", listOf("e5f7"), 0, listOf("Smothered mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-10", "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", null, "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", listOf("e4f2"), 0, listOf("Smothered mate", "mate"), true, "Diggy Chess"),
-            Puzzle("ks-11", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", null, "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", listOf("d8h4"), 0, listOf("Fool’s mate", "mate"), true, "Diggy Chess")
+            Puzzle("ks-01", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", null, "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", listOf("e1e8"), 0, listOf("Back-rank mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-02", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", null, "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", listOf("e8e1"), 0, listOf("Back-rank mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-03", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", null, "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", listOf("h5f7"), 0, listOf("Scholar’s mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-04", "7k/8/6K1/8/8/8/8/R7 w - - 0 1", null, "7k/8/6K1/8/8/8/8/R7 w - - 0 1", listOf("a1a8"), 0, listOf("Rook mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-05", "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", null, "7k/Q7/5K2/8/8/8/8/8 w - - 0 1", listOf("a7g7"), 0, listOf("Queen mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-06", "8/8/8/8/8/5k2/q7/7K b - - 0 1", null, "8/8/8/8/8/5k2/q7/7K b - - 0 1", listOf("a2g2"), 0, listOf("Queen mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-07", "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", null, "6k1/R7/8/8/8/8/8/1R4K1 w - - 0 1", listOf("b1b8"), 0, listOf("Two-rook mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-08", "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", null, "1r4k1/8/8/8/8/8/r7/6K1 b - - 0 1", listOf("b8b1"), 0, listOf("Two-rook mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-09", "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", null, "6rk/6pp/8/4N3/8/8/8/6K1 w - - 0 1", listOf("e5f7"), 0, listOf("Smothered mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-10", "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", null, "6k1/8/8/8/4n3/8/6PP/6RK b - - 0 1", listOf("e4f2"), 0, listOf("Smothered mate", "mate"), true, "Chess Analyzer"),
+            Puzzle("ks-11", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", null, "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", listOf("d8h4"), 0, listOf("Fool’s mate", "mate"), true, "Chess Analyzer")
         )
     }
 
     private var cachedBundledPuzzles: List<Puzzle>? = null
 
+    suspend fun ensureOpeningsLoaded(): Int = withContext(Dispatchers.IO) {
+        OpeningBook.ensureLoaded(appContext)
+    }
+
     suspend fun loadAllPuzzles(): List<Puzzle> = withContext(Dispatchers.IO) {
+        OpeningBook.ensureLoaded(appContext)
         val bundled = cachedBundledPuzzles ?: run {
-            val list = mutableListOf<Puzzle>()
+            val list = ArrayList<Puzzle>(13_500)
             try {
-                val jsonStr = context.assets.open("puzzles.json").bufferedReader().use { it.readText() }
-                val arr = JSONArray(jsonStr)
-                for (i in 0 until arr.length()) {
-                    val row = arr.getJSONArray(i)
-                    val id = row.getString(0)
-                    val fen0 = row.getString(1)
-                    val moves = row.getString(2).split(' ').filter { it.isNotBlank() }
-                    val rating = row.getInt(3)
-                    val themesStr = row.getString(4)
-                    val themes = themesStr.split(' ').filter { it.isNotBlank() }
-                    if (moves.size >= 2) {
-                        list.add(
-                            Puzzle(
-                                id = id,
-                                fen0 = fen0,
-                                setupUci = moves[0],
-                                fen = "",
-                                solution = moves.drop(1),
-                                rating = rating,
-                                themes = themes,
-                                isMate = themes.any { it.contains("mate", ignoreCase = true) },
-                                source = "Lichess puzzle database (CC0)"
-                            )
-                        )
+                context.assets.open("puzzles.json").use { stream ->
+                    android.util.JsonReader(stream.bufferedReader(Charsets.UTF_8)).use { reader ->
+                        reader.beginArray()
+                        while (reader.hasNext()) {
+                            reader.beginArray()
+                            val id = reader.nextString()
+                            val fen0 = reader.nextString()
+                            val movesRaw = reader.nextString()
+                            val rating = reader.nextInt()
+                            val themes: List<String> = if (reader.peek() == android.util.JsonToken.BEGIN_ARRAY) {
+                                val arr = mutableListOf<String>()
+                                reader.beginArray()
+                                while (reader.hasNext()) {
+                                    val t = reader.nextString().trim()
+                                    if (t.isNotEmpty()) arr.add(t)
+                                }
+                                reader.endArray()
+                                arr
+                            } else {
+                                reader.nextString().split(' ').filter { it.isNotBlank() }
+                            }
+                            while (reader.hasNext()) reader.skipValue()
+                            reader.endArray()
+                            val moves = movesRaw.split(' ').filter { it.isNotBlank() }
+                            if (moves.size >= 2) {
+                                list.add(
+                                    Puzzle(
+                                        id = id,
+                                        fen0 = fen0,
+                                        setupUci = moves[0],
+                                        fen = "",
+                                        solution = moves.drop(1),
+                                        rating = rating,
+                                        themes = themes,
+                                        isMate = themes.any { it.contains("mate", ignoreCase = true) },
+                                        source = "Lichess puzzle database (CC0)"
+                                    )
+                                )
+                            }
+                        }
+                        reader.endArray()
                     }
                 }
             } catch (_: Exception) {
@@ -165,7 +199,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val boardThemeFlow: Flow<BoardTheme> = dataStore.data.map { prefs ->
-        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "gold")
+        BoardTheme.fromId(prefs[KEY_BOARD_THEME] ?: "green")
     }
 
     suspend fun setBoardTheme(theme: BoardTheme) {
@@ -272,11 +306,20 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val dailyGoalFlow: Flow<Int> = dataStore.data.map { prefs ->
-        prefs[KEY_DAILY_GOAL]?.toIntOrNull() ?: 5
+        (prefs[KEY_DAILY_GOAL]?.toIntOrNull() ?: 5).coerceIn(1, 100)
     }
 
     suspend fun setDailyGoal(goal: Int) {
-        dataStore.edit { it[KEY_DAILY_GOAL] = goal.toString() }
+        val safeGoal = goal.coerceIn(1, 100)
+        dataStore.edit { it[KEY_DAILY_GOAL] = safeGoal.toString() }
+    }
+
+    val puzzleDifficultyFlow: Flow<PuzzleDifficultyFilter> = dataStore.data.map { prefs ->
+        PuzzleDifficultyFilter.fromId(prefs[KEY_PUZZLE_DIFFICULTY])
+    }
+
+    suspend fun setPuzzleDifficulty(filter: PuzzleDifficultyFilter) {
+        dataStore.edit { it[KEY_PUZZLE_DIFFICULTY] = filter.id }
     }
 
     val friendNameFlow: Flow<String> = dataStore.data.map { prefs ->
@@ -320,7 +363,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val darkModeFlow: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_DARK_MODE] ?: true
+        prefs[KEY_DARK_MODE] ?: false
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
@@ -347,7 +390,9 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     val bestPuzzleStreakFlow: Flow<Int> = dataStore.data.map { prefs ->
-        prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0
+        val savedBest = prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0
+        val historyBest = computeBestPuzzleStreak(parseAttempts(prefs[KEY_STATS]))
+        maxOf(savedBest, historyBest)
     }
 
     suspend fun updateBestPuzzleStreak(best: Int) {
@@ -357,6 +402,16 @@ class KnightScopeRepository(private val context: Context) {
                 prefs[KEY_BEST_PUZZLE_STREAK] = best.toString()
             }
         }
+    }
+
+    private fun computeBestPuzzleStreak(attempts: List<PuzzleAttempt>): Int {
+        var cur = 0
+        var best = 0
+        for (a in attempts) {
+            cur = if (a.ok) cur + 1 else 0
+            if (cur > best) best = cur
+        }
+        return best
     }
 
     val completedLessonsFlow: Flow<Set<String>> = dataStore.data.map { prefs ->
@@ -374,7 +429,7 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     suspend fun updateProfileDisplayName(displayName: String) {
-        val safeName = displayName.trim().ifBlank { "Diggy Chess Player" }.take(60)
+        val safeName = displayName.trim().ifBlank { "Chess Analyzer Player" }.take(60)
         dataStore.edit { prefs ->
             val current = parseUserProfile(prefs[KEY_USER_PROFILE])
             prefs[KEY_USER_PROFILE] = serializeUserProfile(current.copy(displayName = safeName)).toString()
@@ -440,10 +495,15 @@ class KnightScopeRepository(private val context: Context) {
         val games = parseHistory(prefs[KEY_HISTORY])
         val stats = parseAttempts(prefs[KEY_STATS])
         val rate = parseRatingState(prefs[KEY_RATING])
+        val bestStreak = maxOf(
+            prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0,
+            computeBestPuzzleStreak(stats)
+        )
         return JSONObject().apply {
             put("games", serializeHistory(games))
             put("stats", serializeAttempts(stats))
             put("rate", serializeRatingState(rate))
+            put("bestPuzzleStreak", bestStreak)
         }.toString(2)
     }
 
@@ -452,6 +512,7 @@ class KnightScopeRepository(private val context: Context) {
         val inGames = if (root.has("games")) parseHistory(root.getJSONArray("games").toString()) else emptyList()
         val inStats = if (root.has("stats")) parseAttempts(root.getJSONArray("stats").toString()) else emptyList()
         val inRate = if (root.has("rate")) parseRatingState(root.getJSONObject("rate").toString()) else null
+        val inBestStreak = root.optInt("bestPuzzleStreak", 0)
 
         dataStore.edit { prefs ->
             // Merge games
@@ -471,6 +532,12 @@ class KnightScopeRepository(private val context: Context) {
             }
             val mergedStats = statMap.values.sortedBy { it.timestamp }.takeLast(1000)
             prefs[KEY_STATS] = serializeAttempts(mergedStats).toString()
+
+            val curBest = prefs[KEY_BEST_PUZZLE_STREAK]?.toIntOrNull() ?: 0
+            val mergedBest = maxOf(curBest, inBestStreak, computeBestPuzzleStreak(mergedStats))
+            if (mergedBest > curBest) {
+                prefs[KEY_BEST_PUZZLE_STREAK] = mergedBest.toString()
+            }
 
             // Merge rating if higher sample count
             if (inRate != null) {
@@ -494,7 +561,7 @@ class KnightScopeRepository(private val context: Context) {
             val c = th?.optInt(2, 20) ?: 20
             val valid = a in 2..97 && a < b && b < c && c < 100
             ReviewSettings(
-                depth = o.optInt("depth", 6).coerceIn(4, 12),
+                depth = o.optInt("depth", 12).coerceIn(4, 24),
                 forceReanalyze = o.optBoolean("force", false),
                 inaccuracyThreshold = if (valid) a else 5,
                 mistakeThreshold = if (valid) b else 10,
@@ -524,9 +591,10 @@ class KnightScopeRepository(private val context: Context) {
                     val phObj = repObj.optJSONObject("ph")
                     val wPhArr = phObj?.optJSONArray("w") ?: JSONArray()
                     val bPhArr = phObj?.optJSONArray("b") ?: JSONArray()
+                    val countSize = maxOf(MoveClass.entries.size, maxOf(wArr.length(), bArr.length()))
                     PhaseReport(
-                        whiteCounts = List(6) { idx -> wArr.optInt(idx, 0) },
-                        blackCounts = List(6) { idx -> bArr.optInt(idx, 0) },
+                        whiteCounts = List(countSize) { idx -> wArr.optInt(idx, 0) },
+                        blackCounts = List(countSize) { idx -> bArr.optInt(idx, 0) },
                         whitePhaseMistakes = List(3) { idx -> wPhArr.optInt(idx, 0) },
                         blackPhaseMistakes = List(3) { idx -> bPhArr.optInt(idx, 0) }
                     )
@@ -534,6 +602,8 @@ class KnightScopeRepository(private val context: Context) {
 
                 val misArr = o.optJSONArray("mis")
                 val mistakes = if (misArr != null) parseImportedPuzzles(misArr.toString()) else emptyList()
+                val wAcc = if (o.has("wAcc") && !o.isNull("wAcc")) o.optDouble("wAcc") else null
+                val bAcc = if (o.has("bAcc") && !o.isNull("bAcc")) o.optDouble("bAcc") else null
 
                 out.add(
                     SavedGameEntry(
@@ -546,7 +616,13 @@ class KnightScopeRepository(private val context: Context) {
                         evals = evs,
                         bestMoves = bests,
                         report = report,
-                        mistakes = mistakes
+                        mistakes = mistakes,
+                        result = o.optString("res", "*"),
+                        opponent = o.optString("opp", ""),
+                        source = o.optString("src", "analysed"),
+                        depth = o.optInt("depth", 12),
+                        whiteAccuracy = wAcc,
+                        blackAccuracy = bAcc
                     )
                 )
             }
@@ -579,6 +655,12 @@ class KnightScopeRepository(private val context: Context) {
                     })
                 }
                 put("mis", serializePuzzles(g.mistakes))
+                put("res", g.result)
+                put("opp", g.opponent)
+                put("src", g.source)
+                put("depth", g.depth)
+                if (g.whiteAccuracy != null) put("wAcc", g.whiteAccuracy)
+                if (g.blackAccuracy != null) put("bAcc", g.blackAccuracy)
             }
             arr.put(o)
         }
@@ -692,14 +774,14 @@ class KnightScopeRepository(private val context: Context) {
     }
 
     private fun parseUserProfile(raw: String?): UserProfile {
-        if (raw.isNullOrBlank()) return UserProfile(displayName = "Diggy Chess Player")
+        if (raw.isNullOrBlank()) return UserProfile(displayName = "Chess Analyzer Player")
         return try {
             val o = JSONObject(raw)
             val avatar = o.optString("avatarUrl", "").takeIf { it.isNotBlank() }
             UserProfile(
                 id = "local",
                 userId = "local",
-                displayName = o.optString("displayName", "Diggy Chess Player").ifBlank { "Diggy Chess Player" },
+                displayName = o.optString("displayName", "Chess Analyzer Player").ifBlank { "Chess Analyzer Player" },
                 avatarUrl = avatar,
                 preferredDifficulty = o.optString("preferredDifficulty", "medium"),
                 gamesPlayedBot = o.optInt("gamesPlayedBot", 0),
@@ -708,7 +790,7 @@ class KnightScopeRepository(private val context: Context) {
                 winStreak = o.optInt("winStreak", 0)
             )
         } catch (_: Exception) {
-            UserProfile(displayName = "Diggy Chess Player")
+            UserProfile(displayName = "Chess Analyzer Player")
         }
     }
 
@@ -732,7 +814,7 @@ class KnightScopeRepository(private val context: Context) {
                 val o = arr.getJSONObject(idx)
                 RecentPlayGameSummary(
                     id = o.optString("id"),
-                    title = o.optString("title", "Diggy Chess Match"),
+                    title = o.optString("title", "Chess Analyzer Match"),
                     result = o.optString("res", "*"),
                     timeControlLabel = o.optString("tc", "Untimed"),
                     difficultyLabel = o.optString("diff", "Medium"),
@@ -761,5 +843,168 @@ class KnightScopeRepository(private val context: Context) {
             })
         }
         return arr
+    }
+
+    // ===== AI Chess Coach Persistent Cache & Daily Quota =====
+
+    private fun todayDateTag(): String {
+        val cal = java.util.Calendar.getInstance()
+        return "${cal.get(java.util.Calendar.YEAR)}-${cal.get(java.util.Calendar.DAY_OF_YEAR)}"
+    }
+
+    val groqApiKeyFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_GROQ_API_KEY].orEmpty()
+    }
+
+    val tinyFishApiKeyFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_TINYFISH_API_KEY].orEmpty()
+    }
+
+    suspend fun setGroqApiKey(key: String) {
+        dataStore.edit { it[KEY_GROQ_API_KEY] = key.trim().take(240) }
+    }
+
+    suspend fun setTinyFishApiKey(key: String) {
+        dataStore.edit { it[KEY_TINYFISH_API_KEY] = key.trim().take(240) }
+    }
+
+    suspend fun getEffectiveGroqKey(): String {
+        val local = dataStore.data.first()[KEY_GROQ_API_KEY].orEmpty().trim()
+        return local.ifBlank { com.example.BuildConfig.GROQ_API_KEY.trim() }
+    }
+
+    suspend fun getEffectiveTinyFishKey(): String {
+        val local = dataStore.data.first()[KEY_TINYFISH_API_KEY].orEmpty().trim()
+        return local.ifBlank { com.example.BuildConfig.TINYFISH_API_KEY.trim() }
+    }
+
+    suspend fun getDailyAiRemaining(): Int {
+        val raw = dataStore.data.first()[KEY_AI_DAILY_USAGE].orEmpty()
+        val today = todayDateTag()
+        val parts = raw.split('|')
+        val used = if (parts.size == 2 && parts[0] == today) (parts[1].toIntOrNull() ?: 0) else 0
+        return (MAX_DAILY_AI_REQUESTS - used).coerceAtLeast(0)
+    }
+
+    suspend fun tryConsumeDailyAiQuota(): Boolean {
+        var allowed = false
+        val today = todayDateTag()
+        dataStore.edit { prefs ->
+            val raw = prefs[KEY_AI_DAILY_USAGE].orEmpty()
+            val parts = raw.split('|')
+            val used = if (parts.size == 2 && parts[0] == today) (parts[1].toIntOrNull() ?: 0) else 0
+            if (used < MAX_DAILY_AI_REQUESTS) {
+                allowed = true
+                prefs[KEY_AI_DAILY_USAGE] = "$today|${used + 1}"
+            }
+        }
+        return allowed
+    }
+
+    suspend fun refundDailyAiQuota() {
+        val today = todayDateTag()
+        dataStore.edit { prefs ->
+            val raw = prefs[KEY_AI_DAILY_USAGE].orEmpty()
+            val parts = raw.split('|')
+            val used = if (parts.size == 2 && parts[0] == today) (parts[1].toIntOrNull() ?: 0) else 0
+            if (used > 0) {
+                prefs[KEY_AI_DAILY_USAGE] = "$today|${used - 1}"
+            }
+        }
+    }
+
+    suspend fun getCachedAiMoveInsight(cacheKey: String): AiMoveInsight? {
+        val raw = dataStore.data.first()[KEY_AI_MOVE_CACHE] ?: return null
+        return try {
+            val root = JSONObject(raw)
+            val o = root.optJSONObject(cacheKey) ?: return null
+            AiMoveInsight(
+                headline = o.optString("hl"),
+                whyGoodOrBad = o.optString("why"),
+                whyBestIsStronger = o.optString("best"),
+                whatWasMissed = o.optString("miss"),
+                improvementTip = o.optString("tip"),
+                providerLabel = o.optString("prov", "Cached AI Coach"),
+                isFromCache = true
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun putCachedAiMoveInsight(cacheKey: String, insight: AiMoveInsight) {
+        dataStore.edit { prefs ->
+            val root = try {
+                JSONObject(prefs[KEY_AI_MOVE_CACHE] ?: "{}")
+            } catch (_: Exception) {
+                JSONObject()
+            }
+            root.put(
+                cacheKey,
+                JSONObject().apply {
+                    put("hl", insight.headline)
+                    put("why", insight.whyGoodOrBad)
+                    put("best", insight.whyBestIsStronger)
+                    put("miss", insight.whatWasMissed)
+                    put("tip", insight.improvementTip)
+                    put("prov", insight.providerLabel)
+                }
+            )
+            // Cap LRU-like JSON map to 120 entries
+            while (root.length() > 120) {
+                val firstKey = root.keys().next()
+                root.remove(firstKey)
+            }
+            prefs[KEY_AI_MOVE_CACHE] = root.toString()
+        }
+    }
+
+    suspend fun getCachedAiGameReport(gameId: String): AiGameSummaryReport? {
+        val raw = dataStore.data.first()[KEY_AI_REPORT_CACHE] ?: return null
+        return try {
+            val root = JSONObject(raw)
+            val o = root.optJSONObject(gameId) ?: return null
+            val sArr = o.optJSONArray("str") ?: JSONArray()
+            val wArr = o.optJSONArray("wk") ?: JSONArray()
+            AiGameSummaryReport(
+                openingInsight = o.optString("op"),
+                middlegameInsight = o.optString("mid"),
+                endgameInsight = o.optString("end"),
+                strengths = List(sArr.length()) { sArr.optString(it) },
+                weaknesses = List(wArr.length()) { wArr.optString(it) },
+                trainingFocus = o.optString("focus"),
+                providerLabel = o.optString("prov", "Cached AI Coach"),
+                isFromCache = true
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun putCachedAiGameReport(gameId: String, report: AiGameSummaryReport) {
+        dataStore.edit { prefs ->
+            val root = try {
+                JSONObject(prefs[KEY_AI_REPORT_CACHE] ?: "{}")
+            } catch (_: Exception) {
+                JSONObject()
+            }
+            root.put(
+                gameId,
+                JSONObject().apply {
+                    put("op", report.openingInsight)
+                    put("mid", report.middlegameInsight)
+                    put("end", report.endgameInsight)
+                    put("str", JSONArray(report.strengths))
+                    put("wk", JSONArray(report.weaknesses))
+                    put("focus", report.trainingFocus)
+                    put("prov", report.providerLabel)
+                }
+            )
+            while (root.length() > 40) {
+                val firstKey = root.keys().next()
+                root.remove(firstKey)
+            }
+            prefs[KEY_AI_REPORT_CACHE] = root.toString()
+        }
     }
 }

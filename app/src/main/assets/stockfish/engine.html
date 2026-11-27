@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Chess Analyzer: AI Coach Stockfish 19 Engine Host</title>
+</head>
+<body>
+<script>
+(function () {
+  var BASE = "https://appassets.androidplatform.net/assets/stockfish/";
+  var JS_URL = BASE + "stockfish-19-lite-single.js";
+  var WASM_URL = BASE + "stockfish-19-lite-single.wasm";
+
+  var cores = (typeof navigator !== "undefined" && navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : 4;
+  var TARGET_POOL = Math.min(4, Math.max(2, cores >= 6 ? 4 : Math.min(3, cores)));
+
+  var workers = [];
+  var poolSpawned = false;
+  var engineNameReported = false;
+
+  function bridge() {
+    return window.AndroidStockfish || null;
+  }
+
+  function reportError(msg) {
+    try {
+      var b = bridge();
+      if (b && b.onEngineError) b.onEngineError(String(msg || "Unknown Stockfish error"));
+    } catch (_) {}
+  }
+
+  function reportLine(line) {
+    try {
+      var b = bridge();
+      if (b && b.onUciLine) b.onUciLine(String(line));
+    } catch (_) {}
+  }
+
+  function reportWorkerReady(wIdx) {
+    try {
+      var b = bridge();
+      if (b && b.onWorkerReady) b.onWorkerReady(wIdx);
+    } catch (_) {}
+  }
+
+  function reportSearchResult(jobId, wIdx, bestMoveLine, infoBlock) {
+    try {
+      var b = bridge();
+      if (b && b.onSearchResult) b.onSearchResult(jobId, wIdx, bestMoveLine, infoBlock);
+    } catch (_) {}
+  }
+
+  function reportSearchFailed(jobId, wIdx, errMsg) {
+    try {
+      var b = bridge();
+      if (b && b.onSearchFailed) b.onSearchFailed(jobId, wIdx, String(errMsg || "Search failed"));
+    } catch (_) {}
+  }
+
+  function createSlot(wIdx) {
+    return {
+      id: wIdx,
+      worker: null,
+      blobUrl: null,
+      ready: false,
+      uciAcked: false,
+      usedFallback: false,
+      lastMultiPv: -1,
+      lastSkillLevel: -1,
+      currentJob: null,
+      pendingNext: null
+    };
+  }
+
+  function cleanupSlotBlob(slot) {
+    if (slot.blobUrl) {
+      try { URL.revokeObjectURL(slot.blobUrl); } catch (_) {}
+      slot.blobUrl = null;
+    }
+  }
+
+  function dispatchJobOnSlot(slot, req) {
+    var job = {
+      jobId: req.jobId,
+      linesByRank: {},
+      depthsByRank: {},
+      timer: null,
+      stopped: false
+    };
+    slot.currentJob = job;
+
+    try {
+      if (slot.lastMultiPv !== req.multiPv) {
+        slot.worker.postMessage("setoption name MultiPV value " + req.multiPv);
+        slot.lastMultiPv = req.multiPv;
+      }
+      if (slot.lastSkillLevel !== req.skillLevel) {
+        slot.worker.postMessage("setoption name Skill Level value " + req.skillLevel);
+        slot.lastSkillLevel = req.skillLevel;
+      }
+      slot.worker.postMessage("position fen " + req.fen);
+      if (req.movetimeMs > 0) {
+        job.timer = setTimeout(function () {
+          if (slot.currentJob === job && !job.stopped) {
+            job.stopped = true;
+            try { slot.worker.postMessage("stop"); } catch (_) {}
+          }
+        }, req.movetimeMs + 90);
+        slot.worker.postMessage("go depth " + req.depth + " movetime " + req.movetimeMs);
+      } else {
+        slot.worker.postMessage("go depth " + req.depth);
+      }
+    } catch (e) {
+      if (job.timer) { clearTimeout(job.timer); job.timer = null; }
+      slot.currentJob = null;
+      reportSearchFailed(req.jobId, slot.id, e && e.message ? e.message : String(e));
+    }
+  }
+
+  function handleSlotMessage(slot, raw) {
+    if (raw == null || typeof raw !== "string") return;
+    var lines = raw.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+
+      if (line.indexOf("id name ") === 0) {
+        if (!engineNameReported || slot.id === 0) {
+          engineNameReported = true;
+          reportLine(line);
+        }
+        continue;
+      }
+
+      if (line === "uciok") {
+        slot.uciAcked = true;
+        var hashMb = (slot.id === 0) ? 48 : 24;
+        slot.worker.postMessage("setoption name Threads value 1");
+        slot.worker.postMessage("setoption name Hash value " + hashMb);
+        slot.worker.postMessage("setoption name MultiPV value 3");
+        slot.lastMultiPv = 3;
+        slot.worker.postMessage("setoption name Skill Level value 20");
+        slot.lastSkillLevel = 20;
+        slot.worker.postMessage("isready");
+        if (slot.id === 0) reportLine(line);
+        continue;
+      }
+
+      if (line === "readyok") {
+        if (!slot.ready) {
+          slot.ready = true;
+          if (slot.id === 0) {
+            reportLine(line);
+            spawnPoolWorkers();
+          }
+          reportWorkerReady(slot.id);
+        }
+        continue;
+      }
+
+      var job = slot.currentJob;
+      if (!job) continue;
+
+      if (line.indexOf("info ") === 0) {
+        if (line.indexOf(" pv ") >= 0 && line.indexOf(" score ") >= 0) {
+          var rank = 1;
+          var mpIdx = line.indexOf(" multipv ");
+          if (mpIdx >= 0) {
+            var parsedRank = parseInt(line.slice(mpIdx + 9), 10);
+            if (!isNaN(parsedRank) && parsedRank >= 1) rank = parsedRank;
+          }
+          var d = 0;
+          var dIdx = line.indexOf(" depth ");
+          if (dIdx >= 0) {
+            var pd = parseInt(line.slice(dIdx + 7), 10);
+            if (!isNaN(pd)) d = pd;
+          }
+          if (d >= (job.depthsByRank[rank] || 0)) {
+            job.depthsByRank[rank] = d;
+            job.linesByRank[rank] = line;
+          }
+        }
+        continue;
+      }
+
+      if (line.indexOf("bestmove ") === 0) {
+        if (job.timer) { clearTimeout(job.timer); job.timer = null; }
+        slot.currentJob = null;
+
+        var infoArr = [];
+        for (var r = 1; r <= 3; r++) {
+          if (job.linesByRank[r]) infoArr.push(job.linesByRank[r]);
+        }
+        reportSearchResult(job.jobId, slot.id, line, infoArr.join("\n"));
+
+        if (slot.pendingNext) {
+          var nextReq = slot.pendingNext;
+          slot.pendingNext = null;
+          dispatchJobOnSlot(slot, nextReq);
+        }
+      }
+    }
+  }
+
+  function startWorker(wIdx, useBlobFallback) {
+    var slot = workers[wIdx];
+    if (!slot) {
+      slot = createSlot(wIdx);
+      workers[wIdx] = slot;
+    }
+    try {
+      if (slot.worker) {
+        try { slot.worker.terminate(); } catch (_) {}
+        slot.worker = null;
+      }
+      cleanupSlotBlob(slot);
+      slot.ready = false;
+      slot.uciAcked = false;
+      slot.lastMultiPv = -1;
+      slot.lastSkillLevel = -1;
+      slot.currentJob = null;
+      slot.pendingNext = null;
+
+      if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") {
+        if (wIdx === 0) reportError("WebAssembly or Web Workers are not supported in this WebView.");
+        return;
+      }
+
+      var targetUrl;
+      if (!useBlobFallback) {
+        targetUrl = JS_URL + "#" + encodeURIComponent(WASM_URL);
+      } else {
+        var wrapper = "importScripts(" + JSON.stringify(JS_URL) + ");";
+        var blob = new Blob([wrapper], { type: "application/javascript" });
+        slot.blobUrl = URL.createObjectURL(blob);
+        targetUrl = slot.blobUrl + "#" + encodeURIComponent(WASM_URL);
+      }
+
+      slot.worker = new Worker(targetUrl);
+      slot.worker.onmessage = function (ev) {
+        handleSlotMessage(slot, ev.data);
+      };
+      slot.worker.onerror = function (err) {
+        var msg = (err && err.message) ? err.message : "Failed to start Stockfish WASM worker.";
+        if (!useBlobFallback && !slot.usedFallback && !slot.uciAcked) {
+          slot.usedFallback = true;
+          startWorker(wIdx, true);
+        } else if (wIdx === 0) {
+          reportError(msg);
+        }
+      };
+      slot.worker.postMessage("uci");
+    } catch (e) {
+      if (!useBlobFallback && !slot.usedFallback) {
+        slot.usedFallback = true;
+        startWorker(wIdx, true);
+      } else if (wIdx === 0) {
+        reportError(e && e.message ? e.message : String(e));
+      }
+    }
+  }
+
+  function spawnPoolWorkers() {
+    if (poolSpawned) return;
+    poolSpawned = true;
+    for (var i = 1; i < TARGET_POOL; i++) {
+      startWorker(i, false);
+    }
+  }
+
+  window.runSearch = function (jobId, wIdx, fen, depth, multiPv, movetimeMs, skillLevel) {
+    var slot = workers[wIdx];
+    if (!slot || !slot.worker || !slot.ready) {
+      reportSearchFailed(jobId, wIdx, "Worker " + wIdx + " not ready");
+      return;
+    }
+    var parsedSkill = Number(skillLevel);
+    var safeSkill = (skillLevel == null || isNaN(parsedSkill)) ? 20 : Math.max(0, Math.min(20, Math.round(parsedSkill)));
+    var req = {
+      jobId: jobId,
+      fen: String(fen),
+      depth: Number(depth) || 12,
+      multiPv: Number(multiPv) || 1,
+      movetimeMs: Number(movetimeMs) || 0,
+      skillLevel: safeSkill
+    };
+    if (slot.currentJob) {
+      slot.pendingNext = req;
+      if (!slot.currentJob.stopped) {
+        slot.currentJob.stopped = true;
+        try { slot.worker.postMessage("stop"); } catch (_) {}
+      }
+    } else {
+      dispatchJobOnSlot(slot, req);
+    }
+  };
+
+  window.preparePoolNewGame = function () {
+    for (var i = 0; i < workers.length; i++) {
+      var slot = workers[i];
+      if (slot && slot.worker && slot.ready && !slot.currentJob) {
+        try { slot.worker.postMessage("ucinewgame"); } catch (_) {}
+      }
+    }
+  };
+
+  window.stopAllSearches = function () {
+    for (var i = 0; i < workers.length; i++) {
+      var slot = workers[i];
+      if (slot && slot.worker && slot.currentJob) {
+        slot.pendingNext = null;
+        if (slot.currentJob.timer) {
+          clearTimeout(slot.currentJob.timer);
+          slot.currentJob.timer = null;
+        }
+        if (!slot.currentJob.stopped) {
+          slot.currentJob.stopped = true;
+          try { slot.worker.postMessage("stop"); } catch (_) {}
+        }
+      }
+    }
+  };
+
+  window.sendUci = function (cmd) {
+    if (!cmd) return;
+    var s = String(cmd);
+    if (s === "quit") {
+      for (var i = 0; i < workers.length; i++) {
+        var slot = workers[i];
+        if (slot && slot.worker) {
+          try { slot.worker.postMessage("quit"); slot.worker.terminate(); } catch (_) {}
+          cleanupSlotBlob(slot);
+        }
+      }
+      return;
+    }
+    if (s === "stop") {
+      window.stopAllSearches();
+      return;
+    }
+    if (s === "ucinewgame") {
+      window.preparePoolNewGame();
+      return;
+    }
+    var primary = workers[0];
+    if (primary && primary.worker) {
+      try { primary.worker.postMessage(s); } catch (_) {}
+    }
+  };
+
+  window.restartEngine = function () {
+    poolSpawned = false;
+    engineNameReported = false;
+    for (var i = 0; i < workers.length; i++) {
+      var slot = workers[i];
+      if (slot && slot.worker) {
+        try { slot.worker.terminate(); } catch (_) {}
+        cleanupSlotBlob(slot);
+      }
+    }
+    workers = [];
+    startWorker(0, false);
+  };
+
+  startWorker(0, false);
+})();
+</script>
+</body>
+</html>

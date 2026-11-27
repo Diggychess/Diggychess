@@ -216,25 +216,48 @@ fun HistoryScreen(
                                     )
                                 }
                             } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    DiggyButton(
-                                        text = "Open Analysis",
-                                        onClick = { onOpenGame(game) },
-                                        variant = DiggyButtonVariant.PRIMARY,
-                                        icon = Icons.Rounded.Analytics,
-                                        testTag = "open_history_${game.id}",
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    DiggyButton(
-                                        text = "Delete",
-                                        onClick = { onRequestDelete(game.id) },
-                                        variant = DiggyButtonVariant.OUTLINED,
-                                        icon = Icons.Rounded.DeleteOutline,
-                                        testTag = "delete_history_${game.id}"
-                                    )
+                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                    if (maxWidth < 300.dp) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            DiggyButton(
+                                                text = "Open Analysis",
+                                                onClick = { onOpenGame(game) },
+                                                variant = DiggyButtonVariant.PRIMARY,
+                                                icon = Icons.Rounded.Analytics,
+                                                testTag = "open_history_${game.id}",
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            DiggyButton(
+                                                text = "Delete",
+                                                onClick = { onRequestDelete(game.id) },
+                                                variant = DiggyButtonVariant.OUTLINED,
+                                                icon = Icons.Rounded.DeleteOutline,
+                                                testTag = "delete_history_${game.id}",
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    } else {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            DiggyButton(
+                                                text = "Open Analysis",
+                                                onClick = { onOpenGame(game) },
+                                                variant = DiggyButtonVariant.PRIMARY,
+                                                icon = Icons.Rounded.Analytics,
+                                                testTag = "open_history_${game.id}",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            DiggyButton(
+                                                text = "Delete",
+                                                onClick = { onRequestDelete(game.id) },
+                                                variant = DiggyButtonVariant.OUTLINED,
+                                                icon = Icons.Rounded.DeleteOutline,
+                                                testTag = "delete_history_${game.id}"
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -253,7 +276,7 @@ private fun ReportMetric(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = BgDark,
+        color = CardSurfaceElevated,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
         border = BorderStroke(1.dp, BorderSubtle),
         modifier = modifier
@@ -265,6 +288,7 @@ private fun ReportMetric(
         ) {
             Text(
                 text = value,
+                fontFamily = JetBrainsMonoFontFamily,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = accent
@@ -273,7 +297,8 @@ private fun ReportMetric(
                 text = label,
                 fontSize = 11.sp,
                 color = TextMuted,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 2
             )
         }
     }

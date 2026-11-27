@@ -40,12 +40,14 @@ import com.example.chess.EngineDifficulty
 import com.example.chess.MoveExplainer
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
+import com.example.chess.StockfishEngineStatus
 import com.example.data.RecentPlayGameSummary
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.ColorChoice
 import com.example.ui.viewmodel.PlayUiState
 import com.example.ui.viewmodel.QuickPlayTimeControl
+import com.example.ui.viewmodel.TimeControlBase
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,9 +57,10 @@ fun PlayScreen(
     state: PlayUiState,
     onSelectDifficulty: (EngineDifficulty) -> Unit,
     onSelectColor: (ColorChoice) -> Unit,
-    onSelectTimeControl: (QuickPlayTimeControl) -> Unit,
-    onStartQuickPlay: (QuickPlayTimeControl) -> Unit,
-    onToggleLiveEval: (Boolean) -> Unit,
+    onSelectBaseTime: (TimeControlBase) -> Unit = {},
+    onSelectIncrement: (Int) -> Unit = {},
+    onSelectTimeControl: (QuickPlayTimeControl) -> Unit = {},
+    onStartQuickPlay: (QuickPlayTimeControl) -> Unit = {},
     onStartGame: () -> Unit,
     onSquareClick: (String) -> Unit,
     onSelectPromotion: (PieceType) -> Unit,
@@ -65,11 +68,13 @@ fun PlayScreen(
     onHint: () -> Unit,
     onTakeback: () -> Unit,
     onFlip: () -> Unit,
+    onOfferDraw: () -> Unit = {},
     onResign: () -> Unit,
     onRematch: () -> Unit,
     onAnalyseGame: () -> Unit,
     onAnalyseRecentPgn: (String) -> Unit,
     onLeaveGame: () -> Unit,
+    onRetryEngine: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (state.inGame) {
@@ -81,11 +86,11 @@ fun PlayScreen(
             state = state,
             onSelectDifficulty = onSelectDifficulty,
             onSelectColor = onSelectColor,
-            onSelectTimeControl = onSelectTimeControl,
-            onStartQuickPlay = onStartQuickPlay,
-            onToggleLiveEval = onToggleLiveEval,
+            onSelectBaseTime = onSelectBaseTime,
+            onSelectIncrement = onSelectIncrement,
             onStartGame = onStartGame,
             onAnalyseRecentPgn = onAnalyseRecentPgn,
+            onRetryEngine = onRetryEngine,
             modifier = modifier
         )
     } else {
@@ -96,12 +101,19 @@ fun PlayScreen(
                 .padding(horizontal = DiggySpacing.s2, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (state.engineStatus is StockfishEngineStatus.Error) {
+                EngineWorkerErrorBanner(
+                    message = state.engineStatus.message,
+                    onRetry = onRetryEngine
+                )
+            }
             ActiveBotMatchView(
                 state = state,
                 onSquareClick = onSquareClick,
                 onHint = onHint,
                 onTakeback = onTakeback,
                 onFlip = onFlip,
+                onOfferDraw = onOfferDraw,
                 onResign = onResign,
                 onRematch = onRematch,
                 onAnalyseGame = onAnalyseGame,
@@ -124,11 +136,11 @@ private fun PlayLobbyLayout(
     state: PlayUiState,
     onSelectDifficulty: (EngineDifficulty) -> Unit,
     onSelectColor: (ColorChoice) -> Unit,
-    onSelectTimeControl: (QuickPlayTimeControl) -> Unit,
-    onStartQuickPlay: (QuickPlayTimeControl) -> Unit,
-    onToggleLiveEval: (Boolean) -> Unit,
+    onSelectBaseTime: (TimeControlBase) -> Unit,
+    onSelectIncrement: (Int) -> Unit,
     onStartGame: () -> Unit,
     onAnalyseRecentPgn: (String) -> Unit,
+    onRetryEngine: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -140,19 +152,12 @@ private fun PlayLobbyLayout(
                 .padding(horizontal = DiggySpacing.s2, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Play vs Computer",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "Pick engine strength, side, and clock mode.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted
+            if (state.engineStatus is StockfishEngineStatus.Error) {
+                EngineWorkerErrorBanner(
+                    message = state.engineStatus.message,
+                    onRetry = onRetryEngine
                 )
             }
-
             // Main Play vs Computer Card
             DiggyCard(elevated = false, contentPadding = PaddingValues(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -167,8 +172,8 @@ private fun PlayLobbyLayout(
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            text = "Difficulty Level",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "Play vs Computer",
+                            style = MaterialTheme.typography.titleLarge,
                             color = TextPrimary
                         )
                     }
@@ -197,41 +202,10 @@ private fun PlayLobbyLayout(
                             tagFor = { "play_color_${it.code}" }
                         )
                     }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = DiggySpacing.touchTargetMin),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Live Evaluation",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Show real-time Stockfish advantage bar",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
-                            )
-                        }
-                        Switch(
-                            checked = state.showLiveEval,
-                            onCheckedChange = onToggleLiveEval,
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = OnAccentDark,
-                                checkedTrackColor = AccentGreen
-                            ),
-                            modifier = Modifier.testTag("play_live_eval_switch")
-                        )
-                    }
                 }
             }
 
-            // Quick Play Modes (Bullet, Blitz, Rapid)
+            // Time Control Card (1 min, 3 min, 5 min, 10 min, Unlimited + 0s/1s/2s increment)
             DiggyCard(elevated = false, contentPadding = PaddingValues(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -246,50 +220,77 @@ private fun PlayLobbyLayout(
                             Icon(
                                 imageVector = Icons.Rounded.Timer,
                                 contentDescription = null,
-                                tint = StudioCyan,
+                                tint = AccentGreen,
                                 modifier = Modifier.size(24.dp)
                             )
                             Text(
-                                text = "Quick Play Modes",
+                                text = "Time Control",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = TextPrimary
                             )
                         }
-                        DiggyChip(
-                            label = "Untimed",
-                            selected = state.timeControl == QuickPlayTimeControl.UNTIMED,
-                            onClick = { onSelectTimeControl(QuickPlayTimeControl.UNTIMED) },
-                            testTag = "play_tc_untimed"
-                        )
+                        Surface(
+                            color = CardSurfaceElevated,
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, BorderSubtle)
+                        ) {
+                            Text(
+                                text = "${state.selectedBaseTime.category} · ${state.timeControlLabel}",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
+                                color = AccentGreen,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
 
-                    QuickPlayRow(
-                        title = "Bullet",
-                        icon = Icons.Rounded.Bolt,
-                        accent = ClassBlunder,
-                        controls = listOf(QuickPlayTimeControl.BULLET_1, QuickPlayTimeControl.BULLET_2_1),
-                        selected = state.timeControl,
-                        onSelect = onSelectTimeControl,
-                        onQuickLaunch = onStartQuickPlay
-                    )
-                    QuickPlayRow(
-                        title = "Blitz",
-                        icon = Icons.Rounded.LocalFireDepartment,
-                        accent = AccentGreen,
-                        controls = listOf(QuickPlayTimeControl.BLITZ_3, QuickPlayTimeControl.BLITZ_5),
-                        selected = state.timeControl,
-                        onSelect = onSelectTimeControl,
-                        onQuickLaunch = onStartQuickPlay
-                    )
-                    QuickPlayRow(
-                        title = "Rapid",
-                        icon = Icons.Rounded.Speed,
-                        accent = StudioCyan,
-                        controls = listOf(QuickPlayTimeControl.RAPID_10, QuickPlayTimeControl.RAPID_15_10),
-                        selected = state.timeControl,
-                        onSelect = onSelectTimeControl,
-                        onQuickLaunch = onStartQuickPlay
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            TimeControlBase.MIN_1,
+                            TimeControlBase.MIN_3,
+                            TimeControlBase.MIN_5,
+                            TimeControlBase.MIN_10
+                        ).forEach { base ->
+                            DiggyChip(
+                                label = base.label,
+                                selected = state.selectedBaseTime == base,
+                                onClick = { onSelectBaseTime(base) },
+                                testTag = "play_base_time_${base.id}",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DiggyChip(
+                            label = TimeControlBase.UNLIMITED.label,
+                            selected = state.selectedBaseTime == TimeControlBase.UNLIMITED,
+                            onClick = { onSelectBaseTime(TimeControlBase.UNLIMITED) },
+                            accentColor = StudioCyan,
+                            testTag = "play_base_time_unlimited",
+                            modifier = Modifier.weight(1.3f)
+                        )
+                        if (state.selectedBaseTime != TimeControlBase.UNLIMITED) {
+                            listOf(0, 1, 2).forEach { inc ->
+                                DiggyChip(
+                                    label = if (inc == 0) "0s inc" else "+${inc}s",
+                                    selected = state.selectedIncrementSec == inc,
+                                    onClick = { onSelectIncrement(inc) },
+                                    testTag = "play_increment_$inc",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -331,11 +332,11 @@ private fun PlayLobbyLayout(
             }
         }
 
-        // Fixed Gold Start Game Dock
+        // Fixed Emerald Start Game Dock
         Surface(
             color = SurfaceDark,
             border = BorderStroke(1.dp, LineSubtle),
-            tonalElevation = 4.dp,
+            shadowElevation = 8.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -344,13 +345,8 @@ private fun PlayLobbyLayout(
                     .padding(horizontal = DiggySpacing.s2, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                val tcLabel = if (state.timeControl == QuickPlayTimeControl.UNTIMED) {
-                    "Casual"
-                } else {
-                    "${state.timeControl.category} ${state.timeControl.label}"
-                }
                 DiggyButton(
-                    text = "Start Game · ${state.difficulty.label} · $tcLabel",
+                    text = "Start Game · ${state.difficulty.label} · ${state.timeControlLabel}",
                     onClick = onStartGame,
                     variant = DiggyButtonVariant.PRIMARY,
                     icon = Icons.Rounded.PlayArrow,
@@ -372,12 +368,13 @@ private fun DifficultyLevelCard(
         EngineDifficulty.EASY -> ClassBest
         EngineDifficulty.MEDIUM -> AccentGreen
         EngineDifficulty.HARD -> StudioCyan
+        EngineDifficulty.EXPERT -> TrophyGold
     }
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
         color = if (selected) AccentGreen.copy(alpha = 0.14f) else CardSurfaceElevated,
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) AccentGreen else BorderSubtle),
+        border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
@@ -416,13 +413,16 @@ private fun DifficultyLevelCard(
                         color = if (selected) AccentGreen else TextPrimary
                     )
                     Surface(
-                        color = BgDark,
+                        color = CardSurfaceElevated,
                         shape = RoundedCornerShape(6.dp),
                         border = BorderStroke(1.dp, BorderSubtle)
                     ) {
                         Text(
                             text = difficulty.eloLabel,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontFeatureSettings = "tnum"
+                            ),
                             fontWeight = FontWeight.SemiBold,
                             color = TextMuted,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -445,55 +445,6 @@ private fun DifficultyLevelCard(
                     modifier = Modifier.size(22.dp)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun QuickPlayRow(
-    title: String,
-    icon: ImageVector,
-    accent: Color,
-    controls: List<QuickPlayTimeControl>,
-    selected: QuickPlayTimeControl,
-    onSelect: (QuickPlayTimeControl) -> Unit,
-    onQuickLaunch: (QuickPlayTimeControl) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(
-            modifier = Modifier.width(84.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(18.dp)
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary
-            )
-        }
-        controls.forEach { tc ->
-            val isSelected = tc == selected
-            DiggyChip(
-                label = tc.label,
-                selected = isSelected,
-                onClick = {
-                    if (isSelected) onQuickLaunch(tc) else onSelect(tc)
-                },
-                accentColor = accent,
-                testTag = "play_tc_${tc.id}",
-                modifier = Modifier.weight(1f)
-            )
         }
     }
 }
@@ -555,12 +506,12 @@ private fun ActiveBotMatchView(
     onHint: () -> Unit,
     onTakeback: () -> Unit,
     onFlip: () -> Unit,
+    onOfferDraw: () -> Unit,
     onResign: () -> Unit,
     onRematch: () -> Unit,
     onAnalyseGame: () -> Unit,
     onLeaveGame: () -> Unit
 ) {
-    val botColor = state.playerColor.opposite()
     val botName = "Stockfish (${state.difficulty.label})"
     val topColor = if (state.flipped) PieceColor.WHITE else PieceColor.BLACK
     val bottomColor = topColor.opposite()
@@ -576,77 +527,50 @@ private fun ActiveBotMatchView(
     } else emptyList()
 
     var showGameOverModal by remember { mutableStateOf(false) }
+    var annotationDrawMode by remember { mutableStateOf(false) }
     LaunchedEffect(state.isGameOver) {
         showGameOverModal = state.isGameOver
     }
 
-    DiggyCard(elevated = false, contentPadding = PaddingValues(14.dp)) {
+    val topPlayerCard: @Composable () -> Unit = {
+        PlayerBar(
+            name = topName,
+            pieceColor = topColor,
+            isActiveTurn = !state.isGameOver && state.turn == topColor,
+            fen = state.fen,
+            rating = if (!topIsPlayer) state.difficulty.eloLabel else null,
+            isBot = !topIsPlayer,
+            avatarUrl = if (topIsPlayer) state.playerAvatarUrl else null,
+            statusNote = if (!topIsPlayer && state.isEngineThinking) "thinking…" else null,
+            clockMillis = topClock
+        )
+    }
+
+    val bottomPlayerCard: @Composable () -> Unit = {
+        PlayerBar(
+            name = bottomName,
+            pieceColor = bottomColor,
+            isActiveTurn = !state.isGameOver && state.turn == bottomColor,
+            fen = state.fen,
+            rating = if (topIsPlayer) state.difficulty.eloLabel else null,
+            isBot = topIsPlayer,
+            avatarUrl = if (!topIsPlayer) state.playerAvatarUrl else null,
+            statusNote = when {
+                state.isGameOver -> state.endMessage
+                topIsPlayer && state.isEngineThinking -> "thinking…"
+                !topIsPlayer && state.turn == state.playerColor -> "Your turn"
+                else -> null
+            },
+            clockMillis = bottomClock
+        )
+    }
+
+    val sideOrBottomControls: @Composable (Boolean) -> Unit = { isWidePanel ->
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PlayerBar(
-                name = topName,
-                pieceColor = topColor,
-                isActiveTurn = !state.isGameOver && state.turn == topColor,
-                fen = state.fen,
-                rating = if (!topIsPlayer) state.difficulty.eloLabel else null,
-                isBot = !topIsPlayer,
-                statusNote = if (!topIsPlayer && state.isEngineThinking) "Thinking…" else null,
-                clockMillis = topClock
-            )
-
-            // Board + 20dp EvalBar matched cleanly to board square height
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val barAndGap = if (state.showLiveEval) DiggySpacing.evalBarWidth + 8.dp else 0.dp
-                val boardSize = (maxWidth - barAndGap).coerceAtLeast(200.dp)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (state.showLiveEval) {
-                        EvalBar(
-                            evalPawns = state.liveEvalCp,
-                            mate = state.liveEvalMate,
-                            flipped = state.flipped,
-                            modifier = Modifier
-                                .height(boardSize)
-                                .testTag("play_eval_bar")
-                        )
-                    }
-                    ChessBoardView(
-                        fen = state.fen,
-                        boardTheme = state.boardTheme,
-                        flipped = state.flipped,
-                        selectedSquare = state.selectedSquare,
-                        lastMoveSquares = state.lastMoveSquares,
-                        legalTargets = state.legalTargets,
-                        arrows = hintArrows,
-                        onSquareClick = onSquareClick,
-                        modifier = Modifier.size(boardSize)
-                    )
-                }
-            }
-
-            PlayerBar(
-                name = bottomName,
-                pieceColor = bottomColor,
-                isActiveTurn = !state.isGameOver && state.turn == bottomColor,
-                fen = state.fen,
-                rating = if (topIsPlayer) state.difficulty.eloLabel else null,
-                isBot = topIsPlayer,
-                statusNote = when {
-                    state.isGameOver -> state.endMessage
-                    !topIsPlayer && state.turn == state.playerColor -> "Your turn"
-                    else -> null
-                },
-                clockMillis = bottomClock
-            )
-
-            LiveMoveRibbon(sanMoves = state.sanMoves)
-
             AnimatedVisibility(visible = state.openingName != null) {
                 Surface(
                     color = CardSurfaceElevated,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -675,6 +599,11 @@ private fun ActiveBotMatchView(
                 }
             }
 
+            LiveSanMoveList(
+                sanMoves = state.sanMoves,
+                maxHeight = if (isWidePanel) 320.dp else 180.dp
+            )
+
             AnimatedVisibility(visible = state.hintText != null || state.isHintLoading) {
                 Surface(
                     color = AccentGreen.copy(alpha = 0.14f),
@@ -692,7 +621,103 @@ private fun ActiveBotMatchView(
                 }
             }
 
-            // Control Bar (48dp touch targets)
+            // Primary Game Controls: Resign, Offer Draw, New Game, Flip Board (2x2 on narrow phones)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 340.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MatchIconButton(
+                                icon = Icons.Rounded.Flag,
+                                label = "Resign",
+                                enabled = !state.isGameOver,
+                                tint = FeedbackDangerRed,
+                                onClick = onResign,
+                                testTag = "play_resign_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            MatchIconButton(
+                                icon = Icons.Rounded.Handshake,
+                                label = "Draw",
+                                enabled = !state.isGameOver && !state.isEngineThinking,
+                                tint = TextPrimary,
+                                onClick = onOfferDraw,
+                                testTag = "play_offer_draw_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MatchIconButton(
+                                icon = Icons.Rounded.AddCircleOutline,
+                                label = "New",
+                                enabled = true,
+                                tint = AccentGreen,
+                                onClick = onLeaveGame,
+                                testTag = "play_new_game_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            MatchIconButton(
+                                icon = Icons.Rounded.Flip,
+                                label = "Flip",
+                                enabled = true,
+                                tint = TextPrimary,
+                                onClick = onFlip,
+                                testTag = "play_flip_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MatchIconButton(
+                            icon = Icons.Rounded.Flag,
+                            label = "Resign",
+                            enabled = !state.isGameOver,
+                            tint = FeedbackDangerRed,
+                            onClick = onResign,
+                            testTag = "play_resign_button",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MatchIconButton(
+                            icon = Icons.Rounded.Handshake,
+                            label = "Draw",
+                            enabled = !state.isGameOver && !state.isEngineThinking,
+                            tint = TextPrimary,
+                            onClick = onOfferDraw,
+                            testTag = "play_offer_draw_button",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MatchIconButton(
+                            icon = Icons.Rounded.AddCircleOutline,
+                            label = "New",
+                            enabled = true,
+                            tint = AccentGreen,
+                            onClick = onLeaveGame,
+                            testTag = "play_new_game_button",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MatchIconButton(
+                            icon = Icons.Rounded.Flip,
+                            label = "Flip",
+                            enabled = true,
+                            tint = TextPrimary,
+                            onClick = onFlip,
+                            testTag = "play_flip_button",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Helpful Training Row: Hint, Undo, Draw Arrows/Marks toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -716,21 +741,12 @@ private fun ActiveBotMatchView(
                     modifier = Modifier.weight(1f)
                 )
                 MatchIconButton(
-                    icon = Icons.Rounded.Flip,
-                    label = "Flip",
+                    icon = Icons.Rounded.Edit,
+                    label = if (annotationDrawMode) "Marking" else "Mark",
                     enabled = true,
-                    tint = TextPrimary,
-                    onClick = onFlip,
-                    testTag = "play_flip_button",
-                    modifier = Modifier.weight(1f)
-                )
-                MatchIconButton(
-                    icon = Icons.Rounded.Flag,
-                    label = "Resign",
-                    enabled = !state.isGameOver,
-                    tint = FeedbackDangerRed,
-                    onClick = onResign,
-                    testTag = "play_resign_button",
+                    tint = if (annotationDrawMode) AccentGreen else TextMuted,
+                    onClick = { annotationDrawMode = !annotationDrawMode },
+                    testTag = "play_draw_mode_button",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -784,15 +800,80 @@ private fun ActiveBotMatchView(
                     }
                 }
             }
+        }
+    }
 
-            TextButton(
-                onClick = onLeaveGame,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .heightIn(min = DiggySpacing.touchTargetMin)
-                    .testTag("play_new_setup_button")
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isWide = maxWidth >= 768.dp
+        if (isWide) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                Text("New match setup", color = TextMuted)
+                DiggyCard(
+                    elevated = false,
+                    contentPadding = PaddingValues(14.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        topPlayerCard()
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val boardSize = maxWidth.coerceIn(220.dp, 540.dp)
+                            ChessBoardView(
+                                fen = state.fen,
+                                boardTheme = state.boardTheme,
+                                flipped = state.flipped,
+                                selectedSquare = state.selectedSquare,
+                                lastMoveSquares = state.lastMoveSquares,
+                                legalTargets = state.legalTargets,
+                                arrows = hintArrows,
+                                annotationDrawMode = annotationDrawMode,
+                                onSquareClick = onSquareClick,
+                                modifier = Modifier
+                                    .size(boardSize)
+                                    .align(Alignment.Center)
+                            )
+                        }
+                        bottomPlayerCard()
+                    }
+                }
+
+                DiggyCard(
+                    elevated = false,
+                    contentPadding = PaddingValues(14.dp),
+                    modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+                ) {
+                    sideOrBottomControls(true)
+                }
+            }
+        } else {
+            DiggyCard(elevated = false, contentPadding = PaddingValues(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    topPlayerCard()
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val boardSize = maxWidth.coerceAtLeast(200.dp)
+                        ChessBoardView(
+                            fen = state.fen,
+                            boardTheme = state.boardTheme,
+                            flipped = state.flipped,
+                            selectedSquare = state.selectedSquare,
+                            lastMoveSquares = state.lastMoveSquares,
+                            legalTargets = state.legalTargets,
+                            arrows = hintArrows,
+                            annotationDrawMode = annotationDrawMode,
+                            onSquareClick = onSquareClick,
+                            modifier = Modifier
+                                .size(boardSize)
+                                .align(Alignment.Center)
+                        )
+                    }
+                    bottomPlayerCard()
+                    sideOrBottomControls(false)
+                }
             }
         }
     }
@@ -808,6 +889,10 @@ private fun ActiveBotMatchView(
                 showGameOverModal = false
                 onRematch()
             },
+            onNewGame = {
+                showGameOverModal = false
+                onLeaveGame()
+            },
             onDismiss = { showGameOverModal = false }
         )
     }
@@ -818,10 +903,11 @@ private fun GameOverSummaryDialog(
     state: PlayUiState,
     onAnalyseGame: () -> Unit,
     onRematch: () -> Unit,
+    onNewGame: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val outcomeColor = when (state.isPlayerWin) {
-        true -> ClassBest
+        true -> TrophyGold
         false -> FeedbackDangerRed
         null -> StudioCyan
     }
@@ -933,7 +1019,7 @@ private fun GameOverSummaryDialog(
                         ) {
                             Text("Mode & Moves", style = MaterialTheme.typography.bodySmall, color = TextMuted)
                             Text(
-                                text = "${state.timeControl.label} · $totalMoves moves",
+                                text = "${state.timeControlLabel} · $totalMoves moves",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
@@ -959,16 +1045,6 @@ private fun GameOverSummaryDialog(
                     }
                 }
 
-                DiggyButton(
-                    text = "Analyse Game",
-                    onClick = onAnalyseGame,
-                    enabled = state.sanMoves.isNotEmpty(),
-                    variant = DiggyButtonVariant.PRIMARY,
-                    icon = Icons.Rounded.Analytics,
-                    testTag = "play_modal_analyse",
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -976,21 +1052,119 @@ private fun GameOverSummaryDialog(
                     DiggyButton(
                         text = "Rematch",
                         onClick = onRematch,
-                        variant = DiggyButtonVariant.OUTLINED,
+                        variant = DiggyButtonVariant.PRIMARY,
                         icon = Icons.Rounded.Refresh,
                         testTag = "play_modal_rematch",
                         modifier = Modifier.weight(1f)
                     )
                     DiggyButton(
-                        text = "View Board",
-                        onClick = onDismiss,
+                        text = "New Game",
+                        onClick = onNewGame,
                         variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Visibility,
-                        testTag = "play_modal_dismiss",
+                        icon = Icons.Rounded.AddCircleOutline,
+                        testTag = "play_modal_new_game",
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 300.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiggyButton(
+                                text = "Analyse",
+                                onClick = onAnalyseGame,
+                                enabled = state.sanMoves.isNotEmpty(),
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Analytics,
+                                testTag = "play_modal_analyse",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DiggyButton(
+                                text = "Review later",
+                                onClick = onDismiss,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Schedule,
+                                testTag = "play_modal_review_later",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Analyse",
+                                onClick = onAnalyseGame,
+                                enabled = state.sanMoves.isNotEmpty(),
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Analytics,
+                                testTag = "play_modal_analyse",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Review later",
+                                onClick = onDismiss,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Schedule,
+                                testTag = "play_modal_review_later",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun EngineWorkerErrorBanner(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Surface(
+        color = FeedbackDangerRed.copy(alpha = 0.14f),
+        shape = RoundedCornerShape(DiggySpacing.cardRadius),
+        border = BorderStroke(1.dp, FeedbackDangerRed.copy(alpha = 0.55f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("play_engine_error_banner")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = "Engine warning",
+                tint = FeedbackDangerRed,
+                modifier = Modifier.size(22.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Stockfish worker unavailable",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "$message Using backup on-device search.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            DiggyButton(
+                text = "Retry",
+                onClick = onRetry,
+                variant = DiggyButtonVariant.OUTLINED,
+                icon = Icons.Rounded.Refresh,
+                testTag = "play_retry_engine_button"
+            )
         }
     }
 }
@@ -1026,7 +1200,8 @@ private fun MatchIconButton(
             text = label,
             fontSize = 12.sp,
             color = if (enabled) TextPrimary else TextDisabled,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

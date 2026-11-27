@@ -47,9 +47,10 @@ fun MistakeDrillDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            color = BgDark,
+            color = CardDark,
             shape = RoundedCornerShape(DiggySpacing.cardRadius),
             border = BorderStroke(1.dp, BorderSubtle),
+            tonalElevation = 4.dp,
             modifier = Modifier
                 .fillMaxWidth(0.95f)
                 .widthIn(max = 560.dp)
@@ -84,7 +85,10 @@ fun MistakeDrillDialog(
                             )
                             Text(
                                 text = "Position ${drill.index + 1} / ${drill.mistakes.size} · Solved ${drill.solvedCount} · Move $moveNum ($turnStr)",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
                                 color = TextMuted
                             )
                         }
@@ -145,36 +149,77 @@ fun MistakeDrillDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyButton(
-                        text = "Hint",
-                        onClick = onHint,
-                        enabled = !drill.solved,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Lightbulb,
-                        testTag = "drill_hint_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Retry",
-                        onClick = onRetry,
-                        enabled = drill.wrongAttempt || !drill.solved,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Refresh,
-                        testTag = "drill_retry_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = if (drill.index + 1 >= drill.mistakes.size) "Finish" else "Next",
-                        onClick = onNext,
-                        variant = if (drill.solved) DiggyButtonVariant.PRIMARY else DiggyButtonVariant.SECONDARY,
-                        icon = Icons.AutoMirrored.Rounded.ArrowForward,
-                        testTag = "drill_next_button",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 330.dp) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Hint",
+                                    onClick = onHint,
+                                    enabled = !drill.solved,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Lightbulb,
+                                    testTag = "drill_hint_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Retry",
+                                    onClick = onRetry,
+                                    enabled = drill.wrongAttempt || !drill.solved,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Refresh,
+                                    testTag = "drill_retry_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            DiggyButton(
+                                text = if (drill.index + 1 >= drill.mistakes.size) "Finish" else "Next",
+                                onClick = onNext,
+                                variant = if (drill.solved) DiggyButtonVariant.PRIMARY else DiggyButtonVariant.SECONDARY,
+                                icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                                testTag = "drill_next_button",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Hint",
+                                onClick = onHint,
+                                enabled = !drill.solved,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Lightbulb,
+                                testTag = "drill_hint_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Retry",
+                                onClick = onRetry,
+                                enabled = drill.wrongAttempt || !drill.solved,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Refresh,
+                                testTag = "drill_retry_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = if (drill.index + 1 >= drill.mistakes.size) "Finish" else "Next",
+                                onClick = onNext,
+                                variant = if (drill.solved) DiggyButtonVariant.PRIMARY else DiggyButtonVariant.SECONDARY,
+                                icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                                testTag = "drill_next_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }

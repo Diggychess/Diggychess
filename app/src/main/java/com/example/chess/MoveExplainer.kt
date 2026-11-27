@@ -310,7 +310,7 @@ object MoveExplainer {
                 usedPhrases
             )
             ex.add(intro + if (d.isNotEmpty()) " The move $d." else " Strong players have used it for years.")
-        } else if (moveClass == MoveClass.BEST || moveClass == MoveClass.GOOD || moveClass == MoveClass.BRILLIANT) {
+        } else if (moveClass == MoveClass.BEST || moveClass == MoveClass.EXCELLENT || moveClass == MoveClass.GOOD || moveClass == MoveClass.BRILLIANT) {
             if (isMateAfter) {
                 ex.add("Checkmate: the king has no escape.")
             } else {
@@ -404,7 +404,7 @@ object MoveExplainer {
                     }
                 }
             }
-            if (moveClass == MoveClass.GOOD && bestSan != null && bestSan != san) {
+            if ((moveClass == MoveClass.GOOD || moveClass == MoveClass.EXCELLENT) && bestSan != null && bestSan != san) {
                 ex.add("The engine slightly prefers $bestSan.")
             }
         } else {
@@ -583,7 +583,7 @@ object MoveExplainer {
 
         val pw = playedWhy(plyIdx, move, prevSideMove)
         if (pw.isNotEmpty()) ex.add("Your move: ${pw[0]}")
-        else if (moveClass.ordinal >= MoveClass.INACCURACY.ordinal && moveClass != MoveClass.BRILLIANT) {
+        else if (moveClass.isSuboptimal) {
             ex.add("$san does less for your position than $bestSan.")
         }
 
@@ -611,7 +611,7 @@ object MoveExplainer {
         }
 
         return buildList {
-            add("Diggy Chess game review")
+            add("Chess Analyzer game review")
             add("$wName vs $bName")
             if (!result.headers["Result"].isNullOrBlank()) add("Result: ${result.headers["Result"]}")
             if (op.entry != null) add("Opening: ${op.entry.name} (${op.entry.eco})")
@@ -684,7 +684,7 @@ object MoveExplainer {
         if (isGreatMove) tags.add("Only Move")
         if (isMissedWin) tags.add("Missed Win")
 
-        if (moveClass.ordinal >= MoveClass.INACCURACY.ordinal && moveClass != MoveClass.BRILLIANT) {
+        if (moveClass.isSuboptimal) {
             if (hangs(fenAfter) != null) tags.add("Hanging Piece")
             val threats = runCatching { threatsAgainst(fenAfter, color) }.getOrDefault(emptyList())
             if (threats.any { it.net >= 3 } && "Hanging Piece" !in tags) tags.add("Under Attack")
@@ -702,6 +702,7 @@ object MoveExplainer {
             moveClass == MoveClass.BRILLIANT -> "$san!! is a Brilliant sacrifice"
             isGreatMove -> "$san! is a Great move — the only accurate continuation"
             moveClass == MoveClass.BEST -> "$san is the best engine move" + (bestEvalText?.let { " ($it)" } ?: "")
+            moveClass == MoveClass.EXCELLENT -> "$san is an Excellent move" + if (bestSan != null && bestSan != san) " ($bestSan was slightly sharper)" else ""
             moveClass == MoveClass.GOOD -> "$san is solid" + if (bestSan != null && bestSan != san) " (engine slightly prefers $bestSan)" else ""
             moveClass == MoveClass.INACCURACY -> "$san?! is an inaccuracy" + (bestSan?.let { " — $it was sharper" } ?: "")
             isMissedWin -> "$san✖ misses a winning tactical chance" + (bestSan?.let { " ($it wins)" } ?: "")

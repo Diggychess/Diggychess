@@ -158,7 +158,11 @@ class ChessEngine {
             return@withContext apiEval
         }
 
-        val fallbackMs = if (difficulty == EngineDifficulty.HARD) 1200L else 650L
+        val fallbackMs = when (difficulty) {
+            EngineDifficulty.EXPERT -> 1400L
+            EngineDifficulty.HARD -> 1100L
+            else -> 650L
+        }
         searchOnDevice(board, difficulty.localDepth, fallbackMs)
     }
 

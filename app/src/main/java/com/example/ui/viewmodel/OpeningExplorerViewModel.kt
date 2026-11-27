@@ -22,7 +22,7 @@ data class OpeningExplorerUiState(
     val useMastersDb: Boolean = false,
     val isLoadingStats: Boolean = false,
     val stats: ExplorerPositionResult? = null,
-    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val pendingPromotion: Pair<String, String>? = null
 )
 
@@ -148,6 +148,7 @@ class OpeningExplorerViewModel(private val repo: KnightScopeRepository) : ViewMo
         val masters = _uiState.value.useMastersDb
         fetchJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoadingStats = true) }
+            repo.ensureOpeningsLoaded()
             val result = LichessOpenServices.fetchExplorerStats(fen = fen, useMasters = masters)
             _uiState.update {
                 it.copy(

@@ -8,6 +8,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.R
 
+val NunitoFontFamily = FontFamily(
+    Font(R.font.nunito, FontWeight.Normal),
+    Font(R.font.nunito, FontWeight.Bold),
+    Font(R.font.nunito, FontWeight.ExtraBold)
+)
+
+val PlusJakartaSansFontFamily = NunitoFontFamily
+
 val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Normal),
     Font(R.font.inter, FontWeight.Medium),
@@ -15,25 +23,37 @@ val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Bold)
 )
 
-// Tabular numeral alias keeping Inter exclusively across the entire design system
-val JetBrainsMonoFontFamily = InterFontFamily
+val JetBrainsMonoFontFamily = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+    Font(R.font.jetbrains_mono, FontWeight.Medium),
+    Font(R.font.jetbrains_mono, FontWeight.SemiBold),
+    Font(R.font.jetbrains_mono, FontWeight.Bold)
+)
 
 val KnightScopeTypography = Typography(
-    // Title: 24/700
+    // Display & Screen Title: 24/800 Nunito
     headlineMedium = TextStyle(
-        fontFamily = InterFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontFamily = NunitoFontFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 24.sp,
         lineHeight = 30.sp,
+        letterSpacing = (-0.3).sp
+    ),
+    // Dialog & Hero Titles: 20/700 Nunito
+    headlineSmall = TextStyle(
+        fontFamily = NunitoFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
         letterSpacing = (-0.2).sp
     ),
-    // Section Header: 18/600
+    // Section Header: 18/700 Nunito
     titleLarge = TextStyle(
-        fontFamily = InterFontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = NunitoFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 18.sp,
         lineHeight = 24.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.1).sp
     ),
     titleMedium = TextStyle(
         fontFamily = InterFontFamily,
@@ -45,11 +65,11 @@ val KnightScopeTypography = Typography(
     titleSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
+        fontSize = 13.5.sp,
         lineHeight = 18.sp,
-        letterSpacing = 0.4.sp
+        letterSpacing = 0.25.sp
     ),
-    // Body: 15/400
+    // Body: 15/400 Inter
     bodyLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
@@ -60,11 +80,11 @@ val KnightScopeTypography = Typography(
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 14.5.sp,
         lineHeight = 21.sp,
         letterSpacing = 0.1.sp
     ),
-    // Caption: 13/400
+    // Caption: 13/400 Inter
     bodySmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
@@ -72,26 +92,26 @@ val KnightScopeTypography = Typography(
         lineHeight = 18.sp,
         letterSpacing = 0.15.sp
     ),
-    // Button: 16/600
+    // Button: 15/600 Inter
     labelLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
+        fontSize = 15.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp
     ),
     labelMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontSize = 12.5.sp,
+        lineHeight = 17.sp,
         letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
+        fontSize = 11.5.sp,
+        lineHeight = 15.sp,
         letterSpacing = 0.25.sp
     )
 )

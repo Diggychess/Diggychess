@@ -61,7 +61,7 @@ object LichessOpenServices {
         clockLimitSec: Int = 300,
         clockIncrementSec: Int = 3,
         rated: Boolean = false,
-        name: String = "Diggy Chess Friendly Match"
+        name: String = "Chess Analyzer Friendly Match"
     ): Result<LichessOpenInvite> = withContext(Dispatchers.IO) {
         try {
             val form = FormBody.Builder()
@@ -181,35 +181,22 @@ object LichessOpenServices {
         val seenUci = HashSet<String>()
         val bookMoves = mutableListOf<ExplorerMoveStat>()
 
-        // Match continuations from built-in ECO book lines
-        for (entry in OpeningBook.entries) {
-            val b = ChessBoard()
-            var matchedHere = false
-            for (tok in entry.moves.split(' ')) {
-                if (tok.isBlank()) continue
-                if (b.openingKey() == curKey) {
-                    val copy = b.copy()
-                    val mv = copy.makeSanMove(tok)
-                    if (mv != null && seenUci.add(mv.uci)) {
-                        val san = copy.sanHistory().lastOrNull() ?: tok
-                        bookMoves.add(
-                            ExplorerMoveStat(
-                                uci = mv.uci,
-                                san = san,
-                                white = 40,
-                                draws = 25,
-                                black = 35,
-                                averageRating = 1800,
-                                isOfflineBook = true
-                            )
-                        )
-                    }
-                    matchedHere = true
-                    break
-                }
-                if (b.makeSanMove(tok) == null) break
+        // Match indexed continuations from Lichess ECO OpeningBook (supports transpositions)
+        for (cont in OpeningBook.lookupContinuations(fen)) {
+            if (seenUci.add(cont.uci)) {
+                bookMoves.add(
+                    ExplorerMoveStat(
+                        uci = cont.uci,
+                        san = cont.san,
+                        white = 40,
+                        draws = 25,
+                        black = 35,
+                        averageRating = 1850,
+                        isOfflineBook = true
+                    )
+                )
             }
-            if (!matchedHere && bookMoves.size >= 8) break
+            if (bookMoves.size >= 8) break
         }
 
         if (bookMoves.isEmpty()) {

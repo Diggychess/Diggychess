@@ -2,29 +2,48 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Authenticated user profile, Cloudinary avatar URL, and personal chess session statistics.",
+      "description": "Authenticated user profile, puzzle rating, streaks, solved counts, level progress, and session statistics in one document.",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Firebase Auth UID matching the document ID." },
-        "displayName": { "type": "string", "description": "Display name shown in profile and PGN headers." },
-        "avatarUrl": { "type": "string", "description": "HTTPS URL for user avatar (Cloudinary or Google)." },
+        "displayName": { "type": "string", "description": "Display name shown on Home and PGN headers." },
+        "email": { "type": "string", "description": "Authenticated account email address." },
+        "avatarUrl": { "type": "string", "description": "Optional HTTPS URL for user avatar." },
         "preferredDifficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "rating": { "type": "number", "description": "Current tactical puzzle ELO rating." },
+        "ratedCount": { "type": "integer", "description": "Total rated puzzles attempted." },
+        "streak": { "type": "integer", "description": "Current consecutive puzzle streak." },
+        "bestStreak": { "type": "integer", "description": "All-time highest consecutive puzzle streak." },
+        "winStreak": { "type": "integer", "description": "Bot match win streak." },
+        "puzzlesSolved": { "type": "integer", "description": "Total puzzles solved." },
+        "dailyGoal": { "type": "integer", "description": "Daily puzzle challenge target." },
+        "dailySolvedToday": { "type": "integer", "description": "Puzzles solved on dailySolvedDate." },
+        "dailySolvedDate": { "type": "string", "description": "YYYY-MM-DD local date for daily challenge tracking." },
+        "levelProgress": { "type": "object", "description": "Map of puzzle level index (0..6) to solved puzzle count." },
         "gamesPlayedBot": { "type": "integer" },
         "gamesAnalysed": { "type": "integer" },
-        "puzzlesSolved": { "type": "integer" },
-        "winStreak": { "type": "integer" },
+        "ratingHistory": { "type": "array", "description": "Recent rating checkpoints [{t, r}]." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
       },
-      "required": ["userId", "displayName", "preferredDifficulty", "gamesPlayedBot", "gamesAnalysed", "puzzlesSolved", "winStreak", "createdAt", "updatedAt"]
+      "required": [
+        "userId", "displayName", "preferredDifficulty",
+        "rating", "ratedCount", "streak", "bestStreak", "winStreak",
+        "puzzlesSolved", "dailyGoal", "dailySolvedToday", "dailySolvedDate",
+        "levelProgress", "gamesPlayedBot", "gamesAnalysed", "ratingHistory",
+        "createdAt", "updatedAt"
+      ]
     },
     "CloudSavedGame": {
       "title": "CloudSavedGame",
-      "description": "Analysed chess game record synced per authenticated user.",
+      "description": "Finished or analysed chess game record saved once a game ends.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "title": { "type": "string" },
+        "opponent": { "type": "string" },
+        "result": { "type": "string", "enum": ["1-0", "0-1", "1/2-1/2", "*"] },
+        "source": { "type": "string", "enum": ["bot", "friend", "analysed"] },
         "timestampMs": { "type": "integer" },
         "plies": { "type": "integer" },
         "moves": { "type": "integer" },
@@ -36,41 +55,28 @@
         "whitePhaseMistakes": { "type": "array" },
         "blackPhaseMistakes": { "type": "array" },
         "mistakes": { "type": "array" },
+        "whiteAccuracy": { "type": "number", "description": "White overall move accuracy percentage (0-100)." },
+        "blackAccuracy": { "type": "number", "description": "Black overall move accuracy percentage (0-100)." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
       },
-      "required": ["userId", "title", "timestampMs", "plies", "moves", "pgn", "evals", "bestMoves", "whiteCounts", "blackCounts", "whitePhaseMistakes", "blackPhaseMistakes", "mistakes", "createdAt", "updatedAt"]
-    },
-    "PuzzleProgress": {
-      "title": "PuzzleProgress",
-      "description": "User tactical puzzle ELO rating, history, and daily goal progress.",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "rating": { "type": "number" },
-        "ratedCount": { "type": "integer" },
-        "dailyGoal": { "type": "integer" },
-        "ratingHistory": { "type": "array" },
-        "seenIds": { "type": "array" },
-        "recentAttempts": { "type": "array" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp set via FieldValue.serverTimestamp()." }
-      },
-      "required": ["userId", "rating", "ratedCount", "dailyGoal", "ratingHistory", "seenIds", "recentAttempts", "createdAt", "updatedAt"]
+      "required": [
+        "userId", "title", "opponent", "result", "source",
+        "timestampMs", "plies", "moves", "pgn",
+        "evals", "bestMoves", "whiteCounts", "blackCounts",
+        "whitePhaseMistakes", "blackPhaseMistakes", "mistakes",
+        "createdAt", "updatedAt"
+      ]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Owner-only profile and session statistics document."
+      "description": "Owner-only single document for rating, streak, level progress, and profile statistics."
     },
     "/users/{userId}/games/{gameId}": {
       "schema": { "$ref": "#/entities/CloudSavedGame" },
-      "description": "Owner-only analysed chess games subcollection."
-    },
-    "/users/{userId}/progress/{progressId}": {
-      "schema": { "$ref": "#/entities/PuzzleProgress" },
-      "description": "Owner-only tactical puzzle rating and attempts progress."
+      "description": "Owner-only finished and analysed chess games subcollection."
     }
   }
 }

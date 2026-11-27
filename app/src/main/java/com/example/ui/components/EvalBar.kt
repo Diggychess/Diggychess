@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.chess.MoveExplainer
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.DiggySpacing
-import com.example.ui.theme.InterFontFamily
+import com.example.ui.theme.JetBrainsMonoFontFamily
 
 @Composable
 fun EvalBar(
@@ -58,13 +58,13 @@ fun EvalBar(
         !whiteLeading && !flipped -> Alignment.TopCenter
         else -> Alignment.BottomCenter
     }
-    val labelColor = if (whiteLeading) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val labelColor = if (whiteLeading) Color(0xFF1D1B18) else Color(0xFFF5F4F1)
 
     Box(
         modifier = modifier
             .width(DiggySpacing.evalBarWidth)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFF222226))
+            .background(Color(0xFF1D1B18))
             .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp))
     ) {
         Box(
@@ -72,7 +72,7 @@ fun EvalBar(
                 .fillMaxWidth()
                 .fillMaxHeight(animatedFrac)
                 .align(if (flipped) Alignment.TopCenter else Alignment.BottomCenter)
-                .background(Color(0xFFF3F3F5))
+                .background(Color(0xFFF5F4F1))
         )
 
         // Subtle 0.0 equal-position midpoint tick line
@@ -86,8 +86,8 @@ fun EvalBar(
 
         Text(
             text = scoreLabel,
-            fontFamily = InterFontFamily,
-            fontSize = 7.5.sp,
+            fontFamily = JetBrainsMonoFontFamily,
+            fontSize = 7.sp,
             fontWeight = FontWeight.Bold,
             color = labelColor,
             maxLines = 1,

@@ -33,22 +33,48 @@ service cloud.firestore {
              data.displayName is string &&
              data.displayName.size() >= 1 &&
              data.displayName.size() <= 60 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 160)) &&
              (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 800)) &&
              data.preferredDifficulty is string &&
              data.preferredDifficulty.size() <= 20 &&
              data.preferredDifficulty in ['easy', 'medium', 'hard'] &&
+             data.rating is number &&
+             data.rating >= 0 &&
+             data.rating <= 4000 &&
+             data.ratedCount is int &&
+             data.ratedCount >= 0 &&
+             data.ratedCount <= 1000000 &&
+             data.streak is int &&
+             data.streak >= 0 &&
+             data.streak <= 1000000 &&
+             data.bestStreak is int &&
+             data.bestStreak >= 0 &&
+             data.bestStreak <= 1000000 &&
+             data.winStreak is int &&
+             data.winStreak >= 0 &&
+             data.winStreak <= 1000000 &&
+             data.puzzlesSolved is int &&
+             data.puzzlesSolved >= 0 &&
+             data.puzzlesSolved <= 1000000 &&
+             data.dailyGoal is int &&
+             data.dailyGoal >= 1 &&
+             data.dailyGoal <= 100 &&
+             data.dailySolvedToday is int &&
+             data.dailySolvedToday >= 0 &&
+             data.dailySolvedToday <= 10000 &&
+             data.dailySolvedDate is string &&
+             data.dailySolvedDate.size() <= 16 &&
+             data.levelProgress is map &&
+             data.levelProgress.size() <= 10 &&
              data.gamesPlayedBot is int &&
              data.gamesPlayedBot >= 0 &&
              data.gamesPlayedBot <= 1000000 &&
              data.gamesAnalysed is int &&
              data.gamesAnalysed >= 0 &&
              data.gamesAnalysed <= 1000000 &&
-             data.puzzlesSolved is int &&
-             data.puzzlesSolved >= 0 &&
-             data.puzzlesSolved <= 1000000 &&
-             data.winStreak is int &&
-             data.winStreak >= 0 &&
-             data.winStreak <= 1000000 &&
+             data.ratingHistory is list &&
+             data.ratingHistory.size() <= 100 &&
+             (data.ratingHistory.size() == 0 || data.ratingHistory[0] is map) &&
              data.createdAt is timestamp &&
              data.createdAt <= request.time &&
              data.updatedAt is timestamp &&
@@ -62,6 +88,14 @@ service cloud.firestore {
              data.title is string &&
              data.title.size() >= 1 &&
              data.title.size() <= 160 &&
+             data.opponent is string &&
+             data.opponent.size() <= 100 &&
+             data.result is string &&
+             data.result.size() <= 12 &&
+             data.result in ['1-0', '0-1', '1/2-1/2', '*'] &&
+             data.source is string &&
+             data.source.size() <= 16 &&
+             data.source in ['bot', 'friend', 'analysed'] &&
              data.timestampMs is int &&
              data.timestampMs >= 0 &&
              data.plies is int &&
@@ -94,34 +128,8 @@ service cloud.firestore {
              data.mistakes is list &&
              data.mistakes.size() <= 10 &&
              (data.mistakes.size() == 0 || data.mistakes[0] is map) &&
-             data.createdAt is timestamp &&
-             data.createdAt <= request.time &&
-             data.updatedAt is timestamp &&
-             data.updatedAt <= request.time;
-    }
-
-    function isValidPuzzleProgress(data) {
-      return data.userId is string &&
-             data.userId.size() <= 128 &&
-             data.userId == request.auth.uid &&
-             data.rating is number &&
-             data.rating >= 0 &&
-             data.rating <= 4000 &&
-             data.ratedCount is int &&
-             data.ratedCount >= 0 &&
-             data.ratedCount <= 1000000 &&
-             data.dailyGoal is int &&
-             data.dailyGoal >= 1 &&
-             data.dailyGoal <= 100 &&
-             data.ratingHistory is list &&
-             data.ratingHistory.size() <= 100 &&
-             (data.ratingHistory.size() == 0 || data.ratingHistory[0] is map) &&
-             data.seenIds is list &&
-             data.seenIds.size() <= 400 &&
-             (data.seenIds.size() == 0 || data.seenIds[0] is string) &&
-             data.recentAttempts is list &&
-             data.recentAttempts.size() <= 300 &&
-             (data.recentAttempts.size() == 0 || data.recentAttempts[0] is map) &&
+             (!('whiteAccuracy' in data) || (data.whiteAccuracy is number && data.whiteAccuracy >= 0 && data.whiteAccuracy <= 100)) &&
+             (!('blackAccuracy' in data) || (data.blackAccuracy is number && data.blackAccuracy >= 0 && data.blackAccuracy <= 100)) &&
              data.createdAt is timestamp &&
              data.createdAt <= request.time &&
              data.updatedAt is timestamp &&
@@ -135,13 +143,17 @@ service cloud.firestore {
                        isValidId(userId) &&
                        incoming().keys().hasAll([
                          'userId', 'displayName', 'preferredDifficulty',
-                         'gamesPlayedBot', 'gamesAnalysed', 'puzzlesSolved',
-                         'winStreak', 'createdAt', 'updatedAt'
+                         'rating', 'ratedCount', 'streak', 'bestStreak', 'winStreak',
+                         'puzzlesSolved', 'dailyGoal', 'dailySolvedToday', 'dailySolvedDate',
+                         'levelProgress', 'gamesPlayedBot', 'gamesAnalysed', 'ratingHistory',
+                         'createdAt', 'updatedAt'
                        ]) &&
                        incoming().keys().hasOnly([
-                         'userId', 'displayName', 'avatarUrl', 'preferredDifficulty',
-                         'gamesPlayedBot', 'gamesAnalysed', 'puzzlesSolved',
-                         'winStreak', 'createdAt', 'updatedAt'
+                         'userId', 'displayName', 'email', 'avatarUrl', 'preferredDifficulty',
+                         'rating', 'ratedCount', 'streak', 'bestStreak', 'winStreak',
+                         'puzzlesSolved', 'dailyGoal', 'dailySolvedToday', 'dailySolvedDate',
+                         'levelProgress', 'gamesPlayedBot', 'gamesAnalysed', 'ratingHistory',
+                         'createdAt', 'updatedAt'
                        ]) &&
                        isValidUserProfile(incoming());
       allow update: if isOwner(userId) &&
@@ -150,9 +162,11 @@ service cloud.firestore {
                        incoming().userId == existing().userId &&
                        incoming().createdAt == existing().createdAt &&
                        incoming().diff(existing()).affectedKeys().hasOnly([
-                         'displayName', 'avatarUrl', 'preferredDifficulty',
-                         'gamesPlayedBot', 'gamesAnalysed', 'puzzlesSolved',
-                         'winStreak', 'updatedAt'
+                         'displayName', 'email', 'avatarUrl', 'preferredDifficulty',
+                         'rating', 'ratedCount', 'streak', 'bestStreak', 'winStreak',
+                         'puzzlesSolved', 'dailyGoal', 'dailySolvedToday', 'dailySolvedDate',
+                         'levelProgress', 'gamesPlayedBot', 'gamesAnalysed', 'ratingHistory',
+                         'updatedAt'
                        ]);
       allow delete: if isOwner(userId) && isValidId(userId);
 
@@ -163,15 +177,18 @@ service cloud.firestore {
                          isValidId(userId) &&
                          isValidId(gameId) &&
                          incoming().keys().hasAll([
-                           'userId', 'title', 'timestampMs', 'plies', 'moves', 'pgn',
+                           'userId', 'title', 'opponent', 'result', 'source',
+                           'timestampMs', 'plies', 'moves', 'pgn',
                            'evals', 'bestMoves', 'whiteCounts', 'blackCounts',
                            'whitePhaseMistakes', 'blackPhaseMistakes', 'mistakes',
                            'createdAt', 'updatedAt'
                          ]) &&
                          incoming().keys().hasOnly([
-                           'userId', 'title', 'timestampMs', 'plies', 'moves', 'pgn',
+                           'userId', 'title', 'opponent', 'result', 'source',
+                           'timestampMs', 'plies', 'moves', 'pgn',
                            'evals', 'bestMoves', 'whiteCounts', 'blackCounts',
                            'whitePhaseMistakes', 'blackPhaseMistakes', 'mistakes',
+                           'whiteAccuracy', 'blackAccuracy',
                            'createdAt', 'updatedAt'
                          ]) &&
                          isValidSavedGame(incoming());
@@ -182,43 +199,14 @@ service cloud.firestore {
                          incoming().userId == existing().userId &&
                          incoming().createdAt == existing().createdAt &&
                          incoming().diff(existing()).affectedKeys().hasOnly([
-                           'title', 'timestampMs', 'plies', 'moves', 'pgn',
+                           'title', 'opponent', 'result', 'source',
+                           'timestampMs', 'plies', 'moves', 'pgn',
                            'evals', 'bestMoves', 'whiteCounts', 'blackCounts',
                            'whitePhaseMistakes', 'blackPhaseMistakes', 'mistakes',
+                           'whiteAccuracy', 'blackAccuracy',
                            'updatedAt'
                          ]);
         allow delete: if isOwner(userId) && isValidId(userId) && isValidId(gameId);
-      }
-
-      match /progress/{progressId} {
-        allow get: if isOwner(userId) && isValidId(userId) && isValidId(progressId);
-        allow list: if isOwner(userId) && isValidId(userId);
-        allow create: if isOwner(userId) &&
-                         isValidId(userId) &&
-                         isValidId(progressId) &&
-                         incoming().keys().hasAll([
-                           'userId', 'rating', 'ratedCount', 'dailyGoal',
-                           'ratingHistory', 'seenIds', 'recentAttempts',
-                           'createdAt', 'updatedAt'
-                         ]) &&
-                         incoming().keys().hasOnly([
-                           'userId', 'rating', 'ratedCount', 'dailyGoal',
-                           'ratingHistory', 'seenIds', 'recentAttempts',
-                           'createdAt', 'updatedAt'
-                         ]) &&
-                         isValidPuzzleProgress(incoming());
-        allow update: if isOwner(userId) &&
-                         isValidId(userId) &&
-                         isValidId(progressId) &&
-                         isValidPuzzleProgress(incoming()) &&
-                         incoming().userId == existing().userId &&
-                         incoming().createdAt == existing().createdAt &&
-                         incoming().diff(existing()).affectedKeys().hasOnly([
-                           'rating', 'ratedCount', 'dailyGoal',
-                           'ratingHistory', 'seenIds', 'recentAttempts',
-                           'updatedAt'
-                         ]);
-        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(progressId);
       }
     }
   }

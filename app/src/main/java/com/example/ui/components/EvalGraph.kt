@@ -33,14 +33,14 @@ fun EvalGraph(
     val totalPlies = (evals.size - 1).coerceAtLeast(1)
     val mutedColor = TextMuted
     val lineColor = StudioCyan
-    val goldColor = AccentGreen
+    val emeraldColor = AccentGreen
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(104.dp)
             .clip(RoundedCornerShape(DiggySpacing.controlRadius))
-            .background(CardSurfaceElevated)
+            .background(SurfaceDark)
             .border(1.dp, BorderSubtle, RoundedCornerShape(DiggySpacing.controlRadius))
             .testTag("eval_graph")
             .pointerInput(totalPlies) {
@@ -85,7 +85,7 @@ fun EvalGraph(
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         lineColor.copy(alpha = 0.28f),
-                        goldColor.copy(alpha = 0.08f)
+                        emeraldColor.copy(alpha = 0.08f)
                     )
                 )
             )
@@ -111,13 +111,18 @@ fun EvalGraph(
         val cx = (clampedCur.toFloat() / totalPlies) * w
         val cy = yForEval(evals.getOrElse(clampedCur) { 0.0 })
         drawLine(
-            color = goldColor.copy(alpha = 0.90f),
+            color = emeraldColor.copy(alpha = 0.90f),
             start = Offset(cx, 0f),
             end = Offset(cx, h),
             strokeWidth = 2.dp.toPx()
         )
         drawCircle(
-            color = goldColor,
+            color = emeraldColor.copy(alpha = 0.28f),
+            radius = 7.5.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = emeraldColor,
             radius = 4.5.dp.toPx(),
             center = Offset(cx, cy)
         )

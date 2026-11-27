@@ -113,21 +113,15 @@ fun PlatformImporterSheet(
                 OutlinedTextField(
                     value = state.importUsername,
                     onValueChange = onUsernameChange,
-                    placeholder = { Text(state.importPlatform.placeholder, color = TextMuted) },
+                    placeholder = { Text(state.importPlatform.placeholder, color = InputHint) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { onFetch() }),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = InputText),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("import_username_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CardSurfaceElevated,
-                        unfocusedContainerColor = CardSurfaceElevated,
-                        focusedBorderColor = AccentGreen,
-                        unfocusedBorderColor = BorderSubtle,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
+                    colors = diggyInputColors(),
                     shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
                 DiggyButton(
@@ -191,7 +185,7 @@ fun PlatformImporterSheet(
                             ) {
                                 profile.stats.forEach { st ->
                                     Surface(
-                                        color = BgDark,
+                                        color = SurfaceDark,
                                         shape = RoundedCornerShape(10.dp),
                                         border = BorderStroke(1.dp, BorderSubtle)
                                     ) {
@@ -202,13 +196,17 @@ fun PlatformImporterSheet(
                                             Text(st.mode, fontSize = 11.sp, color = TextMuted)
                                             Text(
                                                 text = "${st.rating}",
-                                                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontFamily = JetBrainsMonoFontFamily,
+                                                    fontFeatureSettings = "tnum"
+                                                ),
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextPrimary
                                             )
                                             if (st.losses > 0 || st.draws > 0) {
                                                 Text(
                                                     text = "${st.wins}W/${st.losses}L/${st.draws}D",
+                                                    fontFamily = JetBrainsMonoFontFamily,
                                                     fontSize = 10.sp,
                                                     color = TextMuted
                                                 )

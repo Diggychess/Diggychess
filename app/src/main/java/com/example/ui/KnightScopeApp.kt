@@ -1,11 +1,15 @@
 package com.example.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,9 +27,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -33,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -76,7 +83,6 @@ fun KnightScopeApp(
 ) {
     val factory = remember(repo) { KnightScopeViewModelFactory(repo = repo) }
 
-    val homeVm: HomeViewModel = viewModel(factory = factory)
     val playVm: PlayViewModel = viewModel(factory = factory)
     val analyzeVm: AnalyzeViewModel = viewModel(factory = factory)
     val puzzlesVm: PuzzlesViewModel = viewModel(factory = factory)
@@ -87,7 +93,6 @@ fun KnightScopeApp(
     val lessonsVm: ChessLessonsViewModel = viewModel(factory = factory)
     val settingsVm: SettingsViewModel = viewModel(factory = factory)
 
-    val homeState by homeVm.uiState.collectAsStateWithLifecycle()
     val playState by playVm.uiState.collectAsStateWithLifecycle()
     val analyzeState by analyzeVm.uiState.collectAsStateWithLifecycle()
     val puzzlesState by puzzlesVm.uiState.collectAsStateWithLifecycle()
@@ -194,9 +199,13 @@ fun KnightScopeApp(
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(BgDark)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(BgRadialTop, BgDark, BgDark)
+                        )
+                    )
             ) {
-                val useRail = maxWidth >= 840.dp
+                val useRail = maxWidth >= 768.dp
                 val primaryTabs = remember { KnightScopeDestination.entries.filter { it.primaryTab } }
 
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -240,10 +249,34 @@ fun KnightScopeApp(
                                         selectedTextColor = AccentGreen,
                                         unselectedIconColor = TextMuted,
                                         unselectedTextColor = TextMuted,
-                                        indicatorColor = AccentGreen.copy(alpha = 0.16f)
+                                        indicatorColor = AccentGreen.copy(alpha = 0.14f)
                                     ),
                                     modifier = Modifier.testTag(tab.testTag)
                                 )
+                            }
+                        }
+                    }
+
+                    val view = LocalView.current
+                    val paletteIsDark = LocalKnightScopeColors.current.isDark
+                    LaunchedEffect(showSplash, paletteIsDark) {
+                        if (!view.isInEditMode) {
+                            var ctx: Context? = view.context
+                            var hostActivity: Activity? = null
+                            while (ctx is ContextWrapper) {
+                                if (ctx is Activity) {
+                                    hostActivity = ctx
+                                    break
+                                }
+                                ctx = ctx.baseContext
+                            }
+                            if (hostActivity == null && ctx is Activity) hostActivity = ctx
+                            hostActivity?.window?.let { win ->
+                                val useLightSystemBars = !paletteIsDark
+                                WindowCompat.getInsetsController(win, view).apply {
+                                    isAppearanceLightStatusBars = useLightSystemBars
+                                    isAppearanceLightNavigationBars = useLightSystemBars
+                                }
                             }
                         }
                     }
@@ -255,7 +288,7 @@ fun KnightScopeApp(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(BgDark)
+                                    .background(SurfaceDark)
                             ) {
                                 TopAppBar(
                                     colors = TopAppBarDefaults.topAppBarColors(
@@ -325,32 +358,45 @@ fun KnightScopeApp(
                         NavHost(
                             navController = navController,
                             startDestination = KnightScopeDestination.HOME.route,
-                            enterTransition = { fadeIn(animationSpec = tween(200)) },
-                            exitTransition = { fadeOut(animationSpec = tween(200)) },
+                            enterTransition = {
+                                fadeIn(animationSpec = tween(200)) +
+                                    slideInVertically(animationSpec = tween(200)) { it / 48 }
+                            },
+                            exitTransition = { fadeOut(animationSpec = tween(150)) },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(innerPadding)
                         ) {
                             composable(KnightScopeDestination.HOME.route) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                                    HomeScreen(
-                                        state = homeState,
-                                        hasActivePlayGame = playState.inGame,
-                                        onNavigate = { route -> navigateTo(route) },
-                                        onStartDailyPuzzle = {
-                                            puzzlesVm.startDaily()
-                                            navigateTo(KnightScopeDestination.PUZZLES.route)
-                                        },
-                                        onContinuePlay = {
-                                            navigateTo(KnightScopeDestination.PLAY.route)
-                                        },
-                                        onAnalysePgn = { pgn ->
-                                            analyzeVm.loadAndAnalyzePgn(pgn)
-                                            navigateTo(KnightScopeDestination.ANALYSE.route)
-                                        },
-                                        modifier = Modifier.widthIn(max = 860.dp)
-                                    )
-                                }
+                                HomeScreen(
+                                    latestAnalysis = analyzeState.result,
+                                    onAnalysePgn = { pgn ->
+                                        analyzeVm.loadAndAnalyzePgn(pgn)
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onSearchUsername = { platform, username ->
+                                        analyzeVm.setImportPlatform(platform)
+                                        analyzeVm.updateImportUsername(username)
+                                        analyzeVm.openImporterSheet()
+                                        analyzeVm.fetchPlatformGames()
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onUploadPgn = { content, fileName ->
+                                        analyzeVm.importUploadedPgn(content, fileName)
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onOpenPlatformImporter = {
+                                        analyzeVm.openImporterSheet()
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onTrySample = {
+                                        analyzeVm.trySample()
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onOpenLatestAnalysis = {
+                                        navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    }
+                                )
                             }
 
                             composable(KnightScopeDestination.PLAY.route) {
@@ -359,9 +405,10 @@ fun KnightScopeApp(
                                         state = playState,
                                         onSelectDifficulty = playVm::setDifficulty,
                                         onSelectColor = playVm::selectColorChoice,
+                                        onSelectBaseTime = playVm::selectBaseTime,
+                                        onSelectIncrement = playVm::selectIncrement,
                                         onSelectTimeControl = playVm::selectTimeControl,
                                         onStartQuickPlay = playVm::startQuickPlay,
-                                        onToggleLiveEval = playVm::setShowLiveEval,
                                         onStartGame = { playVm.startGame() },
                                         onSquareClick = playVm::onSquareClick,
                                         onSelectPromotion = playVm::selectPromotion,
@@ -369,6 +416,7 @@ fun KnightScopeApp(
                                         onHint = playVm::requestHint,
                                         onTakeback = playVm::takeback,
                                         onFlip = playVm::toggleFlip,
+                                        onOfferDraw = playVm::offerDraw,
                                         onResign = playVm::resign,
                                         onRematch = playVm::rematch,
                                         onAnalyseGame = {
@@ -381,7 +429,8 @@ fun KnightScopeApp(
                                             navigateTo(KnightScopeDestination.ANALYSE.route)
                                         },
                                         onLeaveGame = playVm::leaveGame,
-                                        modifier = Modifier.widthIn(max = 760.dp)
+                                        onRetryEngine = playVm::retryEngine,
+                                        modifier = Modifier.widthIn(max = 1120.dp)
                                     )
                                 }
                             }
@@ -392,6 +441,8 @@ fun KnightScopeApp(
                                         state = analyzeState,
                                         onPgnChange = analyzeVm::updatePgn,
                                         onAnalyze = { analyzeVm.analyzeGame() },
+                                        onSelectDepthPreset = analyzeVm::selectDepthPreset,
+                                        onRetryEngine = analyzeVm::retryEngineInit,
                                         onTrySample = analyzeVm::trySample,
                                         onSharePgn = { analyzeVm.openShare(forceAnalysis = false) },
                                         onShareAnalysis = { analyzeVm.openShare(forceAnalysis = true) },
@@ -425,6 +476,12 @@ fun KnightScopeApp(
                                         onDrillRetry = analyzeVm::retryCurrentMistake,
                                         onDrillNext = analyzeVm::nextMistakeDrill,
                                         onCloseDrill = analyzeVm::closeMistakeDrill,
+                                        onUploadPgn = analyzeVm::importUploadedPgn,
+                                        onRequestMoveInsight = { plyIdx -> analyzeVm.requestMoveInsight(plyIdx, allowCloud = true) },
+                                        onUseOfflineMoveInsight = analyzeVm::useOfflineMoveInsight,
+                                        onRequestGameReport = { analyzeVm.requestAiGameReport(allowCloud = true) },
+                                        onUseOfflineGameReport = analyzeVm::useOfflineGameReport,
+                                        onSendCoachMessage = analyzeVm::sendCoachChatMessage,
                                         modifier = Modifier.widthIn(max = 1040.dp)
                                     )
                                 }
@@ -450,6 +507,8 @@ fun KnightScopeApp(
                                         onStartReviewMistakes = puzzlesVm::startReviewMistakes,
                                         onStartMyGameMistakes = puzzlesVm::startMyGameMistakes,
                                         onSetDailyGoal = puzzlesVm::setDailyGoal,
+                                        onToggleDifficultyFilter = puzzlesVm::toggleDifficultyFilter,
+                                        onSetDifficultyFilter = puzzlesVm::setDifficultyFilter,
                                         onImportCsv = puzzlesVm::importCsvText,
                                         onSquareClick = puzzlesVm::onSquareClick,
                                         onSelectPromotion = puzzlesVm::selectPromotion,
@@ -595,6 +654,12 @@ fun KnightScopeApp(
                                         },
                                         onBackupMessage = settingsVm::setBackupMessage,
                                         onSendContact = settingsVm::sendContactMessage,
+                                        onSaveGroqApiKey = settingsVm::saveGroqApiKey,
+                                        onSaveTinyFishApiKey = settingsVm::saveTinyFishApiKey,
+                                        onGoogleSignInStarting = { settingsVm.setAuthBusy(true) },
+                                        onGoogleIdTokenSignedIn = settingsVm::signInWithGoogleIdToken,
+                                        onSignOutAccount = settingsVm::signOutAccount,
+                                        onAuthError = settingsVm::setAuthError,
                                         modifier = Modifier.widthIn(max = 780.dp)
                                     )
                                 }
@@ -605,25 +670,29 @@ fun KnightScopeApp(
             }
         }
 
-        // Diggy Chess Launch Splash Overlay (tagline shown ONLY on splash)
+        // Chess Analyzer: AI Coach Launch Splash Overlay (tagline shown ONLY on splash)
         AnimatedVisibility(
             visible = showSplash,
             enter = fadeIn(animationSpec = tween(200)),
-            exit = fadeOut(animationSpec = tween(200))
+            exit = fadeOut(animationSpec = tween(220))
         ) {
-            Surface(
-                color = BgDark,
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(BgRadialTop, BgDark, SurfaceDark)
+                        )
+                    )
                     .clickable { showSplash = false }
-                    .testTag("diggy_splash_overlay")
+                    .testTag("diggy_splash_overlay"),
+                contentAlignment = Alignment.Center
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    DiggyBrandBadge(size = 84)
+                    DiggyBrandBadge(size = 88)
                     Spacer(modifier = Modifier.height(18.dp))
                     Text(
                         text = stringResource(R.string.app_name),
@@ -701,10 +770,24 @@ private fun DiggyBottomNavBar(
     currentDestination: androidx.navigation.NavDestination?,
     onSelectTab: (KnightScopeDestination) -> Unit
 ) {
+    val barBg by animateColorAsState(
+        targetValue = SurfaceDark,
+        animationSpec = tween(durationMillis = 220),
+        label = "navBarBg"
+    )
+    val barBorder by animateColorAsState(
+        targetValue = LineSubtle,
+        animationSpec = tween(durationMillis = 220),
+        label = "navBarBorder"
+    )
+    val activeContentColor = AccentGreen
+    val inactiveContentColor = TextMuted
+    val activePillColor = AccentGreen.copy(alpha = 0.14f)
+
     Surface(
-        color = SurfaceDark,
-        border = BorderStroke(1.dp, LineSubtle),
-        shadowElevation = 10.dp,
+        color = barBg,
+        border = BorderStroke(1.dp, barBorder),
+        shadowElevation = 8.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -719,12 +802,12 @@ private fun DiggyBottomNavBar(
                 val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                 val label = stringResource(tab.labelRes)
                 val pillBg by animateColorAsState(
-                    targetValue = if (selected) AccentGreen.copy(alpha = 0.16f) else Color.Transparent,
+                    targetValue = if (selected) activePillColor else Color.Transparent,
                     animationSpec = tween(durationMillis = 200),
                     label = "navPillBg"
                 )
                 val iconTint by animateColorAsState(
-                    targetValue = if (selected) AccentGreen else TextMuted,
+                    targetValue = if (selected) activeContentColor else inactiveContentColor,
                     animationSpec = tween(durationMillis = 200),
                     label = "navIconTint"
                 )
@@ -754,15 +837,15 @@ private fun DiggyBottomNavBar(
                                 imageVector = tab.icon,
                                 contentDescription = label,
                                 tint = iconTint,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(23.dp)
                             )
                         }
                         Text(
                             text = label,
                             fontFamily = InterFontFamily,
-                            fontSize = 12.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = if (selected) AccentGreen else TextMuted,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) activeContentColor else inactiveContentColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -777,11 +860,11 @@ private fun DiggyBottomNavBar(
 private fun DiggyBrandBadge(size: Int = 32) {
     Image(
         painter = painterResource(id = R.drawable.ic_launcher_art),
-        contentDescription = "Diggy Chess crest",
+        contentDescription = "Chess Analyzer: AI Coach crest",
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .size(size.dp)
             .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, AccentGreen.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+            .border(1.2.dp, TrophyGold.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
     )
 }

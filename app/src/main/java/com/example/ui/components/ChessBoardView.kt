@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -29,8 +30,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -195,6 +200,7 @@ fun ChessBoardView(
     pieceStyle: PieceStyle = LocalPieceStyle.current,
     is3dBoard: Boolean = LocalBoard3dEnabled.current,
     playMoveSounds: Boolean = true,
+    annotationDrawMode: Boolean = false,
     onSquareClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -215,15 +221,26 @@ fun ChessBoardView(
     var activeSlides by remember { mutableStateOf<List<SlidingPiece>>(emptyList()) }
     val slideProgress = remember { Animatable(1f) }
 
-    // Drag-and-drop state
+    // Drag-and-drop & user annotation state (auto-cleared on each new move/position)
     var draggedFromSq by remember { mutableStateOf<String?>(null) }
     var draggedPiece by remember { mutableStateOf<ChessPiece?>(null) }
     var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
     var hoveredDropSq by remember { mutableStateOf<String?>(null) }
     var suppressNextAnimation by remember { mutableStateOf(false) }
 
+    var userMarkedSquares by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var userArrows by remember { mutableStateOf<List<BoardArrow>>(emptyList()) }
+    var draftUserArrow by remember { mutableStateOf<BoardArrow?>(null) }
+
+    LaunchedEffect(fen) {
+        userMarkedSquares = emptySet()
+        userArrows = emptyList()
+        draftUserArrow = null
+    }
+
     val currentOnSquareClick by rememberUpdatedState(onSquareClick)
     val currentSelectedSquare by rememberUpdatedState(selectedSquare)
+    val currentAnnotationDrawMode by rememberUpdatedState(annotationDrawMode)
 
     // Soft pickup audio + haptic cue when user selects one of their own pieces
     LaunchedEffect(selectedSquare) {
@@ -280,7 +297,7 @@ fun ChessBoardView(
             slideProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = if (is3dBoard) 200 else 170,
+                    durationMillis = 300,
                     easing = FastOutSlowInEasing
                 )
             )
@@ -307,7 +324,7 @@ fun ChessBoardView(
         val cabinetSidePadding = if (is3dBoard) 8.dp else 0.dp
         val cabinetBottomInset = if (is3dBoard) 10.dp else 0.dp
         val framePadding = if (is3dBoard) 7.dp else 0.dp
-        val cornerRadius = if (is3dBoard) 10.dp else 8.dp
+        val cornerRadius = 12.dp
 
         // Tabletop ambient shadow + 3D beveled front apron underneath tilted board
         if (is3dBoard) {
@@ -321,8 +338,8 @@ fun ChessBoardView(
                 drawOval(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.56f),
-                            Color.Black.copy(alpha = 0.24f),
+                            Color.Black.copy(alpha = 0.62f),
+                            Color.Black.copy(alpha = 0.26f),
                             Color.Transparent
                         ),
                         center = Offset(w * 0.5f, h * 0.94f),
@@ -349,15 +366,15 @@ fun ChessBoardView(
                 )
                 // Specular edge bevel along front lip crease
                 drawLine(
-                    color = cabinet.goldInlay.copy(alpha = 0.26f),
+                    color = cabinet.goldInlay.copy(alpha = 0.34f),
                     start = Offset(lipLeft + 10.dp.toPx(), lipTop + 1.dp.toPx()),
                     end = Offset(lipLeft + lipWidth - 10.dp.toPx(), lipTop + 1.dp.toPx()),
-                    strokeWidth = 1.2.dp.toPx()
+                    strokeWidth = 1.4.dp.toPx()
                 )
             }
         }
 
-        // Cabinet outer frame + tilted 3D playing surface
+        // Cabinet outer frame (3D) or clean flat frame (2D)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -374,31 +391,52 @@ fun ChessBoardView(
                         transformOrigin = TransformOrigin(0.5f, 0.52f)
                     }
                 }
-                .clip(RoundedCornerShape(cornerRadius))
                 .then(
                     if (is3dBoard) {
                         Modifier
+                            .shadow(
+                                elevation = 10.dp,
+                                shape = RoundedCornerShape(cornerRadius),
+                                ambientColor = Color.Black,
+                                spotColor = Color.Black
+                            )
+                            .clip(RoundedCornerShape(cornerRadius))
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(cabinet.topRim, cabinet.bodyTop, cabinet.bodyBottom)
                                 )
                             )
-                            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(cornerRadius))
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(cornerRadius)
+                            )
+                            .padding(framePadding)
                     } else {
-                        Modifier.border(1.dp, BorderSubtle, RoundedCornerShape(cornerRadius))
+                        Modifier
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(cornerRadius),
+                                ambientColor = Color.Black,
+                                spotColor = Color.Black
+                            )
+                            .clip(RoundedCornerShape(cornerRadius))
+                            .border(1.5.dp, BorderSubtle, RoundedCornerShape(cornerRadius))
                     }
                 )
-                .padding(framePadding)
         ) {
-            // Gold tournament inlay line framing the 64 squares in optional 3D mode
-            val innerShape = RoundedCornerShape(if (is3dBoard) 4.dp else cornerRadius)
+            val innerShape = if (is3dBoard) RoundedCornerShape(4.dp) else RoundedCornerShape(cornerRadius)
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(innerShape)
                     .then(
                         if (is3dBoard) {
-                            Modifier.border(1.dp, cabinet.goldInlay, innerShape)
+                            Modifier.border(
+                                width = 1.dp,
+                                color = cabinet.goldInlay.copy(alpha = 0.85f),
+                                shape = innerShape
+                            )
                         } else Modifier
                     )
             ) {
@@ -423,18 +461,93 @@ fun ChessBoardView(
                         .fillMaxSize()
                         .then(
                             if (onSquareClick != null) {
-                                Modifier.pointerInput(fen, flipped) {
+                                Modifier.pointerInput(fen, flipped, annotationDrawMode) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(requireUnconsumed = false)
                                         val startSq = sqNameAt(down.position) ?: return@awaitEachGesture
-                                        val sqIdx = parseSquare(startSq) ?: return@awaitEachGesture
-                                        val piece = chess.board[sqIdx] ?: return@awaitEachGesture
-                                        if (piece.color != chess.turn) return@awaitEachGesture
+                                        val isSecondary = currentEvent.buttons.isSecondaryPressed
 
-                                        val dragStart = awaitTouchSlopOrCancellation(down.id) { change, _ ->
-                                            change.consume()
-                                        } ?: return@awaitEachGesture
+                                        if (isSecondary || currentAnnotationDrawMode) {
+                                            down.consume()
+                                            var endSq = startSq
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                change.consume()
+                                                val hovered = sqNameAt(change.position)
+                                                if (hovered != null) {
+                                                    endSq = hovered
+                                                    draftUserArrow = if (endSq != startSq) {
+                                                        BoardArrow(startSq, endSq, ArrowUserOrange)
+                                                    } else null
+                                                }
+                                                if (!change.pressed) break
+                                            }
+                                            draftUserArrow = null
+                                            if (endSq == startSq) {
+                                                userMarkedSquares = if (startSq in userMarkedSquares) {
+                                                    userMarkedSquares - startSq
+                                                } else {
+                                                    userMarkedSquares + startSq
+                                                }
+                                            } else {
+                                                val existing = userArrows.indexOfFirst {
+                                                    it.from == startSq && it.to == endSq
+                                                }
+                                                userArrows = if (existing >= 0) {
+                                                    userArrows.toMutableList().apply { removeAt(existing) }
+                                                } else {
+                                                    userArrows + BoardArrow(startSq, endSq, ArrowUserOrange)
+                                                }
+                                            }
+                                            return@awaitEachGesture
+                                        }
 
+                                        val sqIdx = parseSquare(startSq)
+                                        val piece = if (sqIdx != null) chess.board[sqIdx] else null
+                                        val canDragPiece = piece != null && piece.color == chess.turn
+                                        val touchSlop = viewConfiguration.touchSlop
+                                        var liftedEarly = false
+                                        var dragStartChange: PointerInputChange? = null
+
+                                        val completedBeforeTimeout = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                                val change = event.changes.firstOrNull { it.id == down.id }
+                                                if (change == null || !change.pressed) {
+                                                    liftedEarly = true
+                                                    break
+                                                }
+                                                if ((change.position - down.position).getDistance() > touchSlop) {
+                                                    dragStartChange = change
+                                                    break
+                                                }
+                                            }
+                                            true
+                                        }
+
+                                        if (liftedEarly) return@awaitEachGesture
+
+                                        if (completedBeforeTimeout == null) {
+                                            // Long press toggles red square annotation and blocks click release
+                                            userMarkedSquares = if (startSq in userMarkedSquares) {
+                                                userMarkedSquares - startSq
+                                            } else {
+                                                userMarkedSquares + startSq
+                                            }
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                change.consume()
+                                                if (!change.pressed) break
+                                            }
+                                            return@awaitEachGesture
+                                        }
+
+                                        val dragStart = dragStartChange ?: return@awaitEachGesture
+                                        if (!canDragPiece || piece == null) return@awaitEachGesture
+
+                                        dragStart.consume()
                                         draggedFromSq = startSq
                                         draggedPiece = piece
                                         dragOffsetPx = dragStart.position
@@ -488,6 +601,7 @@ fun ChessBoardView(
                                     val isWrong = sqName in wrongMoveSquares
                                     val isHint = sqName in hintSquares
                                     val isCheck = sqName == checkSquare
+                                    val isUserMarked = sqName in userMarkedSquares
                                     val isDropHover = sqName == hoveredDropSq && draggedFromSq != null && sqName != draggedFromSq
                                     val captureTarget = legalTargets[sqName]
 
@@ -504,11 +618,13 @@ fun ChessBoardView(
                                             .fillMaxHeight()
                                             .background(baseColor)
                                             .then(
-                                                if (onSquareClick != null) {
-                                                    Modifier
+                                                when {
+                                                    onSquareClick != null && !annotationDrawMode -> Modifier
                                                         .clickable { onSquareClick(sqName) }
                                                         .testTag("sq_$sqName")
-                                                } else Modifier
+                                                    onSquareClick != null -> Modifier.testTag("sq_$sqName")
+                                                    else -> Modifier
+                                                }
                                             )
                                             .semantics { contentDescription = squareDesc },
                                         contentAlignment = Alignment.Center
@@ -524,6 +640,13 @@ fun ChessBoardView(
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .background(HighlightLastMove)
+                                            )
+                                        }
+                                        if (isUserMarked && !isCorrect && !isWrong) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(HighlightUserMarkRed)
                                             )
                                         }
                                         if (isCorrect) {
@@ -564,24 +687,24 @@ fun ChessBoardView(
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .background(Color.White.copy(alpha = 0.20f))
-                                                    .border(2.5.dp, HighlightDragTarget)
+                                                    .background(Color.White.copy(alpha = 0.22f))
+                                                    .border(2.dp, HighlightDragTarget)
                                             )
                                         }
 
-                                        // Tactile micro-bevel on individual 3D square tile
+                                        // Tactile 3D tile bevel sheen
                                         if (is3dBoard) {
                                             Canvas(modifier = Modifier.fillMaxSize()) {
                                                 val sW = size.width
                                                 val sH = size.height
                                                 drawLine(
-                                                    color = Color.White.copy(alpha = if (isLight) 0.16f else 0.08f),
+                                                    color = Color.White.copy(alpha = if (isLight) 0.18f else 0.09f),
                                                     start = Offset(0f, 0.5f),
                                                     end = Offset(sW, 0.5f),
                                                     strokeWidth = 1f
                                                 )
                                                 drawLine(
-                                                    color = Color.Black.copy(alpha = if (isLight) 0.08f else 0.14f),
+                                                    color = Color.Black.copy(alpha = if (isLight) 0.10f else 0.16f),
                                                     start = Offset(0f, sH - 0.5f),
                                                     end = Offset(sW, sH - 0.5f),
                                                     strokeWidth = 1f
@@ -593,26 +716,26 @@ fun ChessBoardView(
                                         if (df == 0) {
                                             Text(
                                                 text = "${8 - r}",
-                                                color = labelColor.copy(alpha = 0.90f),
-                                                fontFamily = InterFontFamily,
+                                                color = labelColor.copy(alpha = 0.88f),
+                                                fontFamily = JetBrainsMonoFontFamily,
                                                 fontSize = if (outerSize < 260.dp) 8.sp else 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier
                                                     .align(Alignment.TopStart)
-                                                    .padding(start = 3.dp, top = 1.dp)
+                                                    .padding(start = 3.5.dp, top = 2.dp)
                                                     .testTag("coord_rank_${8 - r}")
                                             )
                                         }
                                         if (dr == 7) {
                                             Text(
                                                 text = "${'a' + f}",
-                                                color = labelColor.copy(alpha = 0.90f),
-                                                fontFamily = InterFontFamily,
+                                                color = labelColor.copy(alpha = 0.88f),
+                                                fontFamily = JetBrainsMonoFontFamily,
                                                 fontSize = if (outerSize < 260.dp) 8.sp else 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier
                                                     .align(Alignment.BottomEnd)
-                                                    .padding(end = 3.dp, bottom = 1.dp)
+                                                    .padding(end = 3.5.dp, bottom = 1.5.dp)
                                                     .testTag("coord_file_${'a' + f}")
                                             )
                                         }
@@ -627,19 +750,19 @@ fun ChessBoardView(
                                             )
                                         }
 
-                                        // Legal move indicator (Chess.com / Lichess dot & capture ring)
+                                        // Legal move indicator
                                         if (captureTarget != null) {
                                             Canvas(modifier = Modifier.fillMaxSize()) {
                                                 if (captureTarget) {
                                                     drawCircle(
-                                                        color = Color(0x2E000000),
-                                                        radius = size.minDimension * 0.43f,
+                                                        color = Color(0x3D000000),
+                                                        radius = size.minDimension * 0.435f,
                                                         style = Stroke(width = size.minDimension * 0.088f)
                                                     )
                                                 } else {
                                                     drawCircle(
-                                                        color = Color(0x28000000),
-                                                        radius = size.minDimension * 0.165f
+                                                        color = Color(0x33000000),
+                                                        radius = size.minDimension * 0.155f
                                                     )
                                                 }
                                             }
@@ -693,10 +816,9 @@ fun ChessBoardView(
                         }
                     }
 
-                    // Subtle studio surface grain + directional overhead light wash in 3D mode
+                    // Subtle overhead directional light sheen on 3D tilted board only
                     if (is3dBoard) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            // Soft overhead spotlight -> lower shadow gradient across playing field
                             drawRect(
                                 brush = Brush.verticalGradient(
                                     colors = listOf(
@@ -706,21 +828,10 @@ fun ChessBoardView(
                                     )
                                 )
                             )
-                            // Ultra-subtle inlaid horizontal wood grain striations
-                            val step = size.height / 28f
-                            for (i in 1 until 28) {
-                                val y = i * step
-                                drawLine(
-                                    color = if (i % 2 == 0) Color.Black.copy(alpha = 0.022f) else Color.White.copy(alpha = 0.018f),
-                                    start = Offset(0f, y),
-                                    end = Offset(size.width, y),
-                                    strokeWidth = 1f
-                                )
-                            }
                         }
                     }
 
-                    // Smooth 200ms 3D arc-lifted sliding piece overlay
+                    // Smooth 300ms 3D arc-lifted sliding piece overlay
                     if (activeSlides.isNotEmpty()) {
                         val t = slideProgress.value
                         val arcLift = sin(t * Math.PI).toFloat()
@@ -830,11 +941,14 @@ fun ChessBoardView(
                         }
                     }
 
-                    // Arrow overlay
-                    if (arrows.isNotEmpty()) {
+                    // Arrow overlay (engine hints + right-click/draw-mode user arrows)
+                    val combinedArrows = remember(arrows, userArrows, draftUserArrow) {
+                        arrows + userArrows + listOfNotNull(draftUserArrow)
+                    }
+                    if (combinedArrows.isNotEmpty()) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val cell = size.width / 8f
-                            for (arrow in arrows) {
+                            for (arrow in combinedArrows) {
                                 val fromSq = parseSquare(arrow.from) ?: continue
                                 val toSq = parseSquare(arrow.to) ?: continue
                                 val fr = fromSq / 8
@@ -856,15 +970,24 @@ fun ChessBoardView(
                                 val bx = x2 - ux * headLen
                                 val by = y2 - uy * headLen
 
+                                val headWidth = cell * 0.25f
+                                val shadowColor = Color(0x36000000)
+                                val sOff = cell * 0.03f
+                                drawLine(
+                                    color = shadowColor,
+                                    start = Offset(x1, y1 + sOff),
+                                    end = Offset(bx, by + sOff),
+                                    strokeWidth = cell * 0.185f,
+                                    cap = StrokeCap.Round
+                                )
                                 drawLine(
                                     color = arrow.color,
                                     start = Offset(x1, y1),
                                     end = Offset(bx, by),
-                                    strokeWidth = cell * 0.17f,
+                                    strokeWidth = cell * 0.165f,
                                     cap = StrokeCap.Round
                                 )
 
-                                val headWidth = cell * 0.24f
                                 val path = Path().apply {
                                     moveTo(x2, y2)
                                     lineTo(bx - uy * headWidth, by + ux * headWidth)

@@ -16,11 +16,12 @@ import com.example.ui.theme.KnightScopeTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureAppCheck(this, intent)
         enableEdgeToEdge()
         com.example.audio.ChessSoundPlayer.ensureInit(applicationContext)
         val repository = KnightScopeRepository(applicationContext)
         setContent {
-            val isDarkMode by repository.darkModeFlow.collectAsStateWithLifecycle(initialValue = true)
+            val isDarkMode by repository.darkModeFlow.collectAsStateWithLifecycle(initialValue = false)
             val pieceAnimations by repository.pieceAnimationsFlow.collectAsStateWithLifecycle(initialValue = true)
             val pieceStyle by repository.pieceStyleFlow.collectAsStateWithLifecycle(initialValue = com.example.ui.theme.PieceStyle.NEO)
             val board3dEnabled by repository.board3dEnabledFlow.collectAsStateWithLifecycle(initialValue = false)

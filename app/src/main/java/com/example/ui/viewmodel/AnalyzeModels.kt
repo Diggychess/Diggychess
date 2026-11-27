@@ -1,6 +1,12 @@
 package com.example.ui.viewmodel
 
 import com.example.chess.*
+import com.example.data.KnightScopeRepository
+import com.example.service.AiGameSummaryReport
+import com.example.service.AiInsightState
+import com.example.service.AiMoveInsight
+import com.example.service.CoachChatMessage
+import com.example.service.CoachChatStreamState
 import com.example.ui.theme.BoardTheme
 
 data class VariationStep(
@@ -59,12 +65,15 @@ data class MistakeDrillState(
 data class AnalyzeUiState(
     val pgnText: String = "",
     val settings: ReviewSettings = ReviewSettings(),
-    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val selectedDepthPreset: AnalysisDepthPreset = AnalysisDepthPreset.FAST,
+    val engineStatus: StockfishEngineStatus = StockfishEngineStatus.Loading,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val isAnalyzing: Boolean = false,
     val progressDone: Int = 0,
     val progressTotal: Int = 0,
     val errorMessage: String? = null,
     val statusMessage: String? = null,
+    val pgnValidationWarning: String? = null,
     val result: GameAnalysisResult? = null,
     val currentPly: Int = 0,
     val showBestMove: Boolean = false,
@@ -82,6 +91,13 @@ data class AnalyzeUiState(
 
     // One-tap Practice My Mistakes retry drill
     val mistakeDrill: MistakeDrillState? = null,
+
+    // AI Chess Coach state (grounded in Stockfish evaluations)
+    val moveInsightsByPly: Map<Int, AiInsightState<AiMoveInsight>> = emptyMap(),
+    val gameReportState: AiInsightState<AiGameSummaryReport> = AiInsightState.Idle,
+    val coachChatMessages: List<CoachChatMessage> = emptyList(),
+    val coachChatStreamState: CoachChatStreamState = CoachChatStreamState.Idle,
+    val dailyAiRemaining: Int = KnightScopeRepository.MAX_DAILY_AI_REQUESTS,
 
     // Chess.com & Lichess Username Game & Stats Importer
     val showImporterSheet: Boolean = false,

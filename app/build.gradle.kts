@@ -4,7 +4,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    // alias(libs.plugins.google.services)
+    alias(libs.plugins.google.services)
     // alias(libs.plugins.secrets)
 }
 
@@ -39,6 +39,9 @@ android {
         buildConfigField("String", "EMAILJS_SERVICE_ID", optionalSecret("EMAILJS_SERVICE_ID"))
         buildConfigField("String", "EMAILJS_TEMPLATE_ID", optionalSecret("EMAILJS_TEMPLATE_ID"))
         buildConfigField("String", "EMAILJS_PUBLIC_KEY", optionalSecret("EMAILJS_PUBLIC_KEY"))
+        buildConfigField("String", "GROQ_API_KEY", optionalSecret("GROQ_API_KEY"))
+        buildConfigField("String", "TINYFISH_API_KEY", optionalSecret("TINYFISH_API_KEY"))
+        buildConfigField("String", "TINYFISH_RUNTIME_ATTEMPT_ID", optionalSecret("TINYFISH_RUNTIME_ATTEMPT_ID"))
     }
 
     signingConfigs {
@@ -105,20 +108,27 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
-    // implementation(libs.kotlinx.coroutines.play.services)
-    // implementation(libs.coil.compose)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.coil.compose)
 
-    // implementation(platform(libs.firebase.bom))
-    // implementation(libs.firebase.firestore)
-    // implementation(libs.firebase.auth)
-    // implementation(libs.androidx.credentials)
-    // implementation(libs.androidx.credentials.play.services)
-    // implementation(libs.googleid)
+    implementation(libs.chesslib)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.ai)
+    implementation(libs.firebase.appcheck.recaptcha)
+    implementation(libs.firebase.appcheck.debug)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 tasks.withType<Test> {

@@ -12,7 +12,7 @@ object DiggySpacing {
     val s2 = md
 
     val cardRadius = 16.dp
-    val controlRadius = 12.dp
+    val controlRadius = 10.dp
     val chipRadius = 10.dp
 
     val primaryButtonHeight = 52.dp

@@ -3,35 +3,74 @@ package com.example.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.*
+import com.example.data.FirestoreGameSync
 import com.example.data.KnightScopeRepository
+import com.example.service.AiChessCoachService
+import com.example.service.AiInsightState
+import com.example.service.CoachChatMessage
+import com.example.service.CoachChatStreamState
 import com.example.service.PlatformGameFetcher
+import com.example.service.TinyFishSearchResult
 import com.example.ui.theme.BoardTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class AnalyzeViewModel(
     private val repo: KnightScopeRepository,
-    private val analyzer: GameAnalyzer = GameAnalyzer(),
-    private val engine: ChessEngine = ChessEngine()
+    private val stockfishWasm: StockfishAnalyzerEngine? = null,
+    private val firestoreSync: FirestoreGameSync? = null,
+    private val engine: ChessEngine = ChessEngine(),
+    private val analyzer: GameAnalyzer = GameAnalyzer(engine, stockfishWasm),
+    private val aiCoach: AiChessCoachService = AiChessCoachService(repo)
 ) : ViewModel() {
 
     companion object {
         const val SAMPLE_PGN = "[Event \"Sample\"]\n[White \"White\"]\n[Black \"Black\"]\n[Result \"1-0\"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0"
     }
 
-    private val _uiState = MutableStateFlow(AnalyzeUiState())
+    private val _uiState = MutableStateFlow(
+        AnalyzeUiState(
+            engineStatus = stockfishWasm?.statusFlow?.value
+                ?: StockfishEngineStatus.Ready("19.0.1", "Stockfish Engine")
+        )
+    )
     val uiState: StateFlow<AnalyzeUiState> = _uiState.asStateFlow()
 
+    private val analysisCache = LinkedHashMap<String, GameAnalysisResult>(16, 0.75f, true)
+    private val plyMultiPvCache = LinkedHashMap<String, EngineEval>(64, 0.75f, true)
+
+    private var analyzeJob: Job? = null
     private var plyEvalJob: Job? = null
     private var variationEvalJob: Job? = null
     private var fetchJob: Job? = null
+    private var gameReportJob: Job? = null
+    private var moveInsightJob: Job? = null
+    private var coachChatJob: Job? = null
 
     init {
         viewModelScope.launch {
+            repo.ensureOpeningsLoaded()
+            _uiState.update { it.copy(dailyAiRemaining = repo.getDailyAiRemaining()) }
+        }
+        stockfishWasm?.let { sf ->
+            viewModelScope.launch {
+                sf.statusFlow.collect { status ->
+                    _uiState.update { it.copy(engineStatus = status) }
+                }
+            }
+        }
+        viewModelScope.launch {
             repo.settingsFlow.collect { s ->
-                _uiState.update { it.copy(settings = s) }
+                _uiState.update {
+                    it.copy(
+                        settings = s,
+                        selectedDepthPreset = AnalysisDepthPreset.fromDepth(s.depth)
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -46,12 +85,66 @@ class AnalyzeViewModel(
         }
     }
 
+    fun selectDepthPreset(preset: AnalysisDepthPreset) {
+        val nextSettings = _uiState.value.settings.copy(depth = preset.depth)
+        _uiState.update {
+            it.copy(
+                selectedDepthPreset = preset,
+                settings = nextSettings,
+                errorMessage = null
+            )
+        }
+        viewModelScope.launch {
+            repo.saveSettings(nextSettings)
+        }
+    }
+
+    fun retryEngineInit() {
+        stockfishWasm?.retryInit()
+    }
+
     fun updatePgn(text: String) {
-        _uiState.update { it.copy(pgnText = text, errorMessage = null, statusMessage = null) }
+        _uiState.update {
+            it.copy(
+                pgnText = text,
+                errorMessage = null,
+                statusMessage = null,
+                pgnValidationWarning = null
+            )
+        }
+    }
+
+    fun importUploadedPgn(content: String, fileName: String?) {
+        val trimmed = content.trim()
+        if (trimmed.isEmpty()) {
+            _uiState.update {
+                it.copy(errorMessage = "The selected .pgn file was empty.")
+            }
+            return
+        }
+        analyzeJob?.cancel()
+        stockfishWasm?.stopSearch()
+        _uiState.update {
+            it.copy(
+                pgnText = trimmed,
+                isAnalyzing = false,
+                errorMessage = null,
+                statusMessage = "Loaded ${fileName ?: "PGN file"}. Analysing…",
+                pgnValidationWarning = null
+            )
+        }
+        analyzeGame()
     }
 
     fun trySample() {
-        _uiState.update { it.copy(pgnText = SAMPLE_PGN, errorMessage = null, statusMessage = null) }
+        _uiState.update {
+            it.copy(
+                pgnText = SAMPLE_PGN,
+                errorMessage = null,
+                statusMessage = null,
+                pgnValidationWarning = null
+            )
+        }
         analyzeGame()
     }
 
@@ -226,12 +319,48 @@ class AnalyzeViewModel(
             return
         }
 
-        if (_uiState.value.isAnalyzing) return
+        if (_uiState.value.isAnalyzing && !fromHistory) return
+        if (fromHistory) {
+            analyzeJob?.cancel()
+            stockfishWasm?.stopSearch()
+        }
+
+        val targetDepth = savedEntry?.depth ?: _uiState.value.selectedDepthPreset.depth
+        val effectiveSettings = _uiState.value.settings.copy(depth = targetDepth)
+        val cacheKey = "${text.trim()}|$targetDepth"
+
+        if (!effectiveSettings.forceReanalyze) {
+            analysisCache[cacheKey]?.let { cached ->
+                cancelAiJobs()
+                _uiState.update {
+                    it.copy(
+                        pgnText = text,
+                        isAnalyzing = false,
+                        result = cached,
+                        currentPly = 0,
+                        showBestMove = false,
+                        flipped = flipOnFinish,
+                        errorMessage = null,
+                        pgnValidationWarning = null,
+                        statusMessage = "Loaded cached analysis (Depth $targetDepth).",
+                        plyLiveLines = emptyList(),
+                        moveInsightsByPly = emptyMap(),
+                        gameReportState = AiInsightState.Idle,
+                        coachChatMessages = emptyList(),
+                        coachChatStreamState = CoachChatStreamState.Idle
+                    )
+                }
+                loadPlyMultiPvIfMissing(cached, 0)
+                requestAiGameReport(allowCloud = true)
+                return
+            }
+        }
 
         plyEvalJob?.cancel()
         variationEvalJob?.cancel()
+        cancelAiJobs()
 
-        viewModelScope.launch {
+        analyzeJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     pgnText = text,
@@ -240,38 +369,86 @@ class AnalyzeViewModel(
                     progressTotal = 0,
                     errorMessage = null,
                     statusMessage = null,
+                    pgnValidationWarning = null,
                     variation = null,
                     boardSelectedSquare = null,
                     boardLegalTargets = emptyMap(),
-                    boardPendingPromotion = null
+                    boardPendingPromotion = null,
+                    moveInsightsByPly = emptyMap(),
+                    gameReportState = AiInsightState.Idle,
+                    coachChatMessages = emptyList(),
+                    coachChatStreamState = CoachChatStreamState.Idle
                 )
             }
             try {
+                repo.ensureOpeningsLoaded()
+
+                val validation = if (savedEntry == null) {
+                    ChesslibPgnBridge.validateAndNormalizePgn(text)
+                } else null
+
+                if (validation != null && !validation.isValid) {
+                    _uiState.update {
+                        it.copy(
+                            isAnalyzing = false,
+                            errorMessage = validation.error ?: "Invalid PGN or illegal move."
+                        )
+                    }
+                    return@launch
+                }
+
+                val pgnToAnalyze = validation?.normalizedPgn ?: text
+                val normalizedCacheKey = "${pgnToAnalyze.trim()}|$targetDepth"
+
+                val matchedHistory = savedEntry ?: if (!effectiveSettings.forceReanalyze) {
+                    repo.historyFlow.first().firstOrNull { entry ->
+                        (entry.pgn.trim() == text.trim() || entry.pgn.trim() == pgnToAnalyze.trim()) &&
+                            entry.depth == targetDepth &&
+                            entry.evals.size == entry.plies &&
+                            entry.plies > 0
+                    }
+                } else null
+
                 val res = analyzer.analyze(
-                    pgnText = text,
-                    settings = _uiState.value.settings,
-                    savedEntry = savedEntry,
+                    pgnText = pgnToAnalyze,
+                    settings = effectiveSettings,
+                    savedEntry = matchedHistory,
                     onProgress = { done, total ->
                         _uiState.update { it.copy(progressDone = done, progressTotal = total) }
                     }
                 )
+                analysisCache[cacheKey] = res
+                analysisCache[normalizedCacheKey] = res
+                while (analysisCache.size > 16) {
+                    val oldestKey = analysisCache.keys.firstOrNull() ?: break
+                    analysisCache.remove(oldestKey)
+                }
+
                 _uiState.update {
                     it.copy(
+                        pgnText = pgnToAnalyze,
                         isAnalyzing = false,
                         result = res,
                         currentPly = 0,
                         showBestMove = false,
                         flipped = flipOnFinish,
                         errorMessage = null,
+                        pgnValidationWarning = validation?.warning,
+                        statusMessage = if (matchedHistory != null) "Loaded saved analysis (Depth ${res.depth})." else null,
                         plyLiveLines = emptyList()
                     )
                 }
                 loadPlyMultiPvIfMissing(res, 0)
-                if (!fromHistory) {
+                requestAiGameReport(allowCloud = true)
+                if (!fromHistory && matchedHistory == null) {
                     val saved = analyzer.toSavedGameEntry(res)
                     repo.saveGameToHistory(saved)
                     repo.incrementGamesAnalysed()
+                    firestoreSync?.syncAnalysedGame(res, saved)
                 }
+            } catch (e: CancellationException) {
+                _uiState.update { it.copy(isAnalyzing = false) }
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -298,7 +475,17 @@ class AnalyzeViewModel(
     }
 
     fun loadAndAnalyzePgn(pgn: String) {
-        _uiState.update { it.copy(pgnText = pgn, errorMessage = null, statusMessage = null) }
+        analyzeJob?.cancel()
+        stockfishWasm?.stopSearch()
+        _uiState.update {
+            it.copy(
+                pgnText = pgn,
+                isAnalyzing = false,
+                errorMessage = null,
+                statusMessage = null,
+                pgnValidationWarning = null
+            )
+        }
         analyzeGame()
     }
 
@@ -318,22 +505,290 @@ class AnalyzeViewModel(
             )
         }
         loadPlyMultiPvIfMissing(res, clamped)
+        maybeAutoFetchCriticalMoveInsight(res, clamped)
+    }
+
+    // ===== AI Chess Coach Insights, Reports & Conversational Q&A =====
+
+    private fun cancelAiJobs() {
+        gameReportJob?.cancel()
+        moveInsightJob?.cancel()
+        coachChatJob?.cancel()
+    }
+
+    private fun maybeAutoFetchCriticalMoveInsight(res: GameAnalysisResult, plyNumber: Int) {
+        if (plyNumber <= 0) return
+        val ply = res.plies.getOrNull(plyNumber - 1) ?: return
+        val existing = _uiState.value.moveInsightsByPly[ply.index]
+        if (existing is AiInsightState.Success || existing is AiInsightState.Loading) return
+        val isNotable = ply.moveClass == MoveClass.BLUNDER ||
+            ply.moveClass == MoveClass.MISTAKE ||
+            ply.moveClass == MoveClass.INACCURACY ||
+            ply.moveClass == MoveClass.BRILLIANT ||
+            ply.isGreatMove
+        if (isNotable) {
+            requestMoveInsight(ply.index, allowCloud = true)
+        }
+    }
+
+    fun requestMoveInsight(plyIndex: Int, allowCloud: Boolean = true) {
+        val res = _uiState.value.result ?: return
+        val ply = res.plies.getOrNull(plyIndex) ?: return
+        moveInsightJob?.cancel()
+        _uiState.update { cur ->
+            cur.copy(moveInsightsByPly = cur.moveInsightsByPly + (plyIndex to AiInsightState.Loading))
+        }
+        moveInsightJob = viewModelScope.launch {
+            try {
+                val insightRes = aiCoach.getMoveInsight(
+                    ply = ply,
+                    openingName = res.openingSummary.entry?.name,
+                    depth = res.depth,
+                    allowCloud = allowCloud
+                )
+                val remaining = repo.getDailyAiRemaining()
+                insightRes.fold(
+                    onSuccess = { insight ->
+                        _uiState.update { cur ->
+                            cur.copy(
+                                dailyAiRemaining = remaining,
+                                moveInsightsByPly = cur.moveInsightsByPly + (plyIndex to AiInsightState.Success(insight))
+                            )
+                        }
+                    },
+                    onFailure = { err ->
+                        val fallback = aiCoach.buildOfflineMoveInsight(ply, "Offline Stockfish Coach")
+                        _uiState.update { cur ->
+                            cur.copy(
+                                dailyAiRemaining = remaining,
+                                moveInsightsByPly = cur.moveInsightsByPly + (
+                                    plyIndex to AiInsightState.Error(
+                                        message = err.localizedMessage ?: "AI Coach unreachable.",
+                                        fallbackMessage = "${fallback.headline}: ${fallback.whyGoodOrBad}"
+                                    )
+                                )
+                            )
+                        }
+                    }
+                )
+            } catch (e: CancellationException) {
+                throw e
+            }
+        }
+    }
+
+    fun useOfflineMoveInsight(plyIndex: Int) {
+        val res = _uiState.value.result ?: return
+        val ply = res.plies.getOrNull(plyIndex) ?: return
+        val fallback = aiCoach.buildOfflineMoveInsight(ply, "Offline Stockfish Coach")
+        _uiState.update { cur ->
+            cur.copy(moveInsightsByPly = cur.moveInsightsByPly + (plyIndex to AiInsightState.Success(fallback)))
+        }
+    }
+
+    fun requestAiGameReport(allowCloud: Boolean = true) {
+        val res = _uiState.value.result ?: return
+        gameReportJob?.cancel()
+        _uiState.update { it.copy(gameReportState = AiInsightState.Loading) }
+        gameReportJob = viewModelScope.launch {
+            try {
+                val reportRes = aiCoach.getGameSummaryReport(res, allowCloud = allowCloud)
+                val remaining = repo.getDailyAiRemaining()
+                reportRes.fold(
+                    onSuccess = { report ->
+                        _uiState.update {
+                            it.copy(
+                                dailyAiRemaining = remaining,
+                                gameReportState = AiInsightState.Success(report)
+                            )
+                        }
+                    },
+                    onFailure = { err ->
+                        val fallback = aiCoach.buildOfflineGameSummary(res, "Offline Stockfish Coach")
+                        _uiState.update {
+                            it.copy(
+                                dailyAiRemaining = remaining,
+                                gameReportState = AiInsightState.Error(
+                                    message = err.localizedMessage ?: "AI Coaching Report unavailable.",
+                                    fallbackMessage = "${fallback.openingInsight} ${fallback.trainingFocus}"
+                                )
+                            )
+                        }
+                    }
+                )
+            } catch (e: CancellationException) {
+                throw e
+            }
+        }
+    }
+
+    fun useOfflineGameReport() {
+        val res = _uiState.value.result ?: return
+        val fallback = aiCoach.buildOfflineGameSummary(res, "Offline Stockfish Coach")
+        _uiState.update { it.copy(gameReportState = AiInsightState.Success(fallback)) }
+    }
+
+    fun sendCoachChatMessage(rawQuestion: String) {
+        val question = rawQuestion.trim()
+        if (question.isEmpty()) return
+        val s = _uiState.value
+        val res = s.result ?: return
+        if (s.coachChatStreamState is CoachChatStreamState.Loading ||
+            s.coachChatStreamState is CoachChatStreamState.Streaming
+        ) return
+
+        val activeFen = s.variation?.activeFen ?: currentMainFen(res, s.currentPly)
+        val lines = s.variation?.liveLines ?: s.plyLiveLines
+        val userMsg = CoachChatMessage(
+            id = "u-${System.currentTimeMillis()}",
+            isUser = true,
+            text = question
+        )
+        val historyBefore = s.coachChatMessages
+        _uiState.update {
+            it.copy(
+                coachChatMessages = historyBefore + userMsg,
+                coachChatStreamState = CoachChatStreamState.Loading
+            )
+        }
+
+        coachChatJob?.cancel()
+        coachChatJob = viewModelScope.launch {
+            var lastText = ""
+            var lastProvider = "Chess Analyzer: AI Coach"
+            var lastSources: List<TinyFishSearchResult> = emptyList()
+            try {
+                aiCoach.streamCoachAnswer(
+                    question = question,
+                    result = res,
+                    currentPly = s.currentPly,
+                    activeFen = activeFen,
+                    liveLines = lines,
+                    recentHistory = historyBefore
+                ).collect { update ->
+                    lastText = update.text
+                    lastProvider = update.providerLabel
+                    lastSources = update.webSources
+                    _uiState.update { cur ->
+                        cur.copy(coachChatStreamState = CoachChatStreamState.Streaming(update.text))
+                    }
+                }
+                val finalText = lastText.ifBlank {
+                    lastProvider = "Stockfish Tactical Coach"
+                    aiCoach.buildOfflineChatAnswer(
+                        question = question,
+                        result = res,
+                        currentPly = s.currentPly,
+                        activeFen = activeFen,
+                        liveLines = lines,
+                        webResults = lastSources
+                    )
+                }
+                val remaining = repo.getDailyAiRemaining()
+                val replyMsg = CoachChatMessage(
+                    id = "a-${System.currentTimeMillis()}",
+                    isUser = false,
+                    text = finalText,
+                    providerLabel = lastProvider,
+                    webSources = lastSources
+                )
+                _uiState.update { cur ->
+                    cur.copy(
+                        dailyAiRemaining = remaining,
+                        coachChatMessages = cur.coachChatMessages + replyMsg,
+                        coachChatStreamState = CoachChatStreamState.Idle
+                    )
+                }
+            } catch (e: CancellationException) {
+                if (e is TimeoutCancellationException) {
+                    val fallbackText = aiCoach.buildOfflineChatAnswer(
+                        question = question,
+                        result = res,
+                        currentPly = s.currentPly,
+                        activeFen = activeFen,
+                        liveLines = lines,
+                        webResults = lastSources
+                    )
+                    val remaining = repo.getDailyAiRemaining()
+                    val replyMsg = CoachChatMessage(
+                        id = "a-${System.currentTimeMillis()}",
+                        isUser = false,
+                        text = fallbackText,
+                        providerLabel = "Stockfish Tactical Coach",
+                        webSources = lastSources
+                    )
+                    _uiState.update { cur ->
+                        cur.copy(
+                            dailyAiRemaining = remaining,
+                            coachChatMessages = cur.coachChatMessages + replyMsg,
+                            coachChatStreamState = CoachChatStreamState.Idle
+                        )
+                    }
+                } else {
+                    throw e
+                }
+            } catch (_: Exception) {
+                val fallbackText = aiCoach.buildOfflineChatAnswer(
+                    question = question,
+                    result = res,
+                    currentPly = s.currentPly,
+                    activeFen = activeFen,
+                    liveLines = lines,
+                    webResults = lastSources
+                )
+                val remaining = repo.getDailyAiRemaining()
+                val replyMsg = CoachChatMessage(
+                    id = "a-${System.currentTimeMillis()}",
+                    isUser = false,
+                    text = fallbackText,
+                    providerLabel = "Stockfish Tactical Coach",
+                    webSources = lastSources
+                )
+                _uiState.update { cur ->
+                    cur.copy(
+                        dailyAiRemaining = remaining,
+                        coachChatMessages = cur.coachChatMessages + replyMsg,
+                        coachChatStreamState = CoachChatStreamState.Idle
+                    )
+                }
+            }
+        }
     }
 
     private fun loadPlyMultiPvIfMissing(res: GameAnalysisResult, ply: Int) {
         plyEvalJob?.cancel()
+        val fen = currentMainFen(res, ply)
+        val fenKey = fen.split(' ').take(4).joinToString(" ")
         val precomputed = if (ply in 1..res.plies.size) res.plies[ply - 1].topLines else emptyList()
-        if (precomputed.isNotEmpty()) {
+        if (precomputed.size >= 3) {
             _uiState.update { it.copy(plyLiveLines = precomputed, isLoadingPlyLines = false) }
             return
         }
-        val fen = currentMainFen(res, ply)
-        _uiState.update { it.copy(plyLiveLines = emptyList(), isLoadingPlyLines = true) }
+        plyMultiPvCache[fenKey]?.let { cachedEv ->
+            if (cachedEv.topLines.isNotEmpty()) {
+                _uiState.update { it.copy(plyLiveLines = cachedEv.topLines, isLoadingPlyLines = false) }
+                return
+            }
+        }
+        _uiState.update { it.copy(plyLiveLines = precomputed, isLoadingPlyLines = true) }
         plyEvalJob = viewModelScope.launch {
-            delay(80)
-            val ev = engine.evaluateMultiPv(fen, depth = 8, multiPv = 3, timeLimitMs = 600L)
+            delay(45)
+            val sf = stockfishWasm
+            val ev = if (sf != null && sf.ensureReady()) {
+                val interactiveDepth = _uiState.value.selectedDepthPreset.depth.coerceIn(8, 12)
+                sf.evaluateMultiPv(fen, depth = interactiveDepth, multiPv = 3, timeLimitMs = 900L)
+            } else null
+            val resolved = ev ?: engine.evaluateMultiPv(fen, depth = 6, multiPv = 3, timeLimitMs = 350L)
+            if (resolved.topLines.isNotEmpty()) {
+                plyMultiPvCache[fenKey] = resolved
+                while (plyMultiPvCache.size > 120) {
+                    val oldest = plyMultiPvCache.keys.firstOrNull() ?: break
+                    plyMultiPvCache.remove(oldest)
+                }
+            }
             if (_uiState.value.result?.id == res.id && _uiState.value.currentPly == ply) {
-                _uiState.update { it.copy(plyLiveLines = ev.topLines, isLoadingPlyLines = false) }
+                val lines = if (resolved.topLines.isNotEmpty()) resolved.topLines else precomputed
+                _uiState.update { it.copy(plyLiveLines = lines, isLoadingPlyLines = false) }
             }
         }
     }
@@ -553,17 +1008,42 @@ class AnalyzeViewModel(
 
     private fun evaluateVariationPosition(fen: String) {
         variationEvalJob?.cancel()
-        variationEvalJob = viewModelScope.launch {
-            delay(140)
-            val ev = engine.evaluateMultiPv(fen, depth = 8, multiPv = 3, timeLimitMs = 650L)
+        val fenKey = fen.split(' ').take(4).joinToString(" ")
+        plyMultiPvCache[fenKey]?.let { cachedEv ->
             _uiState.update { cur ->
                 val br = cur.variation
                 if (br != null && br.activeFen == fen) {
                     cur.copy(
                         variation = br.copy(
-                            liveLines = ev.topLines,
-                            liveEvalCp = ev.cp,
-                            liveEvalMate = ev.mate,
+                            liveLines = cachedEv.topLines,
+                            liveEvalCp = cachedEv.cp,
+                            liveEvalMate = cachedEv.mate,
+                            isEvaluating = false
+                        )
+                    )
+                } else cur
+            }
+            return
+        }
+        variationEvalJob = viewModelScope.launch {
+            delay(70)
+            val sf = stockfishWasm
+            val ev = if (sf != null && sf.ensureReady()) {
+                val interactiveDepth = _uiState.value.selectedDepthPreset.depth.coerceIn(8, 12)
+                sf.evaluateMultiPv(fen, depth = interactiveDepth, multiPv = 3, timeLimitMs = 900L)
+            } else null
+            val resolved = ev ?: engine.evaluateMultiPv(fen, depth = 6, multiPv = 3, timeLimitMs = 350L)
+            if (resolved.topLines.isNotEmpty()) {
+                plyMultiPvCache[fenKey] = resolved
+            }
+            _uiState.update { cur ->
+                val br = cur.variation
+                if (br != null && br.activeFen == fen) {
+                    cur.copy(
+                        variation = br.copy(
+                            liveLines = resolved.topLines,
+                            liveEvalCp = resolved.cp,
+                            liveEvalMate = resolved.mate,
                             isEvaluating = false
                         )
                     )
@@ -813,5 +1293,15 @@ class AnalyzeViewModel(
 
     fun closeShare() {
         _uiState.update { it.copy(shareText = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        analyzeJob?.cancel()
+        plyEvalJob?.cancel()
+        variationEvalJob?.cancel()
+        fetchJob?.cancel()
+        cancelAiJobs()
+        stockfishWasm?.release()
     }
 }

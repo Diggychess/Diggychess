@@ -71,7 +71,7 @@ private val KnightScopeShapes = Shapes(
 
 @Composable
 fun KnightScopeTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     pieceAnimations: Boolean = true,
     pieceStyle: PieceStyle = PieceStyle.NEO,
     board3dEnabled: Boolean = false,

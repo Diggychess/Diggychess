@@ -58,12 +58,128 @@ fun LiveMoveRibbon(
                     Text(
                         text = moveLabel,
                         style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontFeatureSettings = "tnum"
                         ),
                         fontWeight = if (isLast) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (isLast) AccentGreen else TextPrimary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveSanMoveList(
+    sanMoves: List<String>,
+    modifier: Modifier = Modifier,
+    maxHeight: androidx.compose.ui.unit.Dp = 260.dp
+) {
+    val pairs = sanMoves.chunked(2)
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.compose.runtime.LaunchedEffect(sanMoves.size) {
+        if (pairs.isNotEmpty()) {
+            listState.animateScrollToItem(pairs.lastIndex)
+        }
+    }
+
+    Surface(
+        color = SurfaceDark,
+        shape = RoundedCornerShape(DiggySpacing.controlRadius),
+        border = BorderStroke(1.dp, BorderSubtle),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("play_san_move_list")
+    ) {
+        if (sanMoves.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Moves will appear here (1. e4 e5 ...)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 96.dp, max = maxHeight)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(pairs.size, key = { it }) { idx ->
+                    val whiteSan = pairs[idx][0]
+                    val blackSan = pairs[idx].getOrNull(1)
+                    val whiteIndex = idx * 2
+                    val blackIndex = idx * 2 + 1
+                    val whiteActive = whiteIndex == sanMoves.lastIndex
+                    val blackActive = blackSan != null && blackIndex == sanMoves.lastIndex
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "${idx + 1}.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontFeatureSettings = "tnum"
+                            ),
+                            color = TextMuted,
+                            modifier = Modifier.width(30.dp)
+                        )
+                        Surface(
+                            color = if (whiteActive) AccentGreen.copy(alpha = 0.22f) else Color.Transparent,
+                            shape = RoundedCornerShape(6.dp),
+                            border = if (whiteActive) BorderStroke(1.dp, AccentGreen.copy(alpha = 0.6f)) else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("play_san_move_$whiteIndex")
+                        ) {
+                            Text(
+                                text = whiteSan,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
+                                fontWeight = if (whiteActive) FontWeight.Bold else FontWeight.Medium,
+                                color = if (whiteActive) AccentGreen else TextPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+                        if (blackSan != null) {
+                            Surface(
+                                color = if (blackActive) AccentGreen.copy(alpha = 0.22f) else Color.Transparent,
+                                shape = RoundedCornerShape(6.dp),
+                                border = if (blackActive) BorderStroke(1.dp, AccentGreen.copy(alpha = 0.6f)) else null,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("play_san_move_$blackIndex")
+                            ) {
+                                Text(
+                                    text = blackSan,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = JetBrainsMonoFontFamily,
+                                        fontFeatureSettings = "tnum"
+                                    ),
+                                    fontWeight = if (blackActive) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (blackActive) AccentGreen else TextPrimary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -95,9 +211,12 @@ fun AnalyzedMoveList(
             ) {
                 Text(
                     text = "${pairIdx + 1}.",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontFeatureSettings = "tnum"
+                    ),
                     color = TextMuted,
-                    modifier = Modifier.width(30.dp)
+                    modifier = Modifier.width(32.dp)
                 )
                 if (wPly != null) {
                     AnalyzedMoveChip(
@@ -150,30 +269,35 @@ private fun AnalyzedMoveChip(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
-                        .background(ply.badgeColor)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = ply.san,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = TextPrimary
-                )
-                if (ply.moveClass != MoveClass.GOOD && ply.moveClass != MoveClass.BEST) {
-                    Spacer(modifier = Modifier.width(4.dp))
+                        .background(ply.badgeColor.copy(alpha = 0.20f)),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
                         text = ply.badgeGlyph,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = ply.badgeColor
                     )
                 }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = ply.san,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = TextPrimary
+                )
             }
             Text(
                 text = MoveExplainer.formatPlyEval(ply.evalAfter, ply.mate),
-                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = JetBrainsMonoFontFamily,
+                    fontFeatureSettings = "tnum"
+                ),
                 color = TextMuted
             )
         }

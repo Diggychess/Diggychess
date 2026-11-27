@@ -16,8 +16,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io")
     }
 }
 
-rootProject.name = "Diggy Chess"
+rootProject.name = "Chess Analyzer AI Coach"
 include(":app")

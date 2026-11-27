@@ -116,20 +116,47 @@ fun FriendsScreen(
                         color = TextMuted
                     )
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        FriendsViewModel.TIME_CONTROLS.forEach { tc ->
-                            val selected = tc.limitSec == state.inviteTimeLimitSec && tc.incrementSec == state.inviteIncrementSec
-                            DiggyChip(
-                                label = tc.label,
-                                selected = selected,
-                                onClick = { onSelectTimeControl(tc.limitSec, tc.incrementSec) },
-                                accentColor = StudioCyan,
-                                testTag = "invite_tc_${tc.limitSec}",
-                                modifier = Modifier.weight(1f)
-                            )
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val useTwoRows = FriendsViewModel.TIME_CONTROLS.size >= 4 && maxWidth < 340.dp
+                        if (useTwoRows) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FriendsViewModel.TIME_CONTROLS.chunked(2).forEach { pair ->
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        pair.forEach { tc ->
+                                            val selected = tc.limitSec == state.inviteTimeLimitSec && tc.incrementSec == state.inviteIncrementSec
+                                            DiggyChip(
+                                                label = tc.label,
+                                                selected = selected,
+                                                onClick = { onSelectTimeControl(tc.limitSec, tc.incrementSec) },
+                                                accentColor = StudioCyan,
+                                                testTag = "invite_tc_${tc.limitSec}",
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                FriendsViewModel.TIME_CONTROLS.forEach { tc ->
+                                    val selected = tc.limitSec == state.inviteTimeLimitSec && tc.incrementSec == state.inviteIncrementSec
+                                    DiggyChip(
+                                        label = tc.label,
+                                        selected = selected,
+                                        onClick = { onSelectTimeControl(tc.limitSec, tc.incrementSec) },
+                                        accentColor = StudioCyan,
+                                        testTag = "invite_tc_${tc.limitSec}",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -148,7 +175,7 @@ fun FriendsScreen(
 
                     state.onlineInvite?.let { invite ->
                         Surface(
-                            color = BgDark,
+                            color = CardSurfaceElevated,
                             shape = RoundedCornerShape(DiggySpacing.controlRadius),
                             border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.5f)),
                             modifier = Modifier
@@ -197,7 +224,7 @@ fun FriendsScreen(
                                             val send = Intent(Intent.ACTION_SEND).apply {
                                                 putExtra(
                                                     Intent.EXTRA_TEXT,
-                                                    "Play chess with me on Diggy Chess! Join live match: ${invite.url}"
+                                                    "Play chess with me on Chess Analyzer: AI Coach! Join live match: ${invite.url}"
                                                 )
                                                 type = "text/plain"
                                             }
@@ -257,17 +284,12 @@ fun FriendsScreen(
                         value = state.myName,
                         onValueChange = onMyNameChange,
                         label = { Text("Your name") },
-                        placeholder = { Text("Enter your name", color = TextMuted) },
+                        placeholder = { Text("Enter your name", color = InputHint) },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("friend_name_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = BgDark,
-                            unfocusedContainerColor = BgDark,
-                            focusedBorderColor = AccentGreen,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
+                        colors = diggyInputColors(),
                         shape = RoundedCornerShape(DiggySpacing.controlRadius)
                     )
 
@@ -286,12 +308,7 @@ fun FriendsScreen(
                         label = { Text("Friend's name (Pass & Play)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = BgDark,
-                            unfocusedContainerColor = BgDark,
-                            focusedBorderColor = AccentGreen,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
+                        colors = diggyInputColors(),
                         shape = RoundedCornerShape(DiggySpacing.controlRadius)
                     )
 
@@ -329,9 +346,9 @@ fun FriendsScreen(
                     )
 
                     state.inviteAddress?.let { addr ->
-                        val inviteLink = "diggychess://join?host=$addr"
+                        val inviteLink = "chessanalyzer://join?host=$addr"
                         Surface(
-                            color = BgDark,
+                            color = CardSurfaceElevated,
                             shape = RoundedCornerShape(DiggySpacing.controlRadius),
                             border = BorderStroke(1.dp, BorderSubtle),
                             modifier = Modifier.fillMaxWidth()
@@ -357,7 +374,7 @@ fun FriendsScreen(
                                         text = "Share",
                                         onClick = {
                                             val intent = Intent(Intent.ACTION_SEND).apply {
-                                                putExtra(Intent.EXTRA_TEXT, "Play chess with me on Diggy Chess! Join Wi-Fi room: $addr ($inviteLink)")
+                                                putExtra(Intent.EXTRA_TEXT, "Play chess with me on Chess Analyzer: AI Coach! Join Wi-Fi room: $addr ($inviteLink)")
                                                 type = "text/plain"
                                             }
                                             context.startActivity(Intent.createChooser(intent, "Invite friend"))
@@ -379,17 +396,12 @@ fun FriendsScreen(
                         OutlinedTextField(
                             value = state.joinAddressInput,
                             onValueChange = onJoinAddressChange,
-                            placeholder = { Text("Host IP:8766", color = TextMuted) },
+                            placeholder = { Text("Host IP:8766", color = InputHint) },
                             singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("join_address_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = BgDark,
-                                unfocusedContainerColor = BgDark,
-                                focusedBorderColor = AccentGreen,
-                                unfocusedBorderColor = BorderSubtle
-                            ),
+                            colors = diggyInputColors(),
                             shape = RoundedCornerShape(DiggySpacing.controlRadius)
                         )
                         DiggyButton(
@@ -466,37 +478,71 @@ fun FriendsScreen(
                         Text(state.linkStatus, style = MaterialTheme.typography.bodySmall, color = TextMuted)
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        DiggyButton(
-                            text = "Flip",
-                            onClick = onToggleFlip,
-                            variant = DiggyButtonVariant.OUTLINED,
-                            icon = Icons.Rounded.SwapVert,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DiggyButton(
-                            text = "Draw",
-                            onClick = onOfferDraw,
-                            enabled = !state.isGameOver,
-                            variant = DiggyButtonVariant.OUTLINED,
-                            modifier = Modifier.weight(1f)
-                        )
-                        DiggyButton(
-                            text = "Resign",
-                            onClick = onResign,
-                            enabled = !state.isGameOver,
-                            variant = DiggyButtonVariant.OUTLINED,
-                            icon = Icons.Rounded.Flag,
-                            modifier = Modifier.weight(1f)
-                        )
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        if (maxWidth < 340.dp) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    DiggyButton(
+                                        text = "Flip",
+                                        onClick = onToggleFlip,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        icon = Icons.Rounded.SwapVert,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    DiggyButton(
+                                        text = "Draw",
+                                        onClick = onOfferDraw,
+                                        enabled = !state.isGameOver,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                DiggyButton(
+                                    text = "Resign",
+                                    onClick = onResign,
+                                    enabled = !state.isGameOver,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Flag,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Flip",
+                                    onClick = onToggleFlip,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.SwapVert,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Draw",
+                                    onClick = onOfferDraw,
+                                    enabled = !state.isGameOver,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Resign",
+                                    onClick = onResign,
+                                    enabled = !state.isGameOver,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Flag,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
 
                     if (state.drawState == "in") {
                         Surface(
-                            color = BgDark,
+                            color = CardSurfaceElevated,
                             shape = RoundedCornerShape(DiggySpacing.controlRadius),
                             border = BorderStroke(1.dp, AccentGreen),
                             modifier = Modifier.fillMaxWidth()
@@ -565,29 +611,55 @@ fun FriendsScreen(
                     if (state.isGameOver) {
                         HorizontalDivider(color = LineSubtle)
                         Text(state.endMessage, style = MaterialTheme.typography.titleMedium, color = AccentGreen)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            DiggyButton(
-                                text = "Analyse Game",
-                                onClick = onAnalyseGame,
-                                variant = DiggyButtonVariant.PRIMARY,
-                                icon = Icons.Rounded.Analytics,
-                                testTag = "analyse_friendly_game",
-                                modifier = Modifier.weight(1f)
-                            )
-                            DiggyButton(
-                                text = when {
-                                    state.wantRematch -> "Waiting…"
-                                    state.opponentWantsRematch -> "Accept Rematch"
-                                    else -> "Rematch"
-                                },
-                                onClick = onRematch,
-                                variant = DiggyButtonVariant.OUTLINED,
-                                icon = Icons.Rounded.Refresh,
-                                modifier = Modifier.weight(1f)
-                            )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            if (maxWidth < 330.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DiggyButton(
+                                        text = "Analyse Game",
+                                        onClick = onAnalyseGame,
+                                        variant = DiggyButtonVariant.PRIMARY,
+                                        icon = Icons.Rounded.Analytics,
+                                        testTag = "analyse_friendly_game",
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    DiggyButton(
+                                        text = when {
+                                            state.wantRematch -> "Waiting…"
+                                            state.opponentWantsRematch -> "Accept Rematch"
+                                            else -> "Rematch"
+                                        },
+                                        onClick = onRematch,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        icon = Icons.Rounded.Refresh,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    DiggyButton(
+                                        text = "Analyse Game",
+                                        onClick = onAnalyseGame,
+                                        variant = DiggyButtonVariant.PRIMARY,
+                                        icon = Icons.Rounded.Analytics,
+                                        testTag = "analyse_friendly_game",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    DiggyButton(
+                                        text = when {
+                                            state.wantRematch -> "Waiting…"
+                                            state.opponentWantsRematch -> "Accept Rematch"
+                                            else -> "Rematch"
+                                        },
+                                        onClick = onRematch,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        icon = Icons.Rounded.Refresh,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
 

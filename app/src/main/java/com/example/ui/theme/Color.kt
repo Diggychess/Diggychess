@@ -12,65 +12,95 @@ data class KnightScopeColors(
     val surface: Color,
     val card: Color,
     val cardElevated: Color,
-    val accentGreen: Color,       // Primary Gold (#F5C542 in dark)
-    val accentGreenHover: Color,  // Highlighted Gold
-    val accentGreenDark: Color,   // Pressed/Container Gold
-    val studioCyan: Color,        // Semantic Info Blue (#4C9AFF)
-    val onAccent: Color,          // Dark ink on gold buttons
+    val accentGreen: Color,       // Chess.com-inspired Emerald Green (#7FA650)
+    val accentGreenHover: Color,  // Bright Emerald highlight
+    val accentGreenDark: Color,   // Tactile 3D button lip & container shade
+    val studioCyan: Color,        // Semantic Info Blue
+    val trophyGold: Color,        // Warm Gold for trophies, best streaks & rewards
+    val onAccent: Color,          // High-contrast ink on green buttons
     val textPrimary: Color,
-    val textMuted: Color,         // Secondary text (#B8B8B8)
-    val textDisabled: Color,      // Disabled text (#6B6B6B)
-    val borderSubtle: Color,      // Border (#2E2E30)
+    val textMuted: Color,         // Secondary text
+    val textDisabled: Color,      // Disabled text
+    val borderSubtle: Color,      // Hairline border
     val lineSubtle: Color,
-    val success: Color,           // #4CAF50
-    val danger: Color             // #E5484D
+    val success: Color,           // #7FA650
+    val danger: Color,            // Error / Blunder red
+    val matteDark: Color = Color(0xFF18181B),
+    val matteDarkSecondary: Color = Color(0xFF1F2937),
+    val onMatteDark: Color = Color(0xFFFFFFFF),
+    val onMatteDarkMuted: Color = Color(0xFFA1A1AA),
+    val matteDarkBorder: Color = Color(0xFF27272A),
+    val inputBg: Color = Color(0xFFFFFFFF),
+    val inputText: Color = Color(0xFF111827),
+    val inputHint: Color = Color(0xFF6B7280),
+    val inputBorder: Color = Color(0xFFD1D5DB)
 )
 
-// Diggy Chess — Modern HD Flat Dark Studio Palette
+// Optional Dark Mode Palette (Settings Dark Theme toggle) — aligned to Matte #18181B / #1F2937 / #7FA650
 val DarkStudioPalette = KnightScopeColors(
     isDark = true,
-    bg = Color(0xFF121212),
-    bgRadialTop = Color(0xFF18181A),
-    surface = Color(0xFF1C1C1E),
-    card = Color(0xFF1C1C1E),
-    cardElevated = Color(0xFF242426),
-    accentGreen = Color(0xFFF5C542),
-    accentGreenHover = Color(0xFFF5C542),
-    accentGreenDark = Color(0xFFC99B1D),
-    studioCyan = Color(0xFF4C9AFF),
-    onAccent = Color(0xFF121212),
-    textPrimary = Color(0xFFFFFFFF),
-    textMuted = Color(0xFFB8B8B8),
-    textDisabled = Color(0xFF6B6B6B),
-    borderSubtle = Color(0xFF2E2E30),
-    lineSubtle = Color(0xFF2E2E30),
-    success = Color(0xFF4CAF50),
-    danger = Color(0xFFE5484D)
+    bg = Color(0xFF111114),
+    bgRadialTop = Color(0xFF16161A),
+    surface = Color(0xFF18181B),
+    card = Color(0xFF18181B),
+    cardElevated = Color(0xFF1F2937),
+    accentGreen = Color(0xFF7FA650),
+    accentGreenHover = Color(0xFF93BA64),
+    accentGreenDark = Color(0xFF5D7D37),
+    studioCyan = Color(0xFF60A5FA),
+    trophyGold = Color(0xFFF5C542),
+    onAccent = Color(0xFFFFFFFF),
+    textPrimary = Color(0xFFF9FAFB),
+    textMuted = Color(0xFFA1A1AA),
+    textDisabled = Color(0xFF71717A),
+    borderSubtle = Color(0xFF27272A),
+    lineSubtle = Color(0xFF27272A),
+    success = Color(0xFF7FA650),
+    danger = Color(0xFFEF4444),
+    matteDark = Color(0xFF18181B),
+    matteDarkSecondary = Color(0xFF1F2937),
+    onMatteDark = Color(0xFFFFFFFF),
+    onMatteDarkMuted = Color(0xFFA1A1AA),
+    matteDarkBorder = Color(0xFF27272A),
+    inputBg = Color(0xFFFFFFFF),
+    inputText = Color(0xFF111827),
+    inputHint = Color(0xFF6B7280),
+    inputBorder = Color(0xFFD1D5DB)
 )
 
-// Diggy Chess — Clean High-Contrast Light Studio Palette (optional Settings toggle)
+// Default Premium Studio Palette (#F4F5F7 Canvas, #FFFFFF Cards, #18181B Matte Dark Cards, #7FA650 Green)
 val LightClassicPalette = KnightScopeColors(
     isDark = false,
-    bg = Color(0xFFF5F5F7),
-    bgRadialTop = Color(0xFFEEEEF1),
+    bg = Color(0xFFF4F5F7),
+    bgRadialTop = Color(0xFFF4F5F7),
     surface = Color(0xFFFFFFFF),
     card = Color(0xFFFFFFFF),
-    cardElevated = Color(0xFFF0F0F3),
-    accentGreen = Color(0xFFD4A117),
-    accentGreenHover = Color(0xFF9E7406),
-    accentGreenDark = Color(0xFF8C6604),
-    studioCyan = Color(0xFF1D6FE2),
-    onAccent = Color(0xFF121212),
-    textPrimary = Color(0xFF121212),
-    textMuted = Color(0xFF52525B),
-    textDisabled = Color(0xFF8E8E93),
-    borderSubtle = Color(0xFFD8D8DD),
-    lineSubtle = Color(0xFFE2E2E6),
-    success = Color(0xFF2E7D32),
-    danger = Color(0xFFD32F2F)
+    cardElevated = Color(0xFFEEF0F3),
+    accentGreen = Color(0xFF7FA650),
+    accentGreenHover = Color(0xFF90B860),
+    accentGreenDark = Color(0xFF5F8038),
+    studioCyan = Color(0xFF2563EB),
+    trophyGold = Color(0xFFD97706),
+    onAccent = Color(0xFFFFFFFF),
+    textPrimary = Color(0xFF111827),
+    textMuted = Color(0xFF4B5563),
+    textDisabled = Color(0xFF9CA3AF),
+    borderSubtle = Color(0xFFE5E7EB),
+    lineSubtle = Color(0xFFE5E7EB),
+    success = Color(0xFF7FA650),
+    danger = Color(0xFFDC2626),
+    matteDark = Color(0xFF18181B),
+    matteDarkSecondary = Color(0xFF1F2937),
+    onMatteDark = Color(0xFFFFFFFF),
+    onMatteDarkMuted = Color(0xFFA1A1AA),
+    matteDarkBorder = Color(0xFF27272A),
+    inputBg = Color(0xFFFFFFFF),
+    inputText = Color(0xFF111827),
+    inputHint = Color(0xFF6B7280),
+    inputBorder = Color(0xFFD1D5DB)
 )
 
-val LocalKnightScopeColors = staticCompositionLocalOf { DarkStudioPalette }
+val LocalKnightScopeColors = staticCompositionLocalOf { LightClassicPalette }
 
 // Centralized Theme-Reactive Semantic Color Tokens
 val BgDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.bg
@@ -83,6 +113,7 @@ val AccentGreen: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeC
 val AccentGreenHover: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.accentGreenHover
 val AccentGreenDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.accentGreenDark
 val StudioCyan: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.studioCyan
+val TrophyGold: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.trophyGold
 val OnAccentDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.onAccent
 
 val TextPrimary: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.textPrimary
@@ -94,38 +125,52 @@ val LineSubtle: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeCo
 val FeedbackCorrectGreen: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.success
 val FeedbackDangerRed: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.danger
 
-// Move Classification Semantic Colors (Accessible & Distinct)
-val ClassBest = Color(0xFF4CAF50)
-val ClassGood = Color(0xFF81C784)
-val ClassInaccuracy = Color(0xFFF5C542)
-val ClassMistake = Color(0xFFFF9800)
-val ClassBlunder = Color(0xFFE5484D)
+val MatteDarkCard: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.matteDark
+val MatteDarkSecondary: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.matteDarkSecondary
+val OnMatteDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.onMatteDark
+val OnMatteDarkMuted: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.onMatteDarkMuted
+val MatteDarkBorder: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.matteDarkBorder
+
+val InputBg: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.inputBg
+val InputText: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.inputText
+val InputHint: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.inputHint
+val InputBorder: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.inputBorder
+
+// Move Classification Semantic Colors (Chess.com-inspired high-contrast tokens)
+val ClassBest = Color(0xFF81B64C)
+val ClassExcellent = Color(0xFF74B05A)
+val ClassGood = Color(0xFF96BC4B)
+val ClassInaccuracy = Color(0xFFF7C631)
+val ClassMistake = Color(0xFFE6912C)
+val ClassBlunder = Color(0xFFCA3431)
 val ClassBrilliant = Color(0xFF26C2C9)
-val ClassGreat = Color(0xFF4C9AFF)
+val ClassGreat = Color(0xFF5C8BB0)
 val ClassBook = Color(0xFFA88865)
-val ClassMiss = Color(0xFFE5484D)
+val ClassMiss = Color(0xFFFF7769)
 
-// Board Square Highlights & Overlays (Chess.com / Lichess crisp translucent overlays)
-val HighlightLastMove = Color(0x80F6F669)
-val HighlightSelected = Color(0xA6F6F669)
+// Board Square Highlights & Overlays
+val HighlightLastMove = Color(0x66FFFF00) // rgba(255,255,0,0.4)
+val HighlightSelected = Color(0xB3BACB2B)
 val HighlightHint = Color(0x884C9AFF)
-val HighlightCorrect = Color(0x994CAF50)
-val HighlightWrong = Color(0x99E5484D)
-val HighlightDragTarget = Color(0xB8FFFFFF)
-val CheckGlow = Color(0xEBE5484D)
-val ArrowBestGreen = Color(0xE64CAF50)
+val HighlightCorrect = Color(0x9981B64C)
+val HighlightWrong = Color(0x99FA412D)
+val HighlightDragTarget = Color(0xCCFFFFFF)
+val HighlightUserMarkRed = Color(0x88FA412D)
+val CheckGlow = Color(0xEBFA412D)
+val ArrowBestGreen = Color(0xE681B64C)
 val ArrowSecondaryCyan = Color(0xCC4C9AFF)
-val ArrowPlayedRed = Color(0xB8E5484D)
+val ArrowPlayedRed = Color(0xCCCA3431)
+val ArrowUserOrange = Color(0xD9FFA91F)
 
-// Board Theme Palettes (Default: Gold/Classic #9C7B32 / #F3E7C8 matching Diggy Chess)
+// Board Theme Palettes (Default: Green/Cream #EEEED2 / #769656)
 enum class BoardTheme(
     val id: String,
     val label: String,
     val lightSquare: Color,
     val darkSquare: Color
 ) {
-    GOLD("gold", "Gold/Classic", Color(0xFFF3E7C8), Color(0xFF9C7B32)),
     GREEN("green", "Green/Cream", Color(0xFFEEEED2), Color(0xFF769656)),
+    GOLD("gold", "Gold/Classic", Color(0xFFF3E7C8), Color(0xFF9C7B32)),
     BLUE("blue", "Blue/Steel", Color(0xFFDEE4EC), Color(0xFF546E8A)),
     BROWN("brown", "Brown/Wood", Color(0xFFF0D9B5), Color(0xFFB58863));
 
@@ -135,7 +180,7 @@ enum class BoardTheme(
             "brown", "wood" -> BROWN
             "blue", "slate", "steel" -> BLUE
             "gold", "royal", "obsidian", "classic" -> GOLD
-            else -> GOLD
+            else -> GREEN
         }
     }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Diggy Chess</string>
+    <string name="app_name">Chess Analyzer: AI Coach</string>
     <string name="tab_home">Home</string>
     <string name="tab_play">Play</string>
     <string name="tab_analyse">Analyse</string>
@@ -11,7 +11,7 @@
     <string name="tab_lessons">Chess Lessons</string>
     <string name="tab_settings">Settings</string>
     <string name="play_title">Play Stockfish</string>
-    <string name="play_subtitle">Challenge Stockfish online or offline at Easy, Medium, or Hard with live eval and hints.</string>
+    <string name="play_subtitle">Challenge Stockfish at Easy, Medium, Hard, or Expert with live eval and hints.</string>
     <string name="analyse_title">Analyse a game</string>
     <string name="analyse_subtitle">Import games by Chess.com or Lichess username, or paste a PGN for 3-line Coach review.</string>
     <string name="puzzles_title">Puzzles</string>
@@ -20,5 +20,5 @@
     <string name="friends_subtitle">No login. Share live online invite links, play over Wi-Fi, or side-by-side.</string>
     <string name="history_title">Analysed History</string>
     <string name="history_subtitle">Analysed games saved locally on this device.</string>
-    <string name="about_title">About Diggy Chess</string>
+    <string name="about_title">About Chess Analyzer: AI Coach</string>
 </resources>

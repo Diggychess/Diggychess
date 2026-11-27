@@ -1,13 +1,18 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -20,11 +25,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
+import com.example.R
 import com.example.chess.ChessPiece
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
@@ -32,7 +45,16 @@ import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AnalysisPreset
 import com.example.ui.viewmodel.SettingsUiState
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
+
+private tailrec fun Context.findHostActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findHostActivity()
+    else -> null
+}
 
 @Composable
 fun SettingsScreen(
@@ -51,6 +73,12 @@ fun SettingsScreen(
     onRestoreBackup: (String) -> Unit,
     onBackupMessage: (String) -> Unit,
     onSendContact: (name: String, email: String, subject: String, message: String, onClear: () -> Unit) -> Unit,
+    onSaveGroqApiKey: (String) -> Unit = {},
+    onSaveTinyFishApiKey: (String) -> Unit = {},
+    onGoogleSignInStarting: () -> Unit = {},
+    onGoogleIdTokenSignedIn: (String) -> Unit = {},
+    onSignOutAccount: () -> Unit = {},
+    onAuthError: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -59,7 +87,7 @@ fun SettingsScreen(
     var contactExpanded by remember { mutableStateOf(false) }
     var senderName by remember { mutableStateOf("") }
     var senderEmail by remember(state.contactEmail) { mutableStateOf(state.contactEmail) }
-    var subject by remember { mutableStateOf("Diggy Chess Feedback") }
+    var subject by remember { mutableStateOf("Chess Analyzer: AI Coach Feedback") }
     var message by remember { mutableStateOf("") }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -105,10 +133,145 @@ fun SettingsScreen(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Settings", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
             Text(
-                text = "Customize themes, board style, pieces, sound, haptics, analysis depth, and local backups.",
+                text = "Customize themes, board style, pieces, cloud sync, sound, haptics, and backups.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextMuted
             )
+        }
+
+        // Account & Cloud Sync Card (Firebase Google Sign-In via CredentialManager + Guest Mode)
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (state.isSignedIn) AccentGreen.copy(alpha = 0.18f) else CardSurfaceElevated),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (state.isSignedIn) Icons.Rounded.CloudDone else Icons.Rounded.AccountCircle,
+                            contentDescription = "Account status",
+                            tint = if (state.isSignedIn) AccentGreen else TextMuted,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (state.isSignedIn) {
+                                state.authDisplayName?.takeIf { it.isNotBlank() } ?: "Google Account"
+                            } else {
+                                "Local Guest Mode"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = if (state.isSignedIn) {
+                                "${state.authEmail ?: "Signed in"} · Firestore cloud sync active"
+                            } else {
+                                "Games save locally. Sign in with Google to sync games to Firestore."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                if (state.isSignedIn) {
+                    DiggyButton(
+                        text = "Sign Out",
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
+                                }
+                                onSignOutAccount()
+                            }
+                        },
+                        variant = DiggyButtonVariant.OUTLINED,
+                        icon = Icons.Rounded.Logout,
+                        testTag = "settings_sign_out_button",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    DiggyButton(
+                        text = if (state.isAuthBusy) "Signing in…" else "Sign in with Google",
+                        onClick = {
+                            val activity = context.findHostActivity()
+                            if (activity == null) {
+                                onAuthError("Sign-in requires an active window.")
+                                return@DiggyButton
+                            }
+                            onGoogleSignInStarting()
+                            scope.launch {
+                                val credManager = CredentialManager.create(activity)
+                                val webClientId = context.getString(R.string.default_web_client_id)
+                                try {
+                                    val signInOption = GetSignInWithGoogleOption.Builder(webClientId).build()
+                                    val request = GetCredentialRequest.Builder()
+                                        .addCredentialOption(signInOption)
+                                        .build()
+                                    val result = credManager.getCredential(activity, request)
+                                    val cred = result.credential
+                                    if (cred is CustomCredential &&
+                                        cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                    ) {
+                                        val token = GoogleIdTokenCredential.createFrom(cred.data).idToken
+                                        onGoogleIdTokenSignedIn(token)
+                                    } else {
+                                        onAuthError("Unsupported credential type returned.")
+                                    }
+                                } catch (_: GetCredentialCancellationException) {
+                                    onAuthError("Sign-in cancelled. Continuing in guest mode.")
+                                } catch (_: NoCredentialException) {
+                                    // Fallback to GetGoogleIdOption if device has no saved Google account sheet
+                                    try {
+                                        val googleIdOpt = GetGoogleIdOption.Builder()
+                                            .setServerClientId(webClientId)
+                                            .setFilterByAuthorizedAccounts(false)
+                                            .build()
+                                        val req2 = GetCredentialRequest.Builder()
+                                            .addCredentialOption(googleIdOpt)
+                                            .build()
+                                        val res2 = credManager.getCredential(activity, req2)
+                                        val cred2 = res2.credential
+                                        if (cred2 is CustomCredential &&
+                                            cred2.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                        ) {
+                                            val token = GoogleIdTokenCredential.createFrom(cred2.data).idToken
+                                            onGoogleIdTokenSignedIn(token)
+                                        } else {
+                                            onAuthError("Google account sign-in unavailable.")
+                                        }
+                                    } catch (e2: Exception) {
+                                        onAuthError(e2.message ?: "No Google account available on device.")
+                                    }
+                                } catch (e: Exception) {
+                                    onAuthError(e.message ?: "Google Sign-In failed.")
+                                }
+                            }
+                        },
+                        loading = state.isAuthBusy,
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.Rounded.Login,
+                        testTag = "settings_google_signin_button",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                state.authMessage?.let { msg ->
+                    Text(
+                        text = msg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.authIsError) FeedbackDangerRed else AccentGreen
+                    )
+                }
+            }
         }
 
         // Appearance, Board & Pieces Card
@@ -141,7 +304,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Rounded.Animation,
                     title = "Smooth Piece Animations",
-                    subtitle = "200ms lifted piece movement across all boards",
+                    subtitle = "300ms lifted piece movement across all boards",
                     checked = state.pieceAnimations,
                     onCheckedChange = onSetPieceAnimations,
                     testTag = "settings_animations_switch"
@@ -274,9 +437,9 @@ fun SettingsScreen(
                                                 }
                                                 Text(
                                                     text = when {
-                                                        selected && theme == BoardTheme.GOLD -> "Active · Default"
+                                                        selected && theme == BoardTheme.GREEN -> "Active · Default"
                                                         selected -> "Active"
-                                                        theme == BoardTheme.GOLD -> "Default"
+                                                        theme == BoardTheme.GREEN -> "Default"
                                                         else -> "Palette"
                                                     },
                                                     style = MaterialTheme.typography.labelSmall,
@@ -461,7 +624,9 @@ fun SettingsScreen(
                                 Text(
                                     text = preset.subtitle,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -469,18 +634,197 @@ fun SettingsScreen(
                 }
 
                 Text("Daily Puzzle Goal", style = MaterialTheme.typography.labelLarge, color = TextPrimary)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    listOf(3, 5, 10, 20).forEach { goal ->
-                        DiggyChip(
-                            label = "$goal / day",
-                            selected = state.dailyGoal == goal,
-                            onClick = { onSelectDailyGoal(goal) },
-                            modifier = Modifier.weight(1f)
-                        )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val goalOptions = listOf(3, 5, 10, 20)
+                    if (maxWidth < 340.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            goalOptions.chunked(2).forEach { pair ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    pair.forEach { goal ->
+                                        DiggyChip(
+                                            label = "$goal / day",
+                                            selected = state.dailyGoal == goal,
+                                            onClick = { onSelectDailyGoal(goal) },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            goalOptions.forEach { goal ->
+                                DiggyChip(
+                                    label = "$goal / day",
+                                    selected = state.dailyGoal == goal,
+                                    onClick = { onSelectDailyGoal(goal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
+                }
+                if (state.dailyGoal !in listOf(3, 5, 10, 20)) {
+                    Text(
+                        text = "Custom target active: ${state.dailyGoal} puzzles / day (editable on Home)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AccentGreen
+                    )
+                }
+            }
+        }
+
+        // AI Chess Coach & TinyFish Web Search Card
+        DiggyCard(contentPadding = PaddingValues(16.dp)) {
+            var groqDraft by remember(state.groqApiKey) { mutableStateOf(state.groqApiKey) }
+            var tinyFishDraft by remember(state.tinyFishApiKey) { mutableStateOf(state.tinyFishApiKey) }
+            var showGroq by remember { mutableStateOf(false) }
+            var showTinyFish by remember { mutableStateOf(false) }
+
+            val groqActive = state.groqApiKey.isNotBlank() || state.hasBuildGroqKey
+            val tinyFishActive = state.tinyFishApiKey.isNotBlank() || state.hasBuildTinyFishKey
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = "AI Chess Coach & TinyFish",
+                        tint = StudioCyan,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "AI Chess Coach & TinyFish Search",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = StudioCyan
+                    )
+                }
+                Text(
+                    text = "Coach uses Firebase AI Logic first, then Groq, Free Cloud LLM, and always guarantees a Stockfish Tactical Coach reply. Add optional keys below or in AI Studio Secrets.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AiStatusBadge(
+                        label = "Groq Cloud",
+                        active = groqActive,
+                        sourceHint = when {
+                            state.groqApiKey.isNotBlank() -> "Device key"
+                            state.hasBuildGroqKey -> "Secrets"
+                            else -> "Optional"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    AiStatusBadge(
+                        label = "TinyFish Web",
+                        active = tinyFishActive,
+                        sourceHint = when {
+                            state.tinyFishApiKey.isNotBlank() -> "Device key"
+                            state.hasBuildTinyFishKey -> "Secrets"
+                            else -> "Optional"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = groqDraft,
+                    onValueChange = { groqDraft = it },
+                    label = { Text("Groq API Key (gsk_...)") },
+                    singleLine = true,
+                    visualTransformation = if (showGroq) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showGroq = !showGroq }) {
+                            Icon(
+                                imageVector = if (showGroq) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = if (showGroq) "Hide key" else "Show key"
+                            )
+                        }
+                    },
+                    colors = diggyInputColors(),
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_groq_key_input")
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Save Groq Key",
+                        onClick = { onSaveGroqApiKey(groqDraft) },
+                        variant = DiggyButtonVariant.SECONDARY,
+                        testTag = "settings_save_groq_key",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Clear",
+                        onClick = {
+                            groqDraft = ""
+                            onSaveGroqApiKey("")
+                        },
+                        variant = DiggyButtonVariant.OUTLINED,
+                        testTag = "settings_clear_groq_key"
+                    )
+                }
+
+                OutlinedTextField(
+                    value = tinyFishDraft,
+                    onValueChange = { tinyFishDraft = it },
+                    label = { Text("TinyFish Search API Key") },
+                    singleLine = true,
+                    visualTransformation = if (showTinyFish) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showTinyFish = !showTinyFish }) {
+                            Icon(
+                                imageVector = if (showTinyFish) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = if (showTinyFish) "Hide key" else "Show key"
+                            )
+                        }
+                    },
+                    colors = diggyInputColors(),
+                    shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_tinyfish_key_input")
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DiggyButton(
+                        text = "Save TinyFish Key",
+                        onClick = { onSaveTinyFishApiKey(tinyFishDraft) },
+                        variant = DiggyButtonVariant.SECONDARY,
+                        testTag = "settings_save_tinyfish_key",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DiggyButton(
+                        text = "Clear",
+                        onClick = {
+                            tinyFishDraft = ""
+                            onSaveTinyFishApiKey("")
+                        },
+                        variant = DiggyButtonVariant.OUTLINED,
+                        testTag = "settings_clear_tinyfish_key"
+                    )
+                }
+
+                state.aiKeysStatus?.let { msg ->
+                    Text(msg, style = MaterialTheme.typography.bodySmall, color = AccentGreen)
                 }
             }
         }
@@ -496,7 +840,7 @@ fun SettingsScreen(
                 ) {
                     DiggyButton(
                         text = "Save Backup",
-                        onClick = { exportLauncher.launch("diggy-chess-backup.json") },
+                        onClick = { exportLauncher.launch("chess-analyzer-backup.json") },
                         variant = DiggyButtonVariant.OUTLINED,
                         icon = Icons.Rounded.UploadFile,
                         testTag = "settings_backup_export",
@@ -604,6 +948,8 @@ fun SettingsScreen(
                                 onValueChange = { senderName = it },
                                 label = { Text("Your Name (optional)") },
                                 singleLine = true,
+                                colors = diggyInputColors(),
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             OutlinedTextField(
@@ -612,6 +958,8 @@ fun SettingsScreen(
                                 label = { Text("Your Email") },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = diggyInputColors(),
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             OutlinedTextField(
@@ -619,6 +967,8 @@ fun SettingsScreen(
                                 onValueChange = { subject = it },
                                 label = { Text("Subject") },
                                 singleLine = true,
+                                colors = diggyInputColors(),
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             OutlinedTextField(
@@ -626,6 +976,8 @@ fun SettingsScreen(
                                 onValueChange = { message = it },
                                 label = { Text("Message / Feedback") },
                                 minLines = 3,
+                                colors = diggyInputColors(),
+                                shape = RoundedCornerShape(DiggySpacing.controlRadius),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             DiggyButton(
@@ -651,7 +1003,7 @@ fun SettingsScreen(
         }
 
         Text(
-            text = "Diggy Chess · Vector pieces inspired by Cburnett (CC BY-SA 3.0) · Inter Font (OFL 1.1)",
+            text = "Chess Analyzer: AI Coach · Vector pieces inspired by Cburnett (CC BY-SA 3.0) · Nunito, Inter & JetBrains Mono",
             style = MaterialTheme.typography.labelSmall,
             color = TextDisabled,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -706,5 +1058,37 @@ private fun SettingsToggleRow(
             onCheckedChange = onCheckedChange,
             modifier = Modifier.testTag(testTag)
         )
+    }
+}
+
+@Composable
+private fun AiStatusBadge(
+    label: String,
+    active: Boolean,
+    sourceHint: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = if (active) AccentGreen.copy(alpha = 0.14f) else CardSurfaceElevated,
+        shape = RoundedCornerShape(DiggySpacing.controlRadius),
+        border = BorderStroke(1.dp, if (active) AccentGreen.copy(alpha = 0.55f) else BorderSubtle),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (active) AccentGreen else TextPrimary
+            )
+            Text(
+                text = if (active) "Active · $sourceHint" else sourceHint,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) AccentGreenHover else TextMuted
+            )
+        }
     }
 }

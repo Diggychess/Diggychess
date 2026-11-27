@@ -21,11 +21,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.assets.DiggyAssets
 import com.example.chess.ChessBoard
 import com.example.chess.ChessPiece
 import com.example.chess.PieceColor
@@ -100,6 +105,7 @@ fun PlayerBar(
     modifier: Modifier = Modifier,
     rating: String? = null,
     isBot: Boolean = false,
+    avatarUrl: String? = null,
     statusNote: String? = null,
     clockMillis: Long? = null
 ) {
@@ -112,9 +118,10 @@ fun PlayerBar(
     val adv = if (pieceColor == PieceColor.WHITE) material.whiteAdvantage else -material.whiteAdvantage
     val capturedColor = pieceColor.opposite()
 
-    val lowTime = clockMillis != null && clockMillis in 1L..15_000L
-    val avatarBg = if (pieceColor == PieceColor.WHITE) Color(0xFFF3F4F6) else Color(0xFF27272A)
-    val avatarFg = if (pieceColor == PieceColor.WHITE) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val lowTime = clockMillis != null && clockMillis < 10_000L
+    val avatarBg = if (pieceColor == PieceColor.WHITE) Color(0xFFF5F4F1) else Color(0xFF262421)
+    val avatarFg = if (pieceColor == PieceColor.WHITE) Color(0xFF1D1B18) else Color(0xFFFFFFFF)
+    val initials = remember(name) { DiggyAssets.avatarInitials(name) }
 
     val containerColor by animateColorAsState(
         targetValue = if (isActiveTurn) CardSurfaceElevated else SurfaceDark,
@@ -122,7 +129,7 @@ fun PlayerBar(
         label = "player_bar_bg"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isActiveTurn) AccentGreen.copy(alpha = 0.72f) else BorderSubtle,
+        targetValue = if (isActiveTurn) AccentGreen.copy(alpha = 0.65f) else BorderSubtle,
         animationSpec = tween(180),
         label = "player_bar_border"
     )
@@ -130,7 +137,7 @@ fun PlayerBar(
     Surface(
         color = containerColor,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
-        border = BorderStroke(width = 1.dp, color = borderColor),
+        border = BorderStroke(1.dp, borderColor),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
@@ -140,25 +147,42 @@ fun PlayerBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Avatar badge
+            // Avatar crest badge with initials/icon fallback + optional free DiceBear/profile image
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(avatarBg)
                     .border(
                         width = if (isActiveTurn) 1.5.dp else 1.dp,
                         color = if (isActiveTurn) AccentGreen else BorderSubtle,
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(8.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isBot) Icons.Rounded.SmartToy else Icons.Rounded.Person,
-                    contentDescription = "$name avatar",
-                    tint = avatarFg,
-                    modifier = Modifier.size(20.dp)
-                )
+                if (isBot) {
+                    Icon(
+                        imageVector = Icons.Rounded.SmartToy,
+                        contentDescription = "$name avatar",
+                        tint = avatarFg,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text(
+                        text = initials,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = avatarFg
+                    )
+                }
+                if (!avatarUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "$name avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             // Name, rating, captured pieces
@@ -187,6 +211,7 @@ fun PlayerBar(
                         ) {
                             Text(
                                 text = rating,
+                                fontFamily = JetBrainsMonoFontFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextMuted,
@@ -218,6 +243,7 @@ fun PlayerBar(
                         if (adv > 0) {
                             Text(
                                 text = " +$adv",
+                                fontFamily = JetBrainsMonoFontFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AccentGreen
@@ -243,26 +269,33 @@ fun PlayerBar(
             // Live Clock Pill
             if (clockMillis != null) {
                 val clockBg = when {
-                    lowTime && isActiveTurn -> FeedbackDangerRed.copy(alpha = 0.22f)
-                    isActiveTurn -> AccentGreen.copy(alpha = 0.16f)
-                    else -> BgDark
+                    lowTime && isActiveTurn -> FeedbackDangerRed.copy(alpha = 0.24f)
+                    lowTime -> FeedbackDangerRed.copy(alpha = 0.14f)
+                    isActiveTurn -> AccentGreen.copy(alpha = 0.20f)
+                    else -> BgDark.copy(alpha = 0.7f)
                 }
                 val clockFg = when {
-                    lowTime && isActiveTurn -> FeedbackDangerRed
+                    lowTime -> FeedbackDangerRed
                     isActiveTurn -> AccentGreen
-                    else -> TextMuted
+                    else -> TextDisabled
                 }
                 Surface(
                     color = clockBg,
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(
                         1.dp,
-                        if (lowTime && isActiveTurn) FeedbackDangerRed else if (isActiveTurn) AccentGreen else BorderSubtle
-                    )
+                        when {
+                            lowTime -> FeedbackDangerRed
+                            isActiveTurn -> AccentGreen
+                            else -> BorderSubtle
+                        }
+                    ),
+                    modifier = Modifier.testTag("clock_${pieceColor.name.lowercase()}")
                 ) {
                     Text(
                         text = formatClockMillis(clockMillis),
                         style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontFeatureSettings = "tnum"
                         ),
                         fontWeight = FontWeight.Bold,

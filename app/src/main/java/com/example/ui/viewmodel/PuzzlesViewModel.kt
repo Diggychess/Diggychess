@@ -9,6 +9,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.pow
@@ -19,7 +21,7 @@ enum class PuzzleCategory(val id: String, val label: String, val rangeLabel: Str
     MEDIUM("med", "Medium", "1400–1999"),
     HARD("hard", "Hard", "2000+"),
     GM("gm", "Grandmaster", "2500+"),
-    UNRATED("unr", "Starter (unrated)", "Diggy Chess");
+    UNRATED("unr", "Starter (unrated)", "Chess Analyzer");
 
     fun matches(p: Puzzle): Boolean = when (this) {
         EASY -> p.rating in 1..1399
@@ -52,7 +54,11 @@ data class PuzzlesUiState(
     val ratingState: PuzzleRatingState = PuzzleRatingState(),
     val attempts: List<PuzzleAttempt> = emptyList(),
     val dailyGoal: Int = 5,
-    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val dailySolvedToday: Int = 0,
+    val justCompletedDailyChallenge: Boolean = false,
+    val difficultyFilter: PuzzleDifficultyFilter = PuzzleDifficultyFilter.ALL,
+    val difficultyCounts: Map<PuzzleDifficultyFilter, Int> = emptyMap(),
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val animateMoves: Boolean = true,
     val menuError: String? = null,
     val importStatus: String? = null,
@@ -116,6 +122,7 @@ class PuzzlesViewModel(
         )
 
         val STREAK_MILESTONES = setOf(3, 5, 10, 25, 50, 100)
+        val DAILY_GOAL_OPTIONS = listOf(3, 5, 10, 20)
 
         fun milestoneForStreak(streak: Int): Int? =
             streak.takeIf { it > 0 && (it in STREAK_MILESTONES || (it >= 100 && it % 50 == 0)) }
@@ -128,6 +135,28 @@ class PuzzlesViewModel(
                 if (cur > best) best = cur
             }
             return cur to best
+        }
+
+        fun countSolvedToday(attempts: List<PuzzleAttempt>, nowMs: Long = System.currentTimeMillis()): Int {
+            val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
+            val year = cal.get(Calendar.YEAR)
+            val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
+            return attempts.count { a ->
+                if (!a.ok) return@count false
+                cal.timeInMillis = a.timestamp
+                cal.get(Calendar.YEAR) == year && cal.get(Calendar.DAY_OF_YEAR) == dayOfYear
+            }
+        }
+
+        fun solvedIdsToday(attempts: List<PuzzleAttempt>, nowMs: Long = System.currentTimeMillis()): Set<String> {
+            val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
+            val year = cal.get(Calendar.YEAR)
+            val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
+            return attempts.mapNotNull { a ->
+                if (!a.ok) return@mapNotNull null
+                cal.timeInMillis = a.timestamp
+                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.DAY_OF_YEAR) == dayOfYear) a.id else null
+            }.toSet()
         }
 
         fun formatThemeLabel(t: String): String =
@@ -143,9 +172,15 @@ class PuzzlesViewModel(
     private var prevLastMoveSquares: List<String> = emptyList()
     private var recordedOutcome: Boolean? = null
     private var persistedBestPuzzleStreak: Int = 0
+    private var latestAttemptSeqTs: Long = 0L
+    private var latestPersistedAttempts: List<PuzzleAttempt> = emptyList()
+    private val pendingLocalAttempts = mutableListOf<PuzzleAttempt>()
+    private val attemptWriteMutex = Mutex()
     private var timerJob: Job? = null
     private var autoReplyJob: Job? = null
     private var solutionAnimJob: Job? = null
+    private var difficultySaveJob: Job? = null
+    private var pendingDifficultyFilter: PuzzleDifficultyFilter? = null
     private var playToken = 0
 
     init {
@@ -157,17 +192,28 @@ class PuzzlesViewModel(
         }
         viewModelScope.launch {
             repo.puzzleAttemptsFlow.distinctUntilChanged().collect { attempts ->
+                latestPersistedAttempts = attempts
+                val maxPersistedTs = attempts.maxOfOrNull { it.timestamp } ?: 0L
+                if (maxPersistedTs > latestAttemptSeqTs) {
+                    latestAttemptSeqTs = maxPersistedTs
+                }
+                pendingLocalAttempts.removeAll { pending ->
+                    attempts.any { it.id == pending.id && it.timestamp == pending.timestamp }
+                }
+                val effectiveAttempts = attempts + pendingLocalAttempts
                 val lastByPuzzle = mutableMapOf<String, Boolean>()
-                attempts.forEach { lastByPuzzle[it.id] = it.ok }
+                effectiveAttempts.forEach { lastByPuzzle[it.id] = it.ok }
                 val wrongCount = allPuzzles.count { lastByPuzzle[it.id] == false }
-                val (curStreak, bestFromAttempts) = computeStreaks(attempts)
-                val mergedBest = maxOf(persistedBestPuzzleStreak, bestFromAttempts)
+                val (curStreak, bestFromAttempts) = computeStreaks(effectiveAttempts)
+                val mergedBest = maxOf(persistedBestPuzzleStreak, bestFromAttempts, _uiState.value.bestPuzzleStreak)
+                val solvedToday = countSolvedToday(effectiveAttempts)
                 _uiState.update {
                     it.copy(
-                        attempts = attempts,
+                        attempts = effectiveAttempts,
                         reviewMistakesCount = wrongCount,
                         currentPuzzleStreak = curStreak,
-                        bestPuzzleStreak = mergedBest
+                        bestPuzzleStreak = mergedBest,
+                        dailySolvedToday = solvedToday
                     )
                 }
             }
@@ -183,6 +229,25 @@ class PuzzlesViewModel(
         viewModelScope.launch {
             repo.dailyGoalFlow.collect { g ->
                 _uiState.update { it.copy(dailyGoal = g) }
+            }
+        }
+        viewModelScope.launch {
+            repo.puzzleDifficultyFlow.distinctUntilChanged().collect { filter ->
+                val pending = pendingDifficultyFilter
+                if (pending != null && filter != pending) {
+                    return@collect
+                }
+                pendingDifficultyFilter = null
+                _uiState.update { s ->
+                    s.copy(
+                        difficultyFilter = filter,
+                        selectedCategories = if (filter == PuzzleDifficultyFilter.ALL) {
+                            s.selectedCategories
+                        } else {
+                            categoriesForDifficulty(filter)
+                        }
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -208,6 +273,7 @@ class PuzzlesViewModel(
             val loaded = repo.loadAllPuzzles()
             allPuzzles = loaded
             val counts = PuzzleCategory.entries.associateWith { cat -> loaded.count { cat.matches(it) } }
+            val diffCounts = PuzzleDifficultyFilter.entries.associateWith { filter -> loaded.count { filter.matches(it) } }
             val themes = loaded.flatMap { it.themes }.toSet().sorted()
             val lastByPuzzle = mutableMapOf<String, Boolean>()
             _uiState.value.attempts.forEach { lastByPuzzle[it.id] = it.ok }
@@ -217,6 +283,7 @@ class PuzzlesViewModel(
                     isLoadingPool = false,
                     totalPoolSize = loaded.size,
                     categoryCounts = counts,
+                    difficultyCounts = diffCounts,
                     availableThemes = themes,
                     reviewMistakesCount = wrongCount
                 )
@@ -250,6 +317,50 @@ class PuzzlesViewModel(
         }
     }
 
+    private fun categoriesForDifficulty(filter: PuzzleDifficultyFilter): Set<PuzzleCategory> = when (filter) {
+        PuzzleDifficultyFilter.ALL -> setOf(
+            PuzzleCategory.EASY,
+            PuzzleCategory.MEDIUM,
+            PuzzleCategory.HARD,
+            PuzzleCategory.GM,
+            PuzzleCategory.UNRATED
+        )
+        PuzzleDifficultyFilter.BEGINNER -> setOf(PuzzleCategory.EASY, PuzzleCategory.UNRATED)
+        PuzzleDifficultyFilter.INTERMEDIATE -> setOf(PuzzleCategory.MEDIUM)
+        PuzzleDifficultyFilter.ADVANCED -> setOf(PuzzleCategory.HARD, PuzzleCategory.GM)
+    }
+
+    fun toggleDifficultyFilter(tier: PuzzleDifficultyFilter) {
+        val next = if (_uiState.value.difficultyFilter == tier) PuzzleDifficultyFilter.ALL else tier
+        setDifficultyFilter(next)
+    }
+
+    fun setDifficultyFilter(filter: PuzzleDifficultyFilter) {
+        val wasInPlay = _uiState.value.inPlay
+        val activeMode = _uiState.value.mode
+        pendingDifficultyFilter = filter
+        _uiState.update {
+            it.copy(
+                difficultyFilter = filter,
+                selectedCategories = categoriesForDifficulty(filter),
+                menuError = null
+            )
+        }
+        difficultySaveJob?.cancel()
+        difficultySaveJob = viewModelScope.launch {
+            repo.setPuzzleDifficulty(filter)
+        }
+        if (wasInPlay && allPuzzles.isNotEmpty()) {
+            when (activeMode) {
+                PuzzleMode.DAILY -> startDaily()
+                PuzzleMode.SET -> startPractice()
+                PuzzleMode.RAND -> startRandom()
+                PuzzleMode.TIMED -> startTimed()
+                else -> Unit
+            }
+        }
+    }
+
     fun levelSolvedCount(levelIdx: Int): Int {
         if (levelIdx !in LEVELS.indices) return 0
         val lv = LEVELS[levelIdx]
@@ -274,7 +385,8 @@ class PuzzlesViewModel(
     private fun filteredPracticePool(): List<Puzzle> {
         val s = _uiState.value
         return allPuzzles.filter { p ->
-            s.selectedCategories.any { it.matches(p) } &&
+            s.difficultyFilter.matches(p) &&
+                s.selectedCategories.any { it.matches(p) } &&
                 (s.selectedTheme.isEmpty() || s.selectedTheme in p.themes)
         }
     }
@@ -330,12 +442,24 @@ class PuzzlesViewModel(
             _uiState.update { it.copy(menuError = "No puzzles available.") }
             return
         }
+        val activeFilter = _uiState.value.difficultyFilter
+        val pool = allPuzzles.filter { activeFilter.matches(it) }.ifEmpty { allPuzzles }
         val cal = Calendar.getInstance()
         val daysSinceEpoch = (cal.timeInMillis + cal.timeZone.rawOffset) / 86_400_000L
-        val idx = ((daysSinceEpoch % allPuzzles.size) + allPuzzles.size).toInt() % allPuzzles.size
-        val dailyPuzzle = allPuzzles[idx]
-        val followUps = allPuzzles.filterIndexed { i, p -> i != idx && p.id != dailyPuzzle.id }.shuffled()
-        beginSession(PuzzleMode.DAILY, listOf(dailyPuzzle) + followUps)
+        val idx = ((daysSinceEpoch % pool.size) + pool.size).toInt() % pool.size
+        val dailyPuzzle = pool[idx]
+        val followUps = pool
+            .filterIndexed { i, p -> i != idx && p.id != dailyPuzzle.id }
+            .shuffled(java.util.Random(daysSinceEpoch))
+        val seededDailyQueue = listOf(dailyPuzzle) + followUps
+        val doneToday = solvedIdsToday(_uiState.value.attempts)
+        val ordered = if (doneToday.isNotEmpty()) {
+            val (unsolved, solved) = seededDailyQueue.partition { it.id !in doneToday }
+            if (unsolved.isNotEmpty()) unsolved + solved else seededDailyQueue
+        } else {
+            seededDailyQueue
+        }
+        beginSession(PuzzleMode.DAILY, ordered)
     }
 
     fun startRandom() {
@@ -503,6 +627,7 @@ class PuzzlesViewModel(
                 lastEloDelta = if (keepOutcome) it.lastEloDelta else null,
                 isNewBestStreak = false,
                 streakMilestoneReached = null,
+                justCompletedDailyChallenge = false,
                 pendingPromotion = null
             )
         }
@@ -684,63 +809,75 @@ class PuzzlesViewModel(
         val cur = s.currentPuzzle ?: return
         recordedOutcome = ok
 
-        val prevStreak = s.currentPuzzleStreak
-        val prevBest = s.bestPuzzleStreak
-        val nextStreak = if (ok) prevStreak + 1 else 0
-        val nextBest = maxOf(prevBest, nextStreak)
+        val ts = maxOf(System.currentTimeMillis(), latestAttemptSeqTs + 1L)
+        latestAttemptSeqTs = ts
+        val newAttempt = PuzzleAttempt(
+            id = cur.id,
+            timestamp = ts,
+            ok = ok,
+            rating = cur.rating
+        )
+        pendingLocalAttempts.add(newAttempt)
+        val effectiveAttempts = latestPersistedAttempts + pendingLocalAttempts
+
+        val prevBest = maxOf(s.bestPuzzleStreak, persistedBestPuzzleStreak)
+        val (nextStreak, bestFromAttempts) = computeStreaks(effectiveAttempts)
+        val nextBest = maxOf(prevBest, bestFromAttempts, nextStreak)
         val isNewBest = ok && nextStreak > prevBest && (prevBest > 0 || nextStreak >= 2)
         val milestone = if (ok) milestoneForStreak(nextStreak) else null
+        val prevSolvedToday = s.dailySolvedToday
+        val nextSolvedToday = countSolvedToday(effectiveAttempts)
+        val hitDailyGoalNow = ok && prevSolvedToday < s.dailyGoal && nextSolvedToday >= s.dailyGoal
         _uiState.update {
             it.copy(
+                attempts = effectiveAttempts,
                 currentPuzzleStreak = nextStreak,
                 bestPuzzleStreak = nextBest,
                 isNewBestStreak = isNewBest,
-                streakMilestoneReached = milestone
+                streakMilestoneReached = milestone,
+                dailySolvedToday = nextSolvedToday,
+                justCompletedDailyChallenge = hitDailyGoalNow
             )
         }
 
         viewModelScope.launch {
-            val newAttempt = PuzzleAttempt(
-                id = cur.id,
-                timestamp = System.currentTimeMillis(),
-                ok = ok,
-                rating = cur.rating
-            )
-            repo.recordPuzzleAttempt(newAttempt)
-            if (ok) {
-                repo.incrementPuzzlesSolved()
-                if (nextBest > persistedBestPuzzleStreak) {
-                    repo.updateBestPuzzleStreak(nextBest)
+            attemptWriteMutex.withLock {
+                repo.recordPuzzleAttempt(newAttempt)
+                if (ok) {
+                    repo.incrementPuzzlesSolved()
+                    if (nextBest > persistedBestPuzzleStreak) {
+                        repo.updateBestPuzzleStreak(nextBest)
+                    }
                 }
-            }
 
-            if (cur.rating > 0 && s.mode != PuzzleMode.REVIEW) {
-                val r = _uiState.value.ratingState
-                val k = when {
-                    r.count < 10 -> 40.0
-                    r.count < 30 -> 28.0
-                    else -> 18.0
-                }
-                val expected = 1.0 / (1.0 + 10.0.pow((cur.rating - r.rating) / 400.0))
-                val delta = k * ((if (ok) 1.0 else 0.0) - expected)
-                val nextRating = (r.rating + delta).coerceAtLeast(100.0)
-                val nextHist = (r.history + (System.currentTimeMillis() to nextRating.roundToInt())).takeLast(100)
-                val nextSeen = (r.seenIds + cur.id).takeLast(400)
-                val nextRatingState = PuzzleRatingState(
-                    rating = nextRating,
-                    count = r.count + 1,
-                    history = nextHist,
-                    seenIds = nextSeen
-                )
-                repo.savePuzzleRating(nextRatingState)
-                _uiState.update {
-                    it.copy(
-                        lastResultOk = ok,
-                        lastEloDelta = delta.roundToInt()
+                if (cur.rating > 0 && s.mode != PuzzleMode.REVIEW) {
+                    val r = _uiState.value.ratingState
+                    val k = when {
+                        r.count < 10 -> 40.0
+                        r.count < 30 -> 28.0
+                        else -> 18.0
+                    }
+                    val expected = 1.0 / (1.0 + 10.0.pow((cur.rating - r.rating) / 400.0))
+                    val delta = k * ((if (ok) 1.0 else 0.0) - expected)
+                    val nextRating = (r.rating + delta).coerceAtLeast(100.0)
+                    val nextHist = (r.history + (System.currentTimeMillis() to nextRating.roundToInt())).takeLast(100)
+                    val nextSeen = (r.seenIds + cur.id).takeLast(400)
+                    val nextRatingState = PuzzleRatingState(
+                        rating = nextRating,
+                        count = r.count + 1,
+                        history = nextHist,
+                        seenIds = nextSeen
                     )
+                    repo.savePuzzleRating(nextRatingState)
+                    _uiState.update {
+                        it.copy(
+                            lastResultOk = ok,
+                            lastEloDelta = delta.roundToInt()
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(lastResultOk = ok, lastEloDelta = null) }
                 }
-            } else {
-                _uiState.update { it.copy(lastResultOk = ok, lastEloDelta = null) }
             }
         }
     }

@@ -26,6 +26,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.chess.*
+import com.example.service.AiGameSummaryReport
+import com.example.service.AiInsightState
+import com.example.service.AiMoveInsight
+import com.example.service.CoachChatMessage
+import com.example.service.CoachChatStreamState
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.VariationBranch
@@ -44,6 +49,11 @@ fun AnalyzeWorkspace(
     boardSelectedSquare: String?,
     boardLegalTargets: Map<String, Boolean>,
     boardPendingPromotion: Pair<String, String>?,
+    moveInsightsByPly: Map<Int, AiInsightState<AiMoveInsight>> = emptyMap(),
+    gameReportState: AiInsightState<AiGameSummaryReport> = AiInsightState.Idle,
+    coachChatMessages: List<CoachChatMessage> = emptyList(),
+    coachChatStreamState: CoachChatStreamState = CoachChatStreamState.Idle,
+    dailyAiRemaining: Int = 35,
     onGoToPly: (Int, Boolean) -> Unit,
     onToggleBestMove: () -> Unit,
     onToggleFlip: () -> Unit,
@@ -56,7 +66,12 @@ fun AnalyzeWorkspace(
     onStepVariation: (Int) -> Unit,
     onUndoVariation: () -> Unit,
     onExitVariation: () -> Unit,
-    onPracticeMistakes: (Int?) -> Unit
+    onPracticeMistakes: (Int?) -> Unit,
+    onRequestMoveInsight: (Int) -> Unit = {},
+    onUseOfflineMoveInsight: (Int) -> Unit = {},
+    onRequestGameReport: () -> Unit = {},
+    onUseOfflineGameReport: () -> Unit = {},
+    onSendCoachMessage: (String) -> Unit = {}
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val isWide = maxWidth >= 820.dp
@@ -92,7 +107,10 @@ fun AnalyzeWorkspace(
                         onStepVariation = onStepVariation,
                         onUndoVariation = onUndoVariation,
                         onExitVariation = onExitVariation,
-                        onPracticeMistakes = onPracticeMistakes
+                        onPracticeMistakes = onPracticeMistakes,
+                        moveInsightsByPly = moveInsightsByPly,
+                        onRequestMoveInsight = onRequestMoveInsight,
+                        onUseOfflineMoveInsight = onUseOfflineMoveInsight
                     )
                 }
                 Column(
@@ -102,8 +120,15 @@ fun AnalyzeWorkspace(
                     AnalysisRightCards(
                         result = result,
                         currentPly = currentPly,
+                        gameReportState = gameReportState,
+                        coachChatMessages = coachChatMessages,
+                        coachChatStreamState = coachChatStreamState,
+                        dailyAiRemaining = dailyAiRemaining,
                         onGoToPly = onGoToPly,
-                        onPracticeMistakes = onPracticeMistakes
+                        onPracticeMistakes = onPracticeMistakes,
+                        onRequestGameReport = onRequestGameReport,
+                        onUseOfflineGameReport = onUseOfflineGameReport,
+                        onSendCoachMessage = onSendCoachMessage
                     )
                 }
             }
@@ -136,13 +161,23 @@ fun AnalyzeWorkspace(
                     onStepVariation = onStepVariation,
                     onUndoVariation = onUndoVariation,
                     onExitVariation = onExitVariation,
-                    onPracticeMistakes = onPracticeMistakes
+                    onPracticeMistakes = onPracticeMistakes,
+                    moveInsightsByPly = moveInsightsByPly,
+                    onRequestMoveInsight = onRequestMoveInsight,
+                    onUseOfflineMoveInsight = onUseOfflineMoveInsight
                 )
                 AnalysisRightCards(
                     result = result,
                     currentPly = currentPly,
+                    gameReportState = gameReportState,
+                    coachChatMessages = coachChatMessages,
+                    coachChatStreamState = coachChatStreamState,
+                    dailyAiRemaining = dailyAiRemaining,
                     onGoToPly = onGoToPly,
-                    onPracticeMistakes = onPracticeMistakes
+                    onPracticeMistakes = onPracticeMistakes,
+                    onRequestGameReport = onRequestGameReport,
+                    onUseOfflineGameReport = onUseOfflineGameReport,
+                    onSendCoachMessage = onSendCoachMessage
                 )
             }
         }
@@ -174,7 +209,10 @@ private fun BoardAndMoveCard(
     onStepVariation: (Int) -> Unit,
     onUndoVariation: () -> Unit,
     onExitVariation: () -> Unit,
-    onPracticeMistakes: (Int?) -> Unit
+    onPracticeMistakes: (Int?) -> Unit,
+    moveInsightsByPly: Map<Int, AiInsightState<AiMoveInsight>>,
+    onRequestMoveInsight: (Int) -> Unit,
+    onUseOfflineMoveInsight: (Int) -> Unit
 ) {
     val activePly = if (currentPly > 0) result.plies.getOrNull(currentPly - 1) else null
     val isShowingBest = variation == null && showBestMove && activePly?.bestFrom != null && activePly.bestTo != null
@@ -394,14 +432,17 @@ private fun BoardAndMoveCard(
                 }
             }
 
-            // Coach Commentary & Move Classification Badges
+            // Coach Commentary & Move Classification Badges + AI Insight
             CoachCommentaryCard(
                 activePly = activePly,
                 currentPly = currentPly,
                 isShowingBest = isShowingBest,
                 variation = variation,
                 onToggleBestMove = onToggleBestMove,
-                onPracticeMistake = { idx -> onPracticeMistakes(idx) }
+                onPracticeMistake = { idx -> onPracticeMistakes(idx) },
+                moveInsightState = activePly?.let { moveInsightsByPly[it.index] } ?: AiInsightState.Idle,
+                onRequestMoveInsight = onRequestMoveInsight,
+                onUseOfflineMoveInsight = onUseOfflineMoveInsight
             )
 
             // Multi-PV Top 3 Engine Lines & Variation Explorer
@@ -415,47 +456,110 @@ private fun BoardAndMoveCard(
                 onExitVariation = onExitVariation
             )
 
-            // Flip, Share, Quick Board Themes
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DiggyChip(
-                        label = "Flip",
-                        selected = flipped,
-                        onClick = onToggleFlip,
-                        icon = Icons.Rounded.SwapVert,
-                        testTag = "flip_board_button"
-                    )
-                    DiggyChip(
-                        label = "Share",
-                        selected = false,
-                        onClick = onShareAnalysis,
-                        icon = Icons.Rounded.Share,
-                        testTag = "share_analysis_button"
-                    )
-                }
+            // Flip, Share, Quick Board Themes (responsive for 360dp phones)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val stackThemes = maxWidth < 360.dp
+                if (stackThemes) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyChip(
+                                label = "Flip",
+                                selected = flipped,
+                                onClick = onToggleFlip,
+                                icon = Icons.Rounded.SwapVert,
+                                testTag = "flip_board_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyChip(
+                                label = "Share",
+                                selected = false,
+                                onClick = onShareAnalysis,
+                                icon = Icons.Rounded.Share,
+                                testTag = "share_analysis_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Board style",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextMuted
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BoardTheme.entries.forEach { theme ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .clip(CircleShape)
+                                            .background(theme.darkSquare)
+                                            .border(
+                                                width = if (theme == boardTheme) 2.5.dp else 1.dp,
+                                                color = if (theme == boardTheme) AccentGreen else BorderSubtle,
+                                                shape = CircleShape
+                                            )
+                                            .clickable { onBoardThemeChange(theme) }
+                                            .testTag("theme_${theme.id}")
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DiggyChip(
+                                label = "Flip",
+                                selected = flipped,
+                                onClick = onToggleFlip,
+                                icon = Icons.Rounded.SwapVert,
+                                testTag = "flip_board_button"
+                            )
+                            DiggyChip(
+                                label = "Share",
+                                selected = false,
+                                onClick = onShareAnalysis,
+                                icon = Icons.Rounded.Share,
+                                testTag = "share_analysis_button"
+                            )
+                        }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BoardTheme.entries.forEach { theme ->
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(theme.darkSquare)
-                                .border(
-                                    width = if (theme == boardTheme) 2.5.dp else 1.dp,
-                                    color = if (theme == boardTheme) AccentGreen else BorderSubtle,
-                                    shape = CircleShape
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BoardTheme.entries.forEach { theme ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(theme.darkSquare)
+                                        .border(
+                                            width = if (theme == boardTheme) 2.5.dp else 1.dp,
+                                            color = if (theme == boardTheme) AccentGreen else BorderSubtle,
+                                            shape = CircleShape
+                                        )
+                                        .clickable { onBoardThemeChange(theme) }
+                                        .testTag("theme_${theme.id}")
                                 )
-                                .clickable { onBoardThemeChange(theme) }
-                                .testTag("theme_${theme.id}")
-                        )
+                            }
+                        }
                     }
                 }
             }
@@ -475,6 +579,7 @@ private fun BoardAndMoveCard(
 private fun summaryClassIcon(cls: MoveClass): ImageVector = when (cls) {
     MoveClass.BRILLIANT -> Icons.Rounded.AutoAwesome
     MoveClass.BEST -> Icons.Rounded.Star
+    MoveClass.EXCELLENT -> Icons.Rounded.DoneAll
     MoveClass.GOOD -> Icons.Rounded.CheckCircle
     MoveClass.INACCURACY -> Icons.Rounded.ReportProblem
     MoveClass.MISTAKE -> Icons.Rounded.ErrorOutline
@@ -485,8 +590,15 @@ private fun summaryClassIcon(cls: MoveClass): ImageVector = when (cls) {
 private fun AnalysisRightCards(
     result: GameAnalysisResult,
     currentPly: Int,
+    gameReportState: AiInsightState<AiGameSummaryReport>,
+    coachChatMessages: List<CoachChatMessage>,
+    coachChatStreamState: CoachChatStreamState,
+    dailyAiRemaining: Int,
     onGoToPly: (Int, Boolean) -> Unit,
-    onPracticeMistakes: (Int?) -> Unit
+    onPracticeMistakes: (Int?) -> Unit,
+    onRequestGameReport: () -> Unit,
+    onUseOfflineGameReport: () -> Unit,
+    onSendCoachMessage: (String) -> Unit
 ) {
     val criticalPlies = remember(result) {
         result.plies
@@ -552,6 +664,7 @@ private fun AnalysisRightCards(
                         Text(
                             text = it.eco,
                             color = OnAccentDark,
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -581,6 +694,27 @@ private fun AnalysisRightCards(
 
     // Accuracy & Game Summary Card
     val st = result.summaryStats
+    val classRows = remember(result) {
+        data class ClassSummaryRow(val label: String, val icon: ImageVector, val color: Color, val wCount: Int, val bCount: Int)
+        val wMap = mutableMapOf<String, Int>()
+        val bMap = mutableMapOf<String, Int>()
+        result.plies.forEach { ply ->
+            val target = if (ply.index % 2 == 0) wMap else bMap
+            target[ply.badgeLabel] = (target[ply.badgeLabel] ?: 0) + 1
+        }
+        listOf(
+            ClassSummaryRow("Brilliant", Icons.Rounded.AutoAwesome, ClassBrilliant, wMap["Brilliant"] ?: 0, bMap["Brilliant"] ?: 0),
+            ClassSummaryRow("Great", Icons.Rounded.Bolt, ClassGreat, wMap["Great"] ?: 0, bMap["Great"] ?: 0),
+            ClassSummaryRow("Best", Icons.Rounded.Star, ClassBest, wMap["Best"] ?: 0, bMap["Best"] ?: 0),
+            ClassSummaryRow("Excellent", Icons.Rounded.DoneAll, ClassExcellent, wMap["Excellent"] ?: 0, bMap["Excellent"] ?: 0),
+            ClassSummaryRow("Good", Icons.Rounded.CheckCircle, ClassGood, wMap["Good"] ?: 0, bMap["Good"] ?: 0),
+            ClassSummaryRow("Book", Icons.Rounded.MenuBook, ClassBook, wMap["Book"] ?: 0, bMap["Book"] ?: 0),
+            ClassSummaryRow("Inaccuracy", Icons.Rounded.ReportProblem, ClassInaccuracy, wMap["Inaccuracy"] ?: 0, bMap["Inaccuracy"] ?: 0),
+            ClassSummaryRow("Mistake", Icons.Rounded.ErrorOutline, ClassMistake, wMap["Mistake"] ?: 0, bMap["Mistake"] ?: 0),
+            ClassSummaryRow("Miss", Icons.Rounded.HighlightOff, ClassMiss, wMap["Miss"] ?: 0, bMap["Miss"] ?: 0),
+            ClassSummaryRow("Blunder", Icons.Rounded.Dangerous, ClassBlunder, wMap["Blunder"] ?: 0, bMap["Blunder"] ?: 0)
+        )
+    }
     DiggyCard(contentPadding = PaddingValues(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Accuracy & Summary", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
@@ -592,13 +726,13 @@ private fun AnalysisRightCards(
                 blackVal = String.format(Locale.US, "%.1f%%", st.blackAccuracy),
                 boldValues = true
             )
-            MoveClass.entries.forEach { cls ->
+            classRows.forEach { row ->
                 SummaryRow(
-                    label = cls.label,
-                    whiteVal = (st.whiteCounts[cls] ?: 0).toString(),
-                    blackVal = (st.blackCounts[cls] ?: 0).toString(),
-                    icon = summaryClassIcon(cls),
-                    badgeColor = cls.color
+                    label = row.label,
+                    whiteVal = row.wCount.toString(),
+                    blackVal = row.bCount.toString(),
+                    icon = row.icon,
+                    badgeColor = row.color
                 )
             }
             SummaryRow("Opening", st.openingStats.whiteAccuracy, st.openingStats.blackAccuracy)
@@ -667,7 +801,10 @@ private fun AnalysisRightCards(
                             }
                             Text(
                                 text = moveLabel,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
                             )
@@ -689,6 +826,22 @@ private fun AnalysisRightCards(
             }
         }
     }
+
+    // AI Game Coaching Report Card
+    AiGameCoachingReportCard(
+        reportState = gameReportState,
+        dailyAiRemaining = dailyAiRemaining,
+        onRefreshReport = onRequestGameReport,
+        onUseOfflineReport = onUseOfflineGameReport
+    )
+
+    // Interactive AI Chess Coach Q&A Card
+    AskAiCoachChatCard(
+        messages = coachChatMessages,
+        streamState = coachChatStreamState,
+        currentPly = currentPly,
+        onSendQuestion = onSendCoachMessage
+    )
 
     // Move List Card
     DiggyCard(contentPadding = PaddingValues(16.dp)) {
@@ -742,7 +895,10 @@ private fun SummaryRow(
             }
             Text(
                 text = whiteVal,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = if (isHeader) PlusJakartaSansFontFamily else JetBrainsMonoFontFamily,
+                    fontFeatureSettings = "tnum"
+                ),
                 fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Medium,
                 color = if (boldValues) AccentGreen else TextPrimary,
                 textAlign = TextAlign.Center,
@@ -750,7 +906,10 @@ private fun SummaryRow(
             )
             Text(
                 text = blackVal,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = if (isHeader) PlusJakartaSansFontFamily else JetBrainsMonoFontFamily,
+                    fontFeatureSettings = "tnum"
+                ),
                 fontWeight = if (isHeader || boldValues) FontWeight.Bold else FontWeight.Medium,
                 color = if (boldValues) AccentGreen else TextPrimary,
                 textAlign = TextAlign.Center,

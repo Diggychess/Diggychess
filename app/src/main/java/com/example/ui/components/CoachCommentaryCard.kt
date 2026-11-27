@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.example.chess.AnalyzedPly
 import com.example.chess.MoveClass
 import com.example.chess.MoveExplainer
+import com.example.service.AiInsightState
+import com.example.service.AiMoveInsight
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.VariationBranch
 
@@ -29,6 +31,7 @@ private fun classificationIcon(cls: MoveClass, isGreatMove: Boolean): ImageVecto
     return when (cls) {
         MoveClass.BRILLIANT -> Icons.Rounded.AutoAwesome
         MoveClass.BEST -> Icons.Rounded.Star
+        MoveClass.EXCELLENT -> Icons.Rounded.DoneAll
         MoveClass.GOOD -> Icons.Rounded.CheckCircle
         MoveClass.INACCURACY -> Icons.Rounded.ReportProblem
         MoveClass.MISTAKE -> Icons.Rounded.ErrorOutline
@@ -44,6 +47,9 @@ fun CoachCommentaryCard(
     variation: VariationBranch?,
     onToggleBestMove: () -> Unit,
     onPracticeMistake: (Int) -> Unit,
+    moveInsightState: AiInsightState<AiMoveInsight> = AiInsightState.Idle,
+    onRequestMoveInsight: (Int) -> Unit = {},
+    onUseOfflineMoveInsight: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val borderColor = when {
@@ -154,7 +160,11 @@ fun CoachCommentaryCard(
                         ) {
                             Text(
                                 text = "$moveNum$dots${activePly.san}",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontFeatureSettings = "tnum"
+                                ),
+                                fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Surface(
@@ -178,7 +188,10 @@ fun CoachCommentaryCard(
                             ) {
                                 Text(
                                     text = MoveExplainer.formatPlyEval(activePly.evalAfter, activePly.mate),
-                                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontFamily = JetBrainsMonoFontFamily,
+                                        fontFeatureSettings = "tnum"
+                                    ),
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -270,7 +283,7 @@ fun CoachCommentaryCard(
                         )
                         if (isSuboptimal) {
                             DiggyButton(
-                                text = "Retry Move",
+                                text = "Try again",
                                 onClick = { onPracticeMistake(activePly.index) },
                                 variant = DiggyButtonVariant.PRIMARY,
                                 icon = Icons.Rounded.FitnessCenter,
@@ -280,7 +293,207 @@ fun CoachCommentaryCard(
                         }
                     }
                 }
+
+                // AI Coach Deep Explanation (grounded in Stockfish evaluations & top lines)
+                HorizontalDivider(color = LineSubtle)
+                AiMoveInsightSection(
+                    plyIndex = activePly.index,
+                    state = moveInsightState,
+                    onRequest = onRequestMoveInsight,
+                    onUseOffline = onUseOfflineMoveInsight
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun AiMoveInsightSection(
+    plyIndex: Int,
+    state: AiInsightState<AiMoveInsight>,
+    onRequest: (Int) -> Unit,
+    onUseOffline: (Int) -> Unit
+) {
+    when (state) {
+        is AiInsightState.Idle -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Need a deeper human explanation?",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                DiggyChip(
+                    label = "Ask AI Coach",
+                    selected = false,
+                    onClick = { onRequest(plyIndex) },
+                    icon = Icons.Rounded.AutoAwesome,
+                    accentColor = StudioCyan,
+                    testTag = "ask_ai_move_insight_$plyIndex"
+                )
+            }
+        }
+        is AiInsightState.Loading -> {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("ai_move_insight_loading")
+            ) {
+                CircularProgressIndicator(
+                    color = StudioCyan,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "AI Chess Coach is reviewing Stockfish lines…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StudioCyan
+                )
+            }
+        }
+        is AiInsightState.Success -> {
+            val data = state.data
+            Surface(
+                color = CardSurfaceElevated,
+                shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("ai_move_insight_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = "AI Coach Insight",
+                                tint = StudioCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "AI Coach Insight",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = StudioCyan
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Surface(
+                                color = StudioCyan.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(999.dp)
+                            ) {
+                                Text(
+                                    text = if (data.isFromCache) "${data.providerLabel} · Cached" else data.providerLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = StudioCyan,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                            TextButton(
+                                onClick = { onRequest(plyIndex) },
+                                modifier = Modifier
+                                    .heightIn(min = DiggySpacing.touchTargetMin)
+                                    .testTag("refresh_ai_move_insight")
+                            ) {
+                                Text("Refresh", color = AccentGreen, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = data.headline,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    AiCoachBullet("Why", data.whyGoodOrBad, TextPrimary)
+                    AiCoachBullet("Stronger idea", data.whyBestIsStronger, AccentGreenHover)
+                    AiCoachBullet("Missed motif", data.whatWasMissed, ClassInaccuracy)
+                    AiCoachBullet("Coach tip", data.improvementTip, TextMuted)
+                }
+            }
+        }
+        is AiInsightState.Error -> {
+            Surface(
+                color = CardSurfaceElevated,
+                shape = RoundedCornerShape(DiggySpacing.controlRadius),
+                border = BorderStroke(1.dp, BorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = state.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ClassMistake
+                    )
+                    state.fallbackMessage?.let { fb ->
+                        Text(
+                            text = fb,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DiggyChip(
+                            label = "Retry AI",
+                            selected = false,
+                            onClick = { onRequest(plyIndex) },
+                            icon = Icons.Rounded.Refresh,
+                            accentColor = StudioCyan,
+                            testTag = "retry_ai_move_insight"
+                        )
+                        DiggyChip(
+                            label = "Offline Coach",
+                            selected = false,
+                            onClick = { onUseOffline(plyIndex) },
+                            icon = Icons.Rounded.MenuBook,
+                            accentColor = AccentGreen,
+                            testTag = "offline_ai_move_insight"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AiCoachBullet(label: String, body: String, accent: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = accent,
+            letterSpacing = 0.6.sp
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextPrimary
+        )
     }
 }

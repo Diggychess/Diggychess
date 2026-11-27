@@ -1,6 +1,14 @@
 package com.example.chess
 
+import android.content.Context
 import kotlin.math.ceil
+
+data class OpeningContinuation(
+    val uci: String,
+    val san: String,
+    val eco: String,
+    val name: String
+)
 
 object OpeningBook {
     private val RAW_OPENINGS = """
@@ -112,42 +120,143 @@ object OpeningBook {
         E70|King’s Indian Defense: Normal Variation|d4 Nf6 c4 g6 Nc3 Bg7 e4 d6
     """.trimIndent()
 
-    val entries: List<OpeningEntry> by lazy {
-        RAW_OPENINGS.lines().filter { it.isNotBlank() }.map { line ->
+    private val MOVE_NUM_REGEX = Regex("""^\d+\.+""")
+
+    private data class BuiltBook(
+        val entries: List<OpeningEntry>,
+        val fenMap: Map<String, OpeningEntry>,
+        val continuations: Map<String, List<OpeningContinuation>>,
+        val invalidCount: Int
+    )
+
+    private val builtInBook: BuiltBook by lazy {
+        val raw = RAW_OPENINGS.lines().filter { it.isNotBlank() }.map { line ->
             val parts = line.trim().split('|')
             OpeningEntry(parts[0], parts[1], parts[2])
         }
+        indexEntries(raw)
     }
 
-    var invalidLineCount = 0
-        private set
+    private val loadLock = Any()
 
-    val fenMap: Map<String, OpeningEntry> by lazy {
-        val map = LinkedHashMap<String, OpeningEntry>()
+    @Volatile
+    private var assetsBook: BuiltBook? = null
+
+    @Volatile
+    private var loadedFromAssets: Boolean = false
+
+    val isFullDatasetLoaded: Boolean
+        get() = loadedFromAssets
+
+    val entries: List<OpeningEntry>
+        get() = (assetsBook ?: builtInBook).entries
+
+    val invalidLineCount: Int
+        get() = (assetsBook ?: builtInBook).invalidCount
+
+    val fenMap: Map<String, OpeningEntry>
+        get() = (assetsBook ?: builtInBook).fenMap
+
+    /**
+     * Loads the full Lichess chess-openings (CC0) dataset from assets/openings/{a..e}.tsv.
+     * Safe to invoke multiple times from Dispatchers.IO.
+     */
+    fun ensureLoaded(context: Context): Int {
+        if (loadedFromAssets) return entries.size
+        synchronized(loadLock) {
+            if (loadedFromAssets) return entries.size
+            val parsed = mutableListOf<OpeningEntry>()
+            val files = listOf("openings/a.tsv", "openings/b.tsv", "openings/c.tsv", "openings/d.tsv", "openings/e.tsv")
+            for (assetPath in files) {
+                try {
+                    context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).useLines { lines ->
+                        lines.forEachIndexed { idx, rawLine ->
+                            if (idx == 0 && rawLine.startsWith("eco\t")) return@forEachIndexed
+                            if (rawLine.isBlank()) return@forEachIndexed
+                            val cols = rawLine.split('\t')
+                            if (cols.size >= 3) {
+                                val eco = cols[0].trim()
+                                val name = cols[1].trim()
+                                val cleanMoves = cols[2]
+                                    .trim()
+                                    .split(Regex("""\s+"""))
+                                    .map { it.replace(MOVE_NUM_REGEX, "") }
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" ")
+                                if (eco.isNotEmpty() && name.isNotEmpty() && cleanMoves.isNotEmpty()) {
+                                    parsed.add(OpeningEntry(eco, name, cleanMoves))
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+            if (parsed.isNotEmpty()) {
+                assetsBook = indexEntries(parsed)
+                loadedFromAssets = true
+            }
+            return entries.size
+        }
+    }
+
+    private fun indexEntries(list: List<OpeningEntry>): BuiltBook {
+        val map = LinkedHashMap<String, OpeningEntry>(list.size)
+        val contMap = LinkedHashMap<String, LinkedHashMap<String, OpeningContinuation>>()
         var bad = 0
-        for (entry in entries) {
+        for (entry in list) {
             val board = ChessBoard()
             var ok = true
-            for (token in entry.moves.split(' ')) {
-                if (board.makeSanMove(token) == null) {
+            val tokens = entry.moves.split(' ').filter { it.isNotBlank() }
+            val stepRecords = ArrayList<Pair<String, OpeningContinuation>>(tokens.size)
+            for (token in tokens) {
+                val parentKey = board.openingKey()
+                val mv = board.makeSanMove(token)
+                if (mv == null) {
                     ok = false
                     break
                 }
+                val san = board.sanHistory().lastOrNull() ?: token
+                stepRecords.add(
+                    parentKey to OpeningContinuation(
+                        uci = mv.uci,
+                        san = san,
+                        eco = entry.eco,
+                        name = entry.name
+                    )
+                )
             }
             if (!ok) {
                 bad++
             } else {
                 val key = board.openingKey()
                 if (!map.containsKey(key)) map[key] = entry
+                for ((parentKey, cont) in stepRecords) {
+                    val bucket = contMap.getOrPut(parentKey) { LinkedHashMap() }
+                    bucket.putIfAbsent(cont.uci, cont)
+                }
             }
         }
-        invalidLineCount = bad
-        map
+        val finalizedCont = HashMap<String, List<OpeningContinuation>>(contMap.size)
+        for ((k, v) in contMap) {
+            finalizedCont[k] = v.values.toList()
+        }
+        return BuiltBook(
+            entries = list,
+            fenMap = map,
+            continuations = finalizedCont,
+            invalidCount = bad
+        )
     }
 
     fun fenKey(fen: String): String = fen.split(' ').take(3).joinToString(" ")
 
     fun lookup(fen: String): OpeningEntry? = fenMap[fenKey(fen)]
+
+    fun lookupContinuations(fen: String): List<OpeningContinuation> {
+        val book = assetsBook ?: builtInBook
+        return book.continuations[fenKey(fen)].orEmpty()
+    }
 
     fun observeSide(fen: String, color: PieceColor): String {
         val board = ChessBoard(fen)
@@ -201,18 +310,19 @@ object OpeningBook {
         fun moveNum(i: Int): String = "${i / 2 + 1}${if (i % 2 == 1) "..." else "."}"
 
         val lim = minOf(plies.size, 20)
-        val firstBadIdx = plies.indexOfFirst { it.index < 20 && it.moveClass.ordinal >= MoveClass.INACCURACY.ordinal && it.moveClass != MoveClass.BRILLIANT }
+        val firstBadIdx = plies.indexOfFirst { it.index < 20 && it.moveClass.isSuboptimal }
         val whiteObs = if (lim > 0) observeSide(plies[lim - 1].fenAfter, PieceColor.WHITE) else ""
         val blackObs = if (lim > 0) observeSide(plies[lim - 1].fenAfter, PieceColor.BLACK) else ""
 
+        val bookDesc = if (loadedFromAssets) "Lichess ECO opening database" else "built-in opening list"
         val matched = if (lastEntry != null) {
-            "Matched the first ${ceil((lastIdx + 1) / 2.0).toInt()} moves in the built-in opening list: ${moveSeq(lastIdx + 1)}."
+            "Matched ${ceil((lastIdx + 1) / 2.0).toInt()} moves in the $bookDesc: ${moveSeq(lastIdx + 1)}."
         } else {
-            "These moves are not in the built-in opening list."
+            "These moves depart early from standard opening theory."
         }
         val nextNote = if (lastEntry != null && lastIdx + 1 < plies.size) {
             val nextPly = plies[lastIdx + 1]
-            "The next move, ${moveNum(lastIdx + 1)} ${nextPly.san}, is outside the list (this does not mean it is a mistake)."
+            "Left theory at ${moveNum(lastIdx + 1)} ${nextPly.san} (not necessarily a mistake)."
         } else ""
 
         val e1 = if (firstBadIdx >= 0) {

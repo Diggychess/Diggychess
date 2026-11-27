@@ -3,23 +3,30 @@ package com.example.chess
 import com.example.ui.theme.ClassBook
 import com.example.ui.theme.ClassGreat
 import com.example.ui.theme.ClassMiss
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.ceil
 
-class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
+class GameAnalyzer(
+    private val engine: ChessEngine = ChessEngine(),
+    private val stockfishWasm: StockfishAnalyzerEngine? = null
+) {
 
     suspend fun analyze(
         pgnText: String,
         settings: ReviewSettings,
         savedEntry: SavedGameEntry? = null,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
-    ): GameAnalysisResult {
+    ): GameAnalysisResult = withContext(Dispatchers.Default) {
         val parsed = PgnParser.parse(pgnText)
         require(parsed.plies.isNotEmpty()) {
             "Could not read this PGN. Paste the full PGN, including the headers."
@@ -47,44 +54,147 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
             }
         }
 
+        val plyBookEntries = Array<OpeningEntry?>(plies.size) { i ->
+            if (i < 30) OpeningBook.lookup(plies[i].fenAfter) else null
+        }
+
+        val requestedDepth = settings.depth.coerceIn(4, 24)
+        var effectiveDepth = savedEntry?.depth ?: requestedDepth
+
         if (!usingSavedOrPgn) {
-            engineLabel = "Diggy Chess Stockfish Engine"
+            engineLabel = "Chess Analyzer Stockfish Engine"
+            effectiveDepth = requestedDepth
             val startFen = parsed.headers["FEN"]?.takeIf { it.isNotBlank() } ?: ChessBoard.START_FEN
             val fens = listOf(startFen) + plies.map { it.fenAfter }
             val cache = ConcurrentHashMap<String, EngineEval>()
 
             // Deduplicate identical positions (transpositions / repetitions) before dispatching
             val uniqueFens = LinkedHashMap<String, String>()
-            val fenKeys = fens.map { fen ->
+            val uniqueNeedsFull = HashMap<String, Boolean>()
+            val fenKeys = fens.mapIndexed { idx, fen ->
                 val key = fen.split(' ').take(4).joinToString(" ")
                 uniqueFens.putIfAbsent(key, fen)
+                val needsFull = (idx > 0 && plyBookEntries[idx - 1] == null) ||
+                    (idx < plies.size && plyBookEntries[idx] == null)
+                if (needsFull || !uniqueNeedsFull.containsKey(key)) {
+                    uniqueNeedsFull[key] = needsFull || (uniqueNeedsFull[key] == true)
+                }
                 key
             }
 
             val total = uniqueFens.size
-            val timePerPos = (4500L / total.coerceAtLeast(1)).coerceIn(120L, 450L)
-            val depth = settings.depth.coerceIn(4, 12)
-            val semaphore = Semaphore(permits = 6)
-            val completed = AtomicInteger(0)
-
             onProgress(0, total)
-            coroutineScope {
-                uniqueFens.entries.map { (key, fen) ->
-                    async {
-                        val ev = semaphore.withPermit {
-                            engine.evaluateMultiPv(
-                                fen = fen,
-                                depth = depth,
-                                multiPv = 3,
-                                timeLimitMs = timePerPos,
-                                allowCloud = true,
-                                quickBatch = true
-                            )
+
+            val wasm = stockfishWasm
+            if (wasm != null) {
+                if (!wasm.ensureReady()) {
+                    val errMsg = (wasm.statusFlow.value as? StockfishEngineStatus.Error)?.message
+                        ?: "Stockfish 19 WASM engine failed to load."
+                    throw IllegalStateException(errMsg)
+                }
+                wasm.prepareNewGame()
+
+                val fullMovetimeMs = when {
+                    requestedDepth >= 22 -> 1500L
+                    requestedDepth >= 18 -> 850L
+                    requestedDepth >= 12 -> 420L
+                    else -> 260L
+                }
+                val parallelism = wasm.maxParallelism.coerceIn(1, 4)
+                val semaphore = Semaphore(permits = parallelism)
+                val completed = AtomicInteger(0)
+
+                coroutineScope {
+                    uniqueFens.entries.map { (key, fen) ->
+                        async {
+                            val isFull = uniqueNeedsFull[key] ?: true
+                            val targetPosDepth = if (isFull) requestedDepth else minOf(requestedDepth, 8)
+                            val targetBudgetMs = if (isFull) fullMovetimeMs else 80L
+                            val ev = semaphore.withPermit {
+                                currentCoroutineContext().ensureActive()
+                                wasm.evaluateBatchPosition(
+                                    fen = fen,
+                                    depth = targetPosDepth,
+                                    multiPv = 1,
+                                    movetimeMs = targetBudgetMs
+                                )
+                            } ?: run {
+                                val errMsg = (wasm.statusFlow.value as? StockfishEngineStatus.Error)?.message
+                                    ?: "Stockfish engine stopped unexpectedly while analysing."
+                                throw IllegalStateException(errMsg)
+                            }
+                            cache[key] = ev
+                            onProgress(completed.incrementAndGet(), total)
                         }
-                        cache[key] = ev
-                        onProgress(completed.incrementAndGet(), total)
+                    }.awaitAll()
+                }
+
+                // Fast targeted Pass 2 (MultiPV 2) on non-book BEST-move candidates for Great (!) badges
+                val greatCandidateKeys = LinkedHashMap<String, String>()
+                for (i in plies.indices) {
+                    if (plyBookEntries[i] != null) continue
+                    val evBefore = cache[fenKeys[i]] ?: continue
+                    if (evBefore.topLines.size >= 2) continue
+                    val evAfter = cache[fenKeys[i + 1]] ?: continue
+                    val isW = i % 2 == 0
+                    var wpB = MoveExplainer.winProbability(evBefore.cp)
+                    var wpA = MoveExplainer.winProbability(evAfter.cp)
+                    if (!isW) {
+                        wpB = 100.0 - wpB
+                        wpA = 100.0 - wpA
                     }
-                }.awaitAll()
+                    if (maxOf(0.0, wpB - wpA) <= 0.5) {
+                        greatCandidateKeys.putIfAbsent(fenKeys[i], fens[i])
+                        if (greatCandidateKeys.size >= 12) break
+                    }
+                }
+                if (greatCandidateKeys.isNotEmpty()) {
+                    coroutineScope {
+                        greatCandidateKeys.entries.map { (key, fen) ->
+                            async {
+                                val refined = semaphore.withPermit {
+                                    currentCoroutineContext().ensureActive()
+                                    wasm.evaluateBatchPosition(
+                                        fen = fen,
+                                        depth = requestedDepth,
+                                        multiPv = 2,
+                                        movetimeMs = 220L
+                                    )
+                                }
+                                if (refined != null && refined.topLines.size >= 2) {
+                                    val base = cache[key]
+                                    if (base != null) {
+                                        cache[key] = base.copy(topLines = refined.topLines)
+                                    }
+                                }
+                            }
+                        }.awaitAll()
+                    }
+                }
+            } else {
+                val timePerPos = (4500L / total.coerceAtLeast(1)).coerceIn(120L, 450L)
+                val fallbackDepth = requestedDepth.coerceIn(4, 12)
+                val semaphore = Semaphore(permits = 6)
+                val completed = AtomicInteger(0)
+
+                coroutineScope {
+                    uniqueFens.entries.map { (key, fen) ->
+                        async {
+                            val ev = semaphore.withPermit {
+                                engine.evaluateMultiPv(
+                                    fen = fen,
+                                    depth = fallbackDepth,
+                                    multiPv = 3,
+                                    timeLimitMs = timePerPos,
+                                    allowCloud = true,
+                                    quickBatch = true
+                                )
+                            }
+                            cache[key] = ev
+                            onProgress(completed.incrementAndGet(), total)
+                        }
+                    }.awaitAll()
+                }
             }
 
             for (i in fens.indices) {
@@ -112,7 +222,7 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
             }
         }
 
-        val evals = mutableListOf(0.2)
+        val evals = mutableListOf(evalPerFen[0]?.cp ?: 0.2)
         for (i in plies.indices) {
             evals.add(plies[i].eval ?: evals[i])
         }
@@ -143,18 +253,15 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
                 loss = 0.0
             }
 
-            var isBook = false
-            var opening: OpeningEntry? = null
-            if (i < 30) {
-                opening = OpeningBook.lookup(p.fenAfter)
-                if (opening != null) {
-                    isBook = true
-                    loss = 0.0
-                }
+            val opening = plyBookEntries[i]
+            val isBook = opening != null
+            if (isBook) {
+                loss = 0.0
             }
 
             var cls = when {
-                loss <= 2.0 -> MoveClass.BEST
+                loss <= 0.5 -> MoveClass.BEST
+                loss <= 2.5 -> MoveClass.EXCELLENT
                 loss <= inacTh -> MoveClass.GOOD
                 loss <= misTh -> MoveClass.INACCURACY
                 loss <= blunTh -> MoveClass.MISTAKE
@@ -304,15 +411,22 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
         val openingSummary = OpeningBook.summarize(analyzedPlies, evals)
 
         fun avg(list: List<Double>): Double = if (list.isEmpty()) 100.0 else list.average()
-        fun phaseTag(ply: AnalyzedPly): Int {
-            if (ply.index < 20) return 0
-            val b = ChessBoard(ply.fenAfter)
-            val nonPawns = b.board.count { it != null && it.type != PieceType.KING && it.type != PieceType.PAWN }
-            return if (nonPawns <= 6) 2 else 1
+        val phaseTags = IntArray(analyzedPlies.size) { idx ->
+            val ply = analyzedPlies[idx]
+            if (ply.index < 20) 0 else {
+                val placement = ply.fenAfter.substringBefore(' ')
+                var nonPawns = 0
+                for (ch in placement) {
+                    if (ch in "qrbnQRBN") nonPawns++
+                }
+                if (nonPawns <= 6) 2 else 1
+            }
         }
 
         fun phaseAccuracy(isW: Boolean, phase: Int): String {
-            val accs = analyzedPlies.filter { (it.index % 2 == 0) == isW && phaseTag(it) == phase }.map { it.accuracy }
+            val accs = analyzedPlies.filterIndexed { idx, it ->
+                (it.index % 2 == 0) == isW && phaseTags[idx] == phase
+            }.map { it.accuracy }
             return if (accs.isEmpty()) "-" else String.format(java.util.Locale.US, "%.1f%%", accs.average())
         }
 
@@ -345,7 +459,7 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
             "Game " + analyzedPlies.take(3).joinToString(" ") { it.san }
         }
 
-        return GameAnalysisResult(
+        GameAnalysisResult(
             id = id,
             title = title,
             pgn = pgnText,
@@ -355,13 +469,14 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
             openingSummary = openingSummary,
             summaryStats = summaryStats,
             keyMistakes = keyMistakes,
-            engineLabel = engineLabel
+            engineLabel = engineLabel,
+            depth = effectiveDepth
         )
     }
 
     fun toSavedGameEntry(result: GameAnalysisResult): SavedGameEntry {
-        val wCounts = IntArray(6)
-        val bCounts = IntArray(6)
+        val wCounts = IntArray(MoveClass.entries.size)
+        val bCounts = IntArray(MoveClass.entries.size)
         val wPh = intArrayOf(0, 0, 0)
         val bPh = intArrayOf(0, 0, 0)
         val mistakes = mutableListOf<Puzzle>()
@@ -399,6 +514,11 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
             }
         }
 
+        val gameResult = result.headers["Result"]?.takeIf {
+            it in setOf("1-0", "0-1", "1/2-1/2", "*")
+        } ?: "*"
+        val opponentName = result.summaryStats.blackName.takeIf { it.isNotBlank() && it != "Black" } ?: ""
+
         return SavedGameEntry(
             id = result.id,
             title = result.title,
@@ -414,7 +534,13 @@ class GameAnalyzer(private val engine: ChessEngine = ChessEngine()) {
                 whitePhaseMistakes = wPh.toList(),
                 blackPhaseMistakes = bPh.toList()
             ),
-            mistakes = mistakes
+            mistakes = mistakes,
+            result = gameResult,
+            opponent = opponentName,
+            source = "analysed",
+            depth = result.depth,
+            whiteAccuracy = result.summaryStats.whiteAccuracy,
+            blackAccuracy = result.summaryStats.blackAccuracy
         )
     }
 

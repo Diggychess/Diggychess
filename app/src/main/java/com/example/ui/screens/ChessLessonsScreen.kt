@@ -68,7 +68,10 @@ fun ChessLessonsScreen(
                 }
                 Text(
                     text = "Step ${state.stepIndex + 1} / ${activeLesson.steps.size}",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontFeatureSettings = "tnum"
+                    ),
                     color = TextMuted
                 )
             }
@@ -109,7 +112,7 @@ fun ChessLessonsScreen(
                             null -> StudioCyan
                         }
                         Surface(
-                            color = BgDark,
+                            color = CardSurfaceElevated,
                             shape = RoundedCornerShape(DiggySpacing.controlRadius),
                             border = BorderStroke(1.dp, color.copy(alpha = 0.55f)),
                             modifier = Modifier
@@ -125,36 +128,74 @@ fun ChessLessonsScreen(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        DiggyButton(
-                            text = "Hint",
-                            onClick = onHint,
-                            enabled = !state.stepSolved,
-                            variant = DiggyButtonVariant.OUTLINED,
-                            icon = Icons.AutoMirrored.Rounded.HelpOutline,
-                            testTag = "lesson_hint",
-                            modifier = Modifier.weight(1f)
-                        )
-                        DiggyButton(
-                            text = "Reset",
-                            onClick = onRetry,
-                            variant = DiggyButtonVariant.OUTLINED,
-                            icon = Icons.Rounded.Replay,
-                            testTag = "lesson_retry",
-                            modifier = Modifier.weight(1f)
-                        )
-                        DiggyButton(
-                            text = if (state.lessonFinished) "Finish" else "Next",
-                            onClick = onNextStep,
-                            enabled = state.stepSolved,
-                            variant = DiggyButtonVariant.PRIMARY,
-                            icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                            testTag = "lesson_next_step",
-                            modifier = Modifier.weight(1f)
-                        )
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        if (maxWidth < 340.dp) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    DiggyButton(
+                                        text = "Hint",
+                                        onClick = onHint,
+                                        enabled = !state.stepSolved,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                                        testTag = "lesson_hint",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    DiggyButton(
+                                        text = "Reset",
+                                        onClick = onRetry,
+                                        variant = DiggyButtonVariant.OUTLINED,
+                                        icon = Icons.Rounded.Replay,
+                                        testTag = "lesson_retry",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                DiggyButton(
+                                    text = if (state.lessonFinished) "Finish" else "Next",
+                                    onClick = onNextStep,
+                                    enabled = state.stepSolved,
+                                    variant = DiggyButtonVariant.PRIMARY,
+                                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                    testTag = "lesson_next_step",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Hint",
+                                    onClick = onHint,
+                                    enabled = !state.stepSolved,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                                    testTag = "lesson_hint",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Reset",
+                                    onClick = onRetry,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Replay,
+                                    testTag = "lesson_retry",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = if (state.lessonFinished) "Finish" else "Next",
+                                    onClick = onNextStep,
+                                    enabled = state.stepSolved,
+                                    variant = DiggyButtonVariant.PRIMARY,
+                                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                    testTag = "lesson_next_step",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
             }

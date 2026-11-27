@@ -1,11 +1,16 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -37,6 +42,8 @@ fun AnalyzeScreen(
     state: AnalyzeUiState,
     onPgnChange: (String) -> Unit,
     onAnalyze: () -> Unit,
+    onSelectDepthPreset: (AnalysisDepthPreset) -> Unit,
+    onRetryEngine: () -> Unit,
     onTrySample: () -> Unit,
     onSharePgn: () -> Unit,
     onShareAnalysis: () -> Unit,
@@ -70,9 +77,31 @@ fun AnalyzeScreen(
     onDrillRetry: () -> Unit,
     onDrillNext: () -> Unit,
     onCloseDrill: () -> Unit,
+    onUploadPgn: (String, String?) -> Unit = { _, _ -> },
+    onRequestMoveInsight: (Int) -> Unit = {},
+    onUseOfflineMoveInsight: (Int) -> Unit = {},
+    onRequestGameReport: () -> Unit = {},
+    onUseOfflineGameReport: () -> Unit = {},
+    onSendCoachMessage: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pgnFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val content = withContext(Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }
+            if (!content.isNullOrBlank()) {
+                val fileName = uri.lastPathSegment?.substringAfterLast('/')
+                onUploadPgn(content, fileName)
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -81,23 +110,47 @@ fun AnalyzeScreen(
             .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
         verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = stringResource(R.string.analyse_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary
-            )
-            Text(
-                text = stringResource(R.string.analyse_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted
-            )
+        // Clean Page Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.analyse_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = TextPrimary
+                )
+                Text(
+                    text = stringResource(R.string.analyse_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
+            }
+            Surface(
+                color = AccentGreen.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(999.dp),
+                border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.35f))
+            ) {
+                Text(
+                    text = "SF 19 + AI",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = AccentGreen,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
         }
 
-        // Chess.com & Lichess Username Importer Card
+        // Matte Dark Chess.com & Lichess Username Importer Hero Card (#18181B)
         DiggyCard(
-            elevated = true,
-            borderColor = StudioCyan.copy(alpha = 0.45f),
+            darkMatte = true,
+            elevated = false,
+            borderColor = MatteDarkBorder,
             contentPadding = PaddingValues(16.dp)
         ) {
             Row(
@@ -112,7 +165,8 @@ fun AnalyzeScreen(
                     Text(
                         text = "Import from Chess.com & Lichess",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold,
+                        color = OnMatteDark
                     )
                     val prof = state.platformProfile
                     val sub = if (prof != null) {
@@ -125,7 +179,7 @@ fun AnalyzeScreen(
                     Text(
                         text = sub,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
+                        color = OnMatteDarkMuted,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -140,14 +194,26 @@ fun AnalyzeScreen(
             }
         }
 
-        // PGN Input Card
+        // PGN Input Light Card (#FFFFFF)
         DiggyCard(contentPadding = PaddingValues(16.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Game PGN",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Game PGN",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Paste moves or upload .pgn",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted
+                    )
+                }
 
                 OutlinedTextField(
                     value = state.pgnText,
@@ -155,25 +221,136 @@ fun AnalyzeScreen(
                     placeholder = {
                         Text(
                             "Paste PGN here or import a game above",
-                            color = TextMuted
+                            color = InputHint
                         )
                     },
                     textStyle = MaterialTheme.typography.bodySmall.copy(
-                        color = TextPrimary,
+                        fontFamily = JetBrainsMonoFontFamily,
+                        color = InputText,
                         fontSize = 13.sp
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 108.dp, max = 172.dp)
+                        .heightIn(min = 112.dp, max = 176.dp)
                         .testTag("pgn_input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = BgDark,
-                        unfocusedContainerColor = BgDark,
-                        focusedBorderColor = AccentGreen,
-                        unfocusedBorderColor = BorderSubtle
-                    ),
+                    colors = diggyInputColors(),
                     shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
+
+                // Stockfish 19 WASM Engine Status Row
+                when (val st = state.engineStatus) {
+                    is StockfishEngineStatus.Loading -> {
+                        Surface(
+                            color = BgDark,
+                            shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                            border = BorderStroke(1.dp, BorderSubtle),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("engine_status_loading")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    color = StudioCyan,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Engine loading… (Stockfish 19 WASM)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+                    is StockfishEngineStatus.Ready -> {
+                        Surface(
+                            color = AccentGreen.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("engine_status_ready")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = "Engine ready",
+                                    tint = AccentGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Engine ready · ${st.engineName} (v${st.version})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    is StockfishEngineStatus.Error -> {
+                        Surface(
+                            color = FeedbackDangerRed.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                            border = BorderStroke(1.dp, FeedbackDangerRed.copy(alpha = 0.45f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("engine_status_error")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ErrorOutline,
+                                    contentDescription = "Engine error",
+                                    tint = FeedbackDangerRed,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = st.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = FeedbackDangerRed,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = onRetryEngine,
+                                    modifier = Modifier
+                                        .heightIn(min = DiggySpacing.touchTargetMin)
+                                        .testTag("retry_engine_button")
+                                ) {
+                                    Text("Retry", color = AccentGreen, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Selectable Stockfish Depth Presets (Fast 12, Normal 18, Deep 22)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AnalysisDepthPreset.entries.forEach { preset ->
+                        DiggyChip(
+                            label = preset.label,
+                            selected = state.selectedDepthPreset == preset,
+                            onClick = { onSelectDepthPreset(preset) },
+                            testTag = "depth_preset_${preset.id}",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
 
                 DiggyButton(
                     text = if (state.isAnalyzing) "Analysing…" else "Analyse Game",
@@ -184,26 +361,73 @@ fun AnalyzeScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyButton(
-                        text = "Share PGN",
-                        onClick = onSharePgn,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Share,
-                        testTag = "share_pgn_button",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Try Sample",
-                        onClick = onTrySample,
-                        variant = DiggyButtonVariant.SECONDARY,
-                        icon = Icons.Rounded.PlayArrow,
-                        testTag = "try_sample_button",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 400.dp) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Upload .pgn",
+                                    onClick = { pgnFileLauncher.launch(arrayOf("application/x-chess-pgn", "text/plain", "*/*")) },
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.UploadFile,
+                                    testTag = "upload_pgn_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Share PGN",
+                                    onClick = onSharePgn,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Share,
+                                    testTag = "share_pgn_button",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            DiggyButton(
+                                text = "Try Sample",
+                                onClick = onTrySample,
+                                variant = DiggyButtonVariant.SECONDARY,
+                                icon = Icons.Rounded.PlayArrow,
+                                testTag = "try_sample_button",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Upload .pgn",
+                                onClick = { pgnFileLauncher.launch(arrayOf("application/x-chess-pgn", "text/plain", "*/*")) },
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.UploadFile,
+                                testTag = "upload_pgn_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Share PGN",
+                                onClick = onSharePgn,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Share,
+                                testTag = "share_pgn_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Try Sample",
+                                onClick = onTrySample,
+                                variant = DiggyButtonVariant.SECONDARY,
+                                icon = Icons.Rounded.PlayArrow,
+                                testTag = "try_sample_button",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
 
                 if (state.isAnalyzing) {
@@ -220,7 +444,7 @@ fun AnalyzeScreen(
                             val total = state.progressTotal.coerceAtLeast(1)
                             val frac = (state.progressDone.toFloat() / total).coerceIn(0f, 1f)
                             Text(
-                                text = "Analysing position ${state.progressDone} / $total (3-line engine review)",
+                                text = "Stockfish 19 (Depth ${state.selectedDepthPreset.depth}): ${state.progressDone} / $total positions",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextPrimary
                             )
@@ -239,6 +463,22 @@ fun AnalyzeScreen(
 
                 state.errorMessage?.let { err ->
                     DiggyErrorState(message = err)
+                }
+
+                state.pgnValidationWarning?.let { warn ->
+                    Surface(
+                        color = TrophyGold.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(DiggySpacing.chipRadius),
+                        border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = warn,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TrophyGold,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
                 }
 
                 state.statusMessage?.let { msg ->
@@ -336,6 +576,11 @@ fun AnalyzeScreen(
                 boardSelectedSquare = state.boardSelectedSquare,
                 boardLegalTargets = state.boardLegalTargets,
                 boardPendingPromotion = state.boardPendingPromotion,
+                moveInsightsByPly = state.moveInsightsByPly,
+                gameReportState = state.gameReportState,
+                coachChatMessages = state.coachChatMessages,
+                coachChatStreamState = state.coachChatStreamState,
+                dailyAiRemaining = state.dailyAiRemaining,
                 onGoToPly = onGoToPly,
                 onToggleBestMove = onToggleBestMove,
                 onToggleFlip = onToggleFlip,
@@ -348,7 +593,12 @@ fun AnalyzeScreen(
                 onStepVariation = onStepVariation,
                 onUndoVariation = onUndoVariation,
                 onExitVariation = onExitVariation,
-                onPracticeMistakes = onPracticeMistakes
+                onPracticeMistakes = onPracticeMistakes,
+                onRequestMoveInsight = onRequestMoveInsight,
+                onUseOfflineMoveInsight = onUseOfflineMoveInsight,
+                onRequestGameReport = onRequestGameReport,
+                onUseOfflineGameReport = onUseOfflineGameReport,
+                onSendCoachMessage = onSendCoachMessage
             )
         }
     }
@@ -415,18 +665,14 @@ fun ShareTextDialog(
                     onValueChange = {},
                     readOnly = true,
                     textStyle = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
                         fontSize = 12.sp,
-                        color = TextPrimary
+                        color = InputText
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(210.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = BgDark,
-                        unfocusedContainerColor = BgDark,
-                        focusedBorderColor = BorderSubtle,
-                        unfocusedBorderColor = BorderSubtle
-                    ),
+                    colors = diggyInputColors(),
                     shape = RoundedCornerShape(DiggySpacing.controlRadius)
                 )
                 Row(
@@ -440,7 +686,7 @@ fun ShareTextDialog(
                                 putExtra(Intent.EXTRA_TEXT, text)
                                 type = "text/plain"
                             }
-                            context.startActivity(Intent.createChooser(sendIntent, "Share Diggy Chess analysis"))
+                            context.startActivity(Intent.createChooser(sendIntent, "Share Chess Analyzer analysis"))
                         },
                         variant = DiggyButtonVariant.PRIMARY,
                         icon = Icons.Rounded.Share,

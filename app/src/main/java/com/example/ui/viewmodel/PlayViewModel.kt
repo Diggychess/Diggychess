@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.chess.*
+import com.example.data.FirestoreGameSync
 import com.example.data.KnightScopeRepository
 import com.example.data.RecentPlayGameSummary
 import com.example.ui.theme.BoardTheme
@@ -10,6 +11,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+enum class TimeControlBase(
+    val id: String,
+    val label: String,
+    val category: String,
+    val baseMinutes: Int
+) {
+    MIN_1("1m", "1 min", "Bullet", 1),
+    MIN_3("3m", "3 min", "Blitz", 3),
+    MIN_5("5m", "5 min", "Blitz", 5),
+    MIN_10("10m", "10 min", "Rapid", 10),
+    UNLIMITED("unlimited", "Unlimited", "Casual", 0);
+
+    val baseMillis: Long? get() = if (baseMinutes > 0) baseMinutes * 60_000L else null
+}
 
 enum class QuickPlayTimeControl(
     val id: String,
@@ -35,11 +51,14 @@ data class PlayUiState(
     val difficulty: EngineDifficulty = EngineDifficulty.MEDIUM,
     val colorChoice: ColorChoice = ColorChoice.WHITE,
     val timeControl: QuickPlayTimeControl = QuickPlayTimeControl.UNTIMED,
+    val selectedBaseTime: TimeControlBase = TimeControlBase.UNLIMITED,
+    val selectedIncrementSec: Int = 0,
     val whiteTimeMs: Long? = null,
     val blackTimeMs: Long? = null,
-    val showLiveEval: Boolean = true,
-    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val showLiveEval: Boolean = false,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val playerName: String = "You",
+    val playerAvatarUrl: String? = null,
     val playerColor: PieceColor = PieceColor.WHITE,
     val fen: String = ChessBoard.START_FEN,
     val turn: PieceColor = PieceColor.WHITE,
@@ -52,7 +71,8 @@ data class PlayUiState(
     val isEngineThinking: Boolean = false,
     val liveEvalCp: Double = 0.2,
     val liveEvalMate: Int? = null,
-    val engineSourceLabel: String = "Stockfish Engine",
+    val engineSourceLabel: String = "Stockfish 19 WASM",
+    val engineStatus: StockfishEngineStatus? = null,
     val openingEco: String? = null,
     val openingName: String? = null,
     val hintFrom: String? = null,
@@ -66,14 +86,31 @@ data class PlayUiState(
     val canTakeback: Boolean = false,
     val pendingPromotion: Pair<String, String>? = null,
     val recentGames: List<RecentPlayGameSummary> = emptyList()
-)
+) {
+    val timeControlLabel: String
+        get() = if (selectedBaseTime == TimeControlBase.UNLIMITED) {
+            "Unlimited"
+        } else {
+            "${selectedBaseTime.baseMinutes}+$selectedIncrementSec"
+        }
+
+    val effectiveBaseMillis: Long?
+        get() = selectedBaseTime.baseMillis
+
+    val effectiveIncrementMillis: Long
+        get() = if (selectedBaseTime == TimeControlBase.UNLIMITED) 0L else selectedIncrementSec * 1_000L
+}
 
 class PlayViewModel(
     private val repo: KnightScopeRepository,
-    private val engine: ChessEngine = ChessEngine()
+    private val engine: ChessEngine = ChessEngine(),
+    private val stockfishWasm: StockfishAnalyzerEngine? = null,
+    private val firestoreSync: FirestoreGameSync? = null
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(PlayUiState())
+    private val _uiState = MutableStateFlow(
+        PlayUiState(engineStatus = stockfishWasm?.statusFlow?.value)
+    )
     val uiState: StateFlow<PlayUiState> = _uiState.asStateFlow()
 
     private var board = ChessBoard()
@@ -98,13 +135,13 @@ class PlayViewModel(
             }
         }
         viewModelScope.launch {
-            repo.playShowLiveEvalFlow.collect { show ->
-                _uiState.update { it.copy(showLiveEval = show) }
-            }
-        }
-        viewModelScope.launch {
             repo.userProfileFlow.collect { profile ->
-                _uiState.update { it.copy(playerName = profile.displayName) }
+                _uiState.update {
+                    it.copy(
+                        playerName = profile.displayName,
+                        playerAvatarUrl = profile.avatarUrl
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -112,6 +149,26 @@ class PlayViewModel(
                 _uiState.update { it.copy(recentGames = recents) }
             }
         }
+        stockfishWasm?.let { sf ->
+            viewModelScope.launch {
+                sf.statusFlow.collect { status ->
+                    _uiState.update {
+                        it.copy(
+                            engineStatus = status,
+                            engineSourceLabel = if (status is StockfishEngineStatus.Ready) {
+                                status.engineName
+                            } else {
+                                it.engineSourceLabel
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun retryEngine() {
+        stockfishWasm?.retryInit()
     }
 
     fun setDifficulty(difficulty: EngineDifficulty) {
@@ -125,12 +182,54 @@ class PlayViewModel(
         _uiState.update { it.copy(colorChoice = choice) }
     }
 
+    fun selectBaseTime(base: TimeControlBase) {
+        val inc = if (base == TimeControlBase.UNLIMITED) 0 else _uiState.value.selectedIncrementSec
+        _uiState.update {
+            it.copy(
+                selectedBaseTime = base,
+                selectedIncrementSec = inc,
+                timeControl = mapToQuickPlay(base, inc)
+            )
+        }
+    }
+
+    fun selectIncrement(incSec: Int) {
+        val safeInc = incSec.coerceIn(0, 10)
+        _uiState.update { s ->
+            s.copy(
+                selectedIncrementSec = safeInc,
+                timeControl = mapToQuickPlay(s.selectedBaseTime, safeInc)
+            )
+        }
+    }
+
     fun selectTimeControl(tc: QuickPlayTimeControl) {
-        _uiState.update { it.copy(timeControl = tc) }
+        val mappedBase = when (tc.baseMinutes) {
+            1 -> TimeControlBase.MIN_1
+            3 -> TimeControlBase.MIN_3
+            5 -> TimeControlBase.MIN_5
+            10 -> TimeControlBase.MIN_10
+            else -> TimeControlBase.UNLIMITED
+        }
+        _uiState.update {
+            it.copy(
+                timeControl = tc,
+                selectedBaseTime = mappedBase,
+                selectedIncrementSec = tc.incrementSec.coerceIn(0, 2)
+            )
+        }
+    }
+
+    private fun mapToQuickPlay(base: TimeControlBase, incSec: Int): QuickPlayTimeControl = when (base) {
+        TimeControlBase.MIN_1 -> QuickPlayTimeControl.BULLET_1
+        TimeControlBase.MIN_3 -> QuickPlayTimeControl.BLITZ_3
+        TimeControlBase.MIN_5 -> QuickPlayTimeControl.BLITZ_5
+        TimeControlBase.MIN_10 -> QuickPlayTimeControl.RAPID_10
+        TimeControlBase.UNLIMITED -> QuickPlayTimeControl.UNTIMED
     }
 
     fun startQuickPlay(tc: QuickPlayTimeControl) {
-        _uiState.update { it.copy(timeControl = tc) }
+        selectTimeControl(tc)
         startGame()
     }
 
@@ -146,6 +245,7 @@ class PlayViewModel(
 
     fun startGame(playerColorOverride: PieceColor? = null) {
         cancelEngineJobs()
+        stockfishWasm?.prepareNewGame()
         gameToken++
         recordedFinish = false
         board = ChessBoard()
@@ -158,7 +258,7 @@ class PlayViewModel(
             ColorChoice.BLACK -> PieceColor.BLACK
             ColorChoice.RANDOM -> if (kotlin.random.Random.nextBoolean()) PieceColor.WHITE else PieceColor.BLACK
         }
-        val initialTimeMs = s.timeControl.baseMillis
+        val initialTimeMs = s.effectiveBaseMillis
 
         _uiState.update {
             it.copy(
@@ -283,10 +383,22 @@ class PlayViewModel(
         _uiState.update { it.copy(isEngineThinking = true, hintFrom = null, hintTo = null, hintText = null) }
 
         botJob = viewModelScope.launch {
-            delay(220)
+            val startedAt = System.currentTimeMillis()
+            val targetDelayMs = kotlin.random.Random.nextLong(400L, 1201L)
+
+            val wasmEval = stockfishWasm?.playBotMoveWithSkill(fenBeforeBot, difficulty)
+            val evalRes = if (wasmEval != null && !wasmEval.bestUci.isNullOrBlank()) {
+                wasmEval
+            } else {
+                engine.playBotMove(fenBeforeBot, difficulty)
+            }
             if (tok != gameToken) return@launch
 
-            val evalRes = engine.playBotMove(fenBeforeBot, difficulty)
+            val elapsed = System.currentTimeMillis() - startedAt
+            val remainingPad = targetDelayMs - elapsed
+            if (remainingPad > 0L) {
+                delay(remainingPad)
+            }
             if (tok != gameToken) return@launch
 
             val legal = board.legalMoves()
@@ -360,7 +472,7 @@ class PlayViewModel(
             )
 
         // Apply increment to the side that just moved when playing a timed mode
-        val incMs = s.timeControl.incrementMillis
+        val incMs = s.effectiveIncrementMillis
         val nextWhiteMs = if (!over && incMs > 0L && lastMove.color == PieceColor.WHITE && s.whiteTimeMs != null) {
             s.whiteTimeMs + incMs
         } else s.whiteTimeMs
@@ -479,7 +591,13 @@ class PlayViewModel(
         liveEvalJob?.cancel()
         val targetFen = board.toFen()
         liveEvalJob = viewModelScope.launch {
-            val ev = engine.evaluateForLiveBar(targetFen)
+            val wasmEv = stockfishWasm?.evaluateMultiPv(
+                fen = targetFen,
+                depth = 10,
+                multiPv = 1,
+                timeLimitMs = 260L
+            )
+            val ev = wasmEv ?: engine.evaluateForLiveBar(targetFen)
             if (tok != gameToken) return@launch
             if (evalHistory.isNotEmpty()) {
                 evalHistory[evalHistory.lastIndex] = ev.cp
@@ -505,7 +623,17 @@ class PlayViewModel(
 
         hintJob?.cancel()
         hintJob = viewModelScope.launch {
-            val ev = engine.getHint(targetFen)
+            val wasmHint = stockfishWasm?.evaluateMultiPv(
+                fen = targetFen,
+                depth = 12,
+                multiPv = 3,
+                timeLimitMs = 550L
+            )
+            val ev = if (wasmHint != null && !wasmHint.bestUci.isNullOrBlank()) {
+                wasmHint
+            } else {
+                engine.getHint(targetFen)
+            }
             if (tok != gameToken) return@launch
             val bestUci = ev.bestUci
             if (bestUci == null || bestUci.length < 4) {
@@ -593,6 +721,37 @@ class PlayViewModel(
         return latest
     }
 
+    fun offerDraw() {
+        val s = _uiState.value
+        if (!s.inGame || s.isGameOver || s.isEngineThinking) return
+        val movesCount = s.sanMoves.size
+        // Bot accepts draw only if game has developed (>= 20 plies) and evaluation is roughly equal or bot is worse
+        val whiteSide = s.playerColor == PieceColor.WHITE
+        val botEvalAdvantage = if (whiteSide) -s.liveEvalCp else s.liveEvalCp
+        if (movesCount >= 20 && botEvalAdvantage <= 0.35 && s.liveEvalMate == null) {
+            cancelEngineJobs()
+            gameToken++
+            _uiState.update {
+                it.copy(
+                    isEngineThinking = false,
+                    isGameOver = true,
+                    isPlayerWin = null,
+                    resultString = "1/2-1/2",
+                    endMessage = "Draw agreed — Stockfish accepted your draw offer.",
+                    canTakeback = false
+                )
+            }
+            recordMatchOnce(playerWon = false)
+        } else {
+            val reason = if (movesCount < 20) {
+                "Stockfish declined the draw — play at least 10 moves first."
+            } else {
+                "Stockfish declined the draw offer and wants to play on."
+            }
+            _uiState.update { it.copy(hintText = reason) }
+        }
+    }
+
     fun resign() {
         val s = _uiState.value
         if (!s.inGame || s.isGameOver) return
@@ -618,7 +777,7 @@ class PlayViewModel(
         val botLabel = "Stockfish (${s.difficulty.label})"
         val white = if (s.playerColor == PieceColor.WHITE) s.playerName else botLabel
         val black = if (s.playerColor == PieceColor.BLACK) s.playerName else botLabel
-        copy.setHeader("Event", "Diggy Chess vs Stockfish (${s.difficulty.label})")
+        copy.setHeader("Event", "Chess Analyzer vs Stockfish (${s.difficulty.label})")
         copy.setHeader("White", white)
         copy.setHeader("Black", black)
         copy.setHeader("Result", s.resultString)
@@ -631,19 +790,33 @@ class PlayViewModel(
         val s = _uiState.value
         val pgn = buildFinishedPgn()
         val now = System.currentTimeMillis()
+        val botLabel = "Stockfish (${s.difficulty.label})"
+        val movesCount = (s.sanMoves.size + 1) / 2
         val summary = RecentPlayGameSummary(
             id = "play_$now",
-            title = "${s.playerName} vs Stockfish (${s.difficulty.label})",
+            title = "${s.playerName} vs $botLabel",
             result = s.resultString,
-            timeControlLabel = s.timeControl.label,
+            timeControlLabel = s.timeControlLabel,
             difficultyLabel = s.difficulty.label,
-            movesCount = (s.sanMoves.size + 1) / 2,
+            movesCount = movesCount,
             timestamp = now,
             pgn = pgn
         )
+        val evalSnapshot = evalHistory.toList()
         viewModelScope.launch {
             repo.recordBotGameResult(playerWon)
             repo.recordPlayGameSummary(summary)
+            firestoreSync?.syncBotGame(
+                gameId = summary.id,
+                title = summary.title,
+                opponent = botLabel,
+                result = s.resultString,
+                timestampMs = now,
+                plies = s.sanMoves.size,
+                moves = movesCount,
+                pgn = pgn,
+                evals = evalSnapshot
+            )
         }
     }
 

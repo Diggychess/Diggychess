@@ -2,20 +2,39 @@ package com.example.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.chess.StockfishWasmEngine
+import com.example.data.FirestoreGameSync
 import com.example.data.KnightScopeRepository
 
 class KnightScopeViewModelFactory(
     private val repo: KnightScopeRepository
 ) : ViewModelProvider.Factory {
+
+    private val sharedStockfishWasm: StockfishWasmEngine by lazy {
+        StockfishWasmEngine(repo.appContext)
+    }
+
+    private val sharedFirestoreSync: FirestoreGameSync by lazy {
+        FirestoreGameSync(repo.appContext)
+    }
+
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(HomeViewModel::class.java) ->
                 HomeViewModel(repo) as T
             modelClass.isAssignableFrom(PlayViewModel::class.java) ->
-                PlayViewModel(repo) as T
+                PlayViewModel(
+                    repo = repo,
+                    stockfishWasm = sharedStockfishWasm,
+                    firestoreSync = sharedFirestoreSync
+                ) as T
             modelClass.isAssignableFrom(AnalyzeViewModel::class.java) ->
-                AnalyzeViewModel(repo) as T
+                AnalyzeViewModel(
+                    repo = repo,
+                    stockfishWasm = sharedStockfishWasm,
+                    firestoreSync = sharedFirestoreSync
+                ) as T
             modelClass.isAssignableFrom(PuzzlesViewModel::class.java) ->
                 PuzzlesViewModel(repo) as T
             modelClass.isAssignableFrom(FriendsViewModel::class.java) ->

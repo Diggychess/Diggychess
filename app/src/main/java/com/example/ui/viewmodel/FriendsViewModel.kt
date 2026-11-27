@@ -80,7 +80,7 @@ data class FriendsUiState(
     val opponentWantsRematch: Boolean = false,
     val linkStatus: String = "",
     val canReconnect: Boolean = false,
-    val boardTheme: BoardTheme = BoardTheme.GOLD,
+    val boardTheme: BoardTheme = BoardTheme.GREEN,
     val animateMoves: Boolean = true,
     val pendingPromotion: Pair<String, String>? = null
 )
@@ -150,7 +150,7 @@ class FriendsViewModel(private val repo: KnightScopeRepository) : ViewModel() {
     fun createOnlineInvite() {
         val s = _uiState.value
         if (s.isCreatingOnlineInvite) return
-        val hostLabel = s.myName.trim().ifBlank { "Diggy Chess" }
+        val hostLabel = s.myName.trim().ifBlank { "Chess Analyzer" }
         viewModelScope.launch {
             _uiState.update {
                 it.copy(

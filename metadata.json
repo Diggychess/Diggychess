@@ -1,5 +1,5 @@
 {
-  "name": "Diggy Chess",
+  "name": "Chess Analyzer: AI Coach",
   "description": "Play, analyse, and master chess with Stockfish opponents, Chess.com & Lichess game review, tactical puzzles, and interactive lessons.",
   "requestFramePermissions": [],
   "majorCapabilities": [

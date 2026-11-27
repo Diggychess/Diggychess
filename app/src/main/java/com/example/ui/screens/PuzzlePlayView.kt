@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -49,6 +51,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.chess.ChessPiece
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
+import com.example.chess.PuzzleDifficultyFilter
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PuzzleMode
@@ -60,6 +63,7 @@ import kotlin.math.roundToInt
 @Composable
 fun PuzzlePlayView(
     state: PuzzlesUiState,
+    onSelectDifficultyFilter: (PuzzleDifficultyFilter) -> Unit,
     onSquareClick: (String) -> Unit,
     onSelectPromotion: (PieceType) -> Unit,
     onDismissPromotion: () -> Unit,
@@ -92,14 +96,20 @@ fun PuzzlePlayView(
         else -> TextPrimary
     }
 
-    val counterLabel = if (state.mode == PuzzleMode.RATED) {
-        "Rated puzzle"
-    } else {
-        "Puzzle ${state.queueIndex + 1} / ${state.queue.size}"
+    val counterLabel = when (state.mode) {
+        PuzzleMode.RATED -> "Rated puzzle"
+        PuzzleMode.DAILY -> "Daily Challenge · #${state.queueIndex + 1}"
+        else -> "Puzzle ${state.queueIndex + 1} / ${state.queue.size}"
     }
-    val progressFrac = if (state.queue.size > 1) {
-        ((state.queueIndex + 1).toFloat() / state.queue.size).coerceIn(0f, 1f)
-    } else 1f
+    val dailyGoal = state.dailyGoal.coerceAtLeast(1)
+    val dailySolvedClamped = state.dailySolvedToday.coerceAtMost(dailyGoal)
+    val dailyProgressTarget = (dailySolvedClamped.toFloat() / dailyGoal).coerceIn(0f, 1f)
+    val isDailyComplete = state.dailySolvedToday >= dailyGoal
+    val animatedDailyProgress by animateFloatAsState(
+        targetValue = dailyProgressTarget,
+        animationSpec = tween(durationMillis = 320),
+        label = "dailyChallengeHeaderProgress"
+    )
 
     val isCorrectFeedback = (state.correctMoveSquares.isNotEmpty() || state.isFinished) && !state.isTimedExpired
     val isWrongFeedback = state.isWrongMove && !state.isTimedExpired
@@ -137,7 +147,7 @@ fun PuzzlePlayView(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Header: Side to play + ELO
                 Surface(
-                    color = BgDark,
+                    color = CardSurfaceElevated,
                     shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, BorderSubtle),
                     modifier = Modifier.fillMaxWidth()
@@ -180,6 +190,7 @@ fun PuzzlePlayView(
                             )
                             Text(
                                 text = "${state.ratingState.rating.roundToInt()}",
+                                fontFamily = JetBrainsMonoFontFamily,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -188,6 +199,7 @@ fun PuzzlePlayView(
                                 val dText = (if (delta >= 0) "+" else "") + delta
                                 Text(
                                     text = " $dText",
+                                    fontFamily = JetBrainsMonoFontFamily,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (delta >= 0) FeedbackCorrectGreen else FeedbackDangerRed
@@ -197,52 +209,145 @@ fun PuzzlePlayView(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = counterLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        PuzzleStreakHeaderBadge(
-                            currentStreak = state.currentPuzzleStreak,
-                            bestStreak = state.bestPuzzleStreak,
-                            isNewBest = state.isNewBestStreak,
-                            milestoneReached = state.streakMilestoneReached
-                        )
-                        IconButton(
-                            onClick = onToggleFlip,
-                            modifier = Modifier.size(DiggySpacing.touchTargetMin)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 340.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = counterLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = onToggleFlip,
+                                    modifier = Modifier.size(DiggySpacing.touchTargetMin)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.SwapVert,
+                                        contentDescription = "Flip board",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                PuzzleStreakHeaderBadge(
+                                    currentStreak = state.currentPuzzleStreak,
+                                    isNewBest = state.isNewBestStreak,
+                                    milestoneReached = state.streakMilestoneReached
+                                )
+                                PuzzleBestStreakTrophyBadge(
+                                    bestStreak = state.bestPuzzleStreak,
+                                    isNewBest = state.isNewBestStreak
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Rounded.SwapVert,
-                                contentDescription = "Flip board",
-                                tint = TextMuted,
-                                modifier = Modifier.size(24.dp)
+                            Text(
+                                text = counterLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                PuzzleStreakHeaderBadge(
+                                    currentStreak = state.currentPuzzleStreak,
+                                    isNewBest = state.isNewBestStreak,
+                                    milestoneReached = state.streakMilestoneReached
+                                )
+                                PuzzleBestStreakTrophyBadge(
+                                    bestStreak = state.bestPuzzleStreak,
+                                    isNewBest = state.isNewBestStreak
+                                )
+                                IconButton(
+                                    onClick = onToggleFlip,
+                                    modifier = Modifier.size(DiggySpacing.touchTargetMin)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.SwapVert,
+                                        contentDescription = "Flip board",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                LinearProgressIndicator(
-                    progress = { progressFrac },
-                    color = AccentGreen,
-                    trackColor = BorderSubtle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(999.dp))
+                DailyChallengeHeaderProgressBar(
+                    solvedToday = dailySolvedClamped,
+                    dailyGoal = dailyGoal,
+                    isComplete = isDailyComplete,
+                    progress = animatedDailyProgress,
+                    isDailyMode = state.mode == PuzzleMode.DAILY
                 )
+
+                if (state.mode in setOf(PuzzleMode.DAILY, PuzzleMode.SET, PuzzleMode.RAND, PuzzleMode.TIMED)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .testTag("play_puzzle_difficulty_strip"),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        PuzzleDifficultyFilter.entries.forEach { filter ->
+                            val selected = state.difficultyFilter == filter
+                            val chipAccent = when (filter) {
+                                PuzzleDifficultyFilter.BEGINNER -> FeedbackCorrectGreen
+                                PuzzleDifficultyFilter.INTERMEDIATE -> StudioCyan
+                                PuzzleDifficultyFilter.ADVANCED -> TrophyGold
+                                PuzzleDifficultyFilter.ALL -> AccentGreen
+                            }
+                            Surface(
+                                onClick = {
+                                    val next = if (selected && filter != PuzzleDifficultyFilter.ALL) {
+                                        PuzzleDifficultyFilter.ALL
+                                    } else {
+                                        filter
+                                    }
+                                    onSelectDifficultyFilter(next)
+                                },
+                                shape = RoundedCornerShape(999.dp),
+                                color = if (selected) chipAccent.copy(alpha = 0.18f) else CardSurfaceElevated,
+                                border = BorderStroke(1.dp, if (selected) chipAccent else BorderSubtle),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("play_puzzle_diff_${filter.id}")
+                            ) {
+                                Text(
+                                    text = filter.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) chipAccent else TextMuted,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Interactive Board + Immediate Visual Feedback Overlay Container
                 Box(
@@ -286,6 +391,7 @@ fun PuzzlePlayView(
                             currentStreak = state.currentPuzzleStreak,
                             isNewBest = state.isNewBestStreak,
                             milestoneReached = state.streakMilestoneReached,
+                            justCompletedDaily = state.justCompletedDailyChallenge,
                             onUndo = onUndo
                         )
                     }
@@ -464,7 +570,10 @@ fun PuzzlePlayView(
                         )
                         Text(
                             text = "$mins:${secs.toString().padStart(2, '0')} · solved ${state.timedSolvedCount}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontFeatureSettings = "tnum"
+                            ),
                             fontWeight = FontWeight.SemiBold,
                             color = AccentGreen
                         )
@@ -544,7 +653,6 @@ fun PuzzlePlayView(
 @Composable
 private fun PuzzleStreakHeaderBadge(
     currentStreak: Int,
-    bestStreak: Int,
     isNewBest: Boolean,
     milestoneReached: Int?,
     modifier: Modifier = Modifier
@@ -574,7 +682,7 @@ private fun PuzzleStreakHeaderBadge(
         targetValue = when {
             isHotTier -> ClassMistake.copy(alpha = 0.20f)
             isActive -> AccentGreen.copy(alpha = 0.16f)
-            else -> BgDark
+            else -> CardSurfaceElevated
         },
         animationSpec = tween(220),
         label = "streakBadgeBg"
@@ -608,9 +716,7 @@ private fun PuzzleStreakHeaderBadge(
     )
 
     val a11yLabel = buildString {
-        append("Puzzle streak $currentStreak")
-        if (bestStreak > 0) append(", best streak $bestStreak")
-        if (isNewBest) append(", new personal best")
+        append("Current puzzle streak $currentStreak")
         if (milestoneReached != null) append(", milestone $milestoneReached")
     }
 
@@ -629,15 +735,15 @@ private fun PuzzleStreakHeaderBadge(
             .testTag("puzzle_streak_badge")
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Icon(
                 imageVector = Icons.Rounded.LocalFireDepartment,
                 contentDescription = null,
                 tint = flameTint,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(15.dp)
             )
             Text(
                 text = "$currentStreak",
@@ -646,45 +752,183 @@ private fun PuzzleStreakHeaderBadge(
                 color = countColor,
                 maxLines = 1
             )
-            when {
-                isNewBest && milestoneReached != null -> {
+            if (milestoneReached != null) {
+                Text(
+                    text = "★",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ClassMistake,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PuzzleBestStreakTrophyBadge(
+    bestStreak: Int,
+    isNewBest: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val trophyPulse = remember { Animatable(1f) }
+    var prevBest by remember { mutableIntStateOf(bestStreak) }
+
+    LaunchedEffect(bestStreak, isNewBest) {
+        if ((bestStreak > prevBest && bestStreak > 0) || isNewBest) {
+            trophyPulse.snapTo(1f)
+            trophyPulse.animateTo(
+                targetValue = 1.18f,
+                animationSpec = spring(dampingRatio = 0.45f, stiffness = 500f)
+            )
+            trophyPulse.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.65f, stiffness = 350f)
+            )
+        }
+        prevBest = bestStreak
+    }
+
+    val containerColor by animateColorAsState(
+        targetValue = when {
+            isNewBest -> TrophyGold.copy(alpha = 0.24f)
+            bestStreak > 0 -> TrophyGold.copy(alpha = 0.14f)
+            else -> CardSurfaceElevated
+        },
+        animationSpec = tween(220),
+        label = "bestStreakTrophyBg"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            isNewBest -> TrophyGold
+            bestStreak > 0 -> TrophyGold.copy(alpha = 0.60f)
+            else -> BorderSubtle
+        },
+        animationSpec = tween(220),
+        label = "bestStreakTrophyBorder"
+    )
+    val inkColor by animateColorAsState(
+        targetValue = if (isNewBest || bestStreak > 0) TrophyGold else TextMuted,
+        animationSpec = tween(220),
+        label = "bestStreakTrophyInk"
+    )
+
+    val a11yText = buildString {
+        append("Best streak $bestStreak")
+        if (isNewBest) append(", New Record")
+    }
+
+    Surface(
+        color = containerColor,
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(if (isNewBest) 1.5.dp else 1.dp, borderColor),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = trophyPulse.value
+                scaleY = trophyPulse.value
+            }
+            .semantics(mergeDescendants = true) {
+                contentDescription = a11yText
+            }
+            .testTag("puzzle_best_streak_badge")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.EmojiEvents,
+                contentDescription = null,
+                tint = inkColor,
+                modifier = Modifier.size(15.dp)
+            )
+            Text(
+                text = if (isNewBest) "Best $bestStreak · New Record!" else "Best $bestStreak",
+                fontFamily = JetBrainsMonoFontFamily,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = inkColor,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun DailyChallengeHeaderProgressBar(
+    solvedToday: Int,
+    dailyGoal: Int,
+    isComplete: Boolean,
+    progress: Float,
+    isDailyMode: Boolean
+) {
+    val barColor by animateColorAsState(
+        targetValue = if (isComplete) FeedbackCorrectGreen else AccentGreen,
+        animationSpec = tween(240),
+        label = "dailyHeaderBarColor"
+    )
+    Column(
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("puzzle_header_daily_progress")
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = if (isComplete) Icons.Rounded.CheckCircle else Icons.Rounded.Today,
+                    contentDescription = "Daily Challenge progress",
+                    tint = barColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = if (isDailyMode) "Daily Challenge" else "Daily Goal",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isComplete) FeedbackCorrectGreen else if (isDailyMode) AccentGreen else TextPrimary
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "$solvedToday / $dailyGoal solved",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isComplete) FeedbackCorrectGreen else TextMuted,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Surface(
+                    color = barColor.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(999.dp)
+                ) {
                     Text(
-                        text = "★ Best!",
+                        text = if (isComplete) "Complete!" else "${(progress * 100).roundToInt()}%",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = ClassMistake,
-                        maxLines = 1
-                    )
-                }
-                isNewBest -> {
-                    Text(
-                        text = "Best!",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ClassMistake,
-                        maxLines = 1
-                    )
-                }
-                milestoneReached != null -> {
-                    Text(
-                        text = "★ · Best $bestStreak",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary.copy(alpha = 0.85f),
-                        maxLines = 1
-                    )
-                }
-                bestStreak > 0 -> {
-                    Text(
-                        text = "· Best $bestStreak",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextMuted,
-                        maxLines = 1
+                        color = barColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
             }
         }
+        LinearProgressIndicator(
+            progress = { progress },
+            color = barColor,
+            trackColor = BorderSubtle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(999.dp))
+        )
     }
 }
 
@@ -696,6 +940,7 @@ private fun PuzzleMoveFeedbackOverlay(
     currentStreak: Int,
     isNewBest: Boolean,
     milestoneReached: Int?,
+    justCompletedDaily: Boolean,
     onUndo: () -> Unit
 ) {
     val containerColor = if (isWrong) FeedbackDangerRed.copy(alpha = 0.96f) else FeedbackCorrectGreen.copy(alpha = 0.96f)
@@ -731,6 +976,7 @@ private fun PuzzleMoveFeedbackOverlay(
                 Text(
                     text = when {
                         isWrong -> "Wrong Move — Try Again"
+                        isSolved && justCompletedDaily -> "Daily Goal Done! Next…"
                         isSolved -> "Solved! Next puzzle…"
                         else -> "Correct Move!"
                     },
@@ -777,13 +1023,13 @@ private fun PuzzleMoveFeedbackOverlay(
                 ) {
                     if (currentStreak > 0) {
                         val isHighlightedStreak = milestoneReached != null || isNewBest
-                        val streakPillBg = if (isHighlightedStreak) AccentGreen else Color.White.copy(alpha = 0.22f)
-                        val streakPillInk = if (isHighlightedStreak) OnAccentDark else Color.White
+                        val streakPillBg = if (isHighlightedStreak) TrophyGold else Color.White.copy(alpha = 0.22f)
+                        val streakPillInk = if (isHighlightedStreak) Color(0xFF1D1B18) else Color.White
                         val streakText = when {
+                            isNewBest && eloDelta == null -> "$currentStreak New Record!"
+                            isNewBest -> "$currentStreak Record"
                             milestoneReached != null && eloDelta == null -> "$currentStreak Milestone!"
                             milestoneReached != null -> "$currentStreak ★"
-                            isNewBest && eloDelta == null -> "$currentStreak Best!"
-                            isNewBest -> "$currentStreak Best"
                             eloDelta == null -> "$currentStreak Streak"
                             else -> "$currentStreak"
                         }
@@ -798,8 +1044,8 @@ private fun PuzzleMoveFeedbackOverlay(
                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.LocalFireDepartment,
-                                    contentDescription = "Puzzle streak $currentStreak",
+                                    imageVector = if (isNewBest) Icons.Rounded.EmojiEvents else Icons.Rounded.LocalFireDepartment,
+                                    contentDescription = if (isNewBest) "New record puzzle streak $currentStreak" else "Puzzle streak $currentStreak",
                                     tint = streakPillInk,
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -913,7 +1159,7 @@ private fun PuzzleHintDialog(
 
                 // Stage 1: Piece Clue Card
                 Surface(
-                    color = BgDark,
+                    color = CardSurfaceElevated,
                     shape = RoundedCornerShape(DiggySpacing.controlRadius),
                     border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.45f)),
                     modifier = Modifier.fillMaxWidth()
@@ -951,7 +1197,7 @@ private fun PuzzleHintDialog(
                 // Stage 2: Target Square & Line
                 if (state.hintLevel < 2) {
                     Surface(
-                        color = BgDark.copy(alpha = 0.7f),
+                        color = CardSurfaceElevated,
                         shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()

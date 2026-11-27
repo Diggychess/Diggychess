@@ -75,7 +75,10 @@ fun OpeningTrainerScreen(
                     )
                     Text(
                         text = "${state.streak}",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
+                            fontFeatureSettings = "tnum"
+                        ),
                         fontWeight = FontWeight.Bold,
                         color = AccentGreen
                     )
@@ -115,7 +118,10 @@ fun OpeningTrainerScreen(
                     }
                     Text(
                         text = "${state.stepIndex} / ${state.totalSteps}",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
+                            fontFeatureSettings = "tnum"
+                        ),
                         color = AccentGreen,
                         fontWeight = FontWeight.Bold
                     )
@@ -161,7 +167,7 @@ fun OpeningTrainerScreen(
 
                 if (state.coachNote.isNotEmpty()) {
                     Surface(
-                        color = BgDark,
+                        color = CardSurfaceElevated,
                         shape = RoundedCornerShape(DiggySpacing.controlRadius),
                         border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
@@ -175,35 +181,72 @@ fun OpeningTrainerScreen(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DiggyButton(
-                        text = "Hint",
-                        onClick = onHint,
-                        enabled = !state.isLineComplete,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.AutoMirrored.Rounded.HelpOutline,
-                        testTag = "trainer_hint",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Restart",
-                        onClick = onRestart,
-                        variant = DiggyButtonVariant.OUTLINED,
-                        icon = Icons.Rounded.Replay,
-                        testTag = "trainer_restart",
-                        modifier = Modifier.weight(1f)
-                    )
-                    DiggyButton(
-                        text = "Next Line",
-                        onClick = onNextRepertoire,
-                        variant = DiggyButtonVariant.PRIMARY,
-                        icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                        testTag = "trainer_next",
-                        modifier = Modifier.weight(1f)
-                    )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    if (maxWidth < 360.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DiggyButton(
+                                    text = "Hint",
+                                    onClick = onHint,
+                                    enabled = !state.isLineComplete,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                                    testTag = "trainer_hint",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DiggyButton(
+                                    text = "Restart",
+                                    onClick = onRestart,
+                                    variant = DiggyButtonVariant.OUTLINED,
+                                    icon = Icons.Rounded.Replay,
+                                    testTag = "trainer_restart",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            DiggyButton(
+                                text = "Next Line",
+                                onClick = onNextRepertoire,
+                                variant = DiggyButtonVariant.PRIMARY,
+                                icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                testTag = "trainer_next",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DiggyButton(
+                                text = "Hint",
+                                onClick = onHint,
+                                enabled = !state.isLineComplete,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.AutoMirrored.Rounded.HelpOutline,
+                                testTag = "trainer_hint",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Restart",
+                                onClick = onRestart,
+                                variant = DiggyButtonVariant.OUTLINED,
+                                icon = Icons.Rounded.Replay,
+                                testTag = "trainer_restart",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DiggyButton(
+                                text = "Next Line",
+                                onClick = onNextRepertoire,
+                                variant = DiggyButtonVariant.PRIMARY,
+                                icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                testTag = "trainer_next",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                 }
             }
         }
