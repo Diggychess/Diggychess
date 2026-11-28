@@ -12,7 +12,7 @@ data class KnightScopeColors(
     val surface: Color,
     val card: Color,
     val cardElevated: Color,
-    val accentGreen: Color,       // Chess.com-inspired Emerald Green (#7FA650)
+    val accentGreen: Color,       // Primary green accent (#81B64C)
     val accentGreenHover: Color,  // Bright Emerald highlight
     val accentGreenDark: Color,   // Tactile 3D button lip & container shade
     val studioCyan: Color,        // Semantic Info Blue
@@ -23,20 +23,23 @@ data class KnightScopeColors(
     val textDisabled: Color,      // Disabled text
     val borderSubtle: Color,      // Hairline border
     val lineSubtle: Color,
-    val success: Color,           // #7FA650
+    val success: Color,           // #81B64C
     val danger: Color,            // Error / Blunder red
+    val lightGreen: Color = Color(0xFFE8F0DF),
+    val softGrey: Color = Color(0xFFF0F2EF),
+    val lightBlue: Color = Color(0xFFEAF1F7),
     val matteDark: Color = Color(0xFF18181B),
     val matteDarkSecondary: Color = Color(0xFF1F2937),
     val onMatteDark: Color = Color(0xFFFFFFFF),
     val onMatteDarkMuted: Color = Color(0xFFA1A1AA),
     val matteDarkBorder: Color = Color(0xFF27272A),
     val inputBg: Color = Color(0xFFFFFFFF),
-    val inputText: Color = Color(0xFF111827),
-    val inputHint: Color = Color(0xFF6B7280),
-    val inputBorder: Color = Color(0xFFD1D5DB)
+    val inputText: Color = Color(0xFF25332B),
+    val inputHint: Color = Color(0xFF76847B),
+    val inputBorder: Color = Color(0xFFD2D8CF)
 )
 
-// Optional Dark Mode Palette (Settings Dark Theme toggle) — aligned to Matte #18181B / #1F2937 / #7FA650
+// Optional Dark Mode Palette (Settings Dark Theme toggle) — aligned to Matte #18181B / #1F2937 / #81B64C
 val DarkStudioPalette = KnightScopeColors(
     isDark = true,
     bg = Color(0xFF111114),
@@ -44,9 +47,9 @@ val DarkStudioPalette = KnightScopeColors(
     surface = Color(0xFF18181B),
     card = Color(0xFF18181B),
     cardElevated = Color(0xFF1F2937),
-    accentGreen = Color(0xFF7FA650),
-    accentGreenHover = Color(0xFF93BA64),
-    accentGreenDark = Color(0xFF5D7D37),
+    accentGreen = Color(0xFF81B64C),
+    accentGreenHover = Color(0xFF93C45E),
+    accentGreenDark = Color(0xFF659635),
     studioCyan = Color(0xFF60A5FA),
     trophyGold = Color(0xFFF5C542),
     onAccent = Color(0xFFFFFFFF),
@@ -55,8 +58,11 @@ val DarkStudioPalette = KnightScopeColors(
     textDisabled = Color(0xFF71717A),
     borderSubtle = Color(0xFF27272A),
     lineSubtle = Color(0xFF27272A),
-    success = Color(0xFF7FA650),
+    success = Color(0xFF81B64C),
     danger = Color(0xFFEF4444),
+    lightGreen = Color(0xFF233527),
+    softGrey = Color(0xFF1F2937),
+    lightBlue = Color(0xFF1E293B),
     matteDark = Color(0xFF18181B),
     matteDarkSecondary = Color(0xFF1F2937),
     onMatteDark = Color(0xFFFFFFFF),
@@ -68,36 +74,39 @@ val DarkStudioPalette = KnightScopeColors(
     inputBorder = Color(0xFFD1D5DB)
 )
 
-// Default Premium Studio Palette (#F4F5F7 Canvas, #FFFFFF Cards, #18181B Matte Dark Cards, #7FA650 Green)
+// Default Premium Light Palette (#F5F7F5 Canvas, #FFFFFF Cards, #E8F0DF Light Green, #F0F2EF Soft Grey, #EAF1F7 Light Blue, #81B64C Green, #25332B Text)
 val LightClassicPalette = KnightScopeColors(
     isDark = false,
-    bg = Color(0xFFF4F5F7),
-    bgRadialTop = Color(0xFFF4F5F7),
+    bg = Color(0xFFF5F7F5),
+    bgRadialTop = Color(0xFFF5F7F5),
     surface = Color(0xFFFFFFFF),
     card = Color(0xFFFFFFFF),
-    cardElevated = Color(0xFFEEF0F3),
-    accentGreen = Color(0xFF7FA650),
-    accentGreenHover = Color(0xFF90B860),
-    accentGreenDark = Color(0xFF5F8038),
+    cardElevated = Color(0xFFF0F2EF),
+    accentGreen = Color(0xFF81B64C),
+    accentGreenHover = Color(0xFF93C45E),
+    accentGreenDark = Color(0xFF659635),
     studioCyan = Color(0xFF2563EB),
     trophyGold = Color(0xFFD97706),
     onAccent = Color(0xFFFFFFFF),
-    textPrimary = Color(0xFF111827),
-    textMuted = Color(0xFF4B5563),
-    textDisabled = Color(0xFF9CA3AF),
-    borderSubtle = Color(0xFFE5E7EB),
-    lineSubtle = Color(0xFFE5E7EB),
-    success = Color(0xFF7FA650),
+    textPrimary = Color(0xFF25332B),
+    textMuted = Color(0xFF526157),
+    textDisabled = Color(0xFF8A998F),
+    borderSubtle = Color(0xFFE2E6E1),
+    lineSubtle = Color(0xFFE2E6E1),
+    success = Color(0xFF81B64C),
     danger = Color(0xFFDC2626),
-    matteDark = Color(0xFF18181B),
-    matteDarkSecondary = Color(0xFF1F2937),
-    onMatteDark = Color(0xFFFFFFFF),
-    onMatteDarkMuted = Color(0xFFA1A1AA),
-    matteDarkBorder = Color(0xFF27272A),
+    lightGreen = Color(0xFFE8F0DF),
+    softGrey = Color(0xFFF0F2EF),
+    lightBlue = Color(0xFFEAF1F7),
+    matteDark = Color(0xFFFFFFFF),
+    matteDarkSecondary = Color(0xFFE8F0DF),
+    onMatteDark = Color(0xFF25332B),
+    onMatteDarkMuted = Color(0xFF526157),
+    matteDarkBorder = Color(0xFFD6E4C8),
     inputBg = Color(0xFFFFFFFF),
-    inputText = Color(0xFF111827),
-    inputHint = Color(0xFF6B7280),
-    inputBorder = Color(0xFFD1D5DB)
+    inputText = Color(0xFF25332B),
+    inputHint = Color(0xFF76847B),
+    inputBorder = Color(0xFFD2D8CF)
 )
 
 val LocalKnightScopeColors = staticCompositionLocalOf { LightClassicPalette }
@@ -108,6 +117,9 @@ val BgRadialTop: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeC
 val SurfaceDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.surface
 val CardDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.card
 val CardSurfaceElevated: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.cardElevated
+val LightGreenSurface: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.lightGreen
+val SoftGreySurface: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.softGrey
+val LightBlueSurface: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.lightBlue
 
 val AccentGreen: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.accentGreen
 val AccentGreenHover: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.accentGreenHover

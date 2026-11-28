@@ -290,6 +290,9 @@ class UiRedesignBoundsTest {
         assertNodeWithinRootWidth("eval_graph")
         assertNodeWithinRootWidth("ai_game_report_card")
         assertNodeWithinRootWidth("ask_ai_coach_chat_card")
+
+        // Confirm Top 3 Engine Moves section is removed from the UI
+        composeRule.onNodeWithTag("multipv_line_1").assertDoesNotExist()
     }
 
     @Test
@@ -692,7 +695,7 @@ class UiRedesignBoundsTest {
         composeRule.waitForIdle()
 
         assertFalse("Default palette should be LightClassicPalette", capturedIsDark)
-        assertEquals(0xFFF4F5F7.toInt(), capturedBgArgb)
+        assertEquals(0xFFF5F7F5.toInt(), capturedBgArgb)
         assertNodeWithinRootWidth("settings_dark_mode_switch")
         assertNodeWithinRootWidth("settings_theme_selector")
         assertNodeWithinRootWidth("settings_groq_key_input")

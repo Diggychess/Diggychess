@@ -445,7 +445,7 @@ private fun BoardAndMoveCard(
                 onUseOfflineMoveInsight = onUseOfflineMoveInsight
             )
 
-            // Multi-PV Top 3 Engine Lines & Variation Explorer
+            // Compact Variation Explorer (Shown only when exploring board moves; Top 3 Engine Moves removed)
             MultiPvLinesCard(
                 lines = plyLiveLines,
                 isLoading = isLoadingPlyLines,

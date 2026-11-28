@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -275,8 +276,8 @@ fun HomeScreen(
     ) {
         AnimatedVisibility(
             visible = contentVisible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 260)) +
-                slideInVertically(animationSpec = tween(durationMillis = 260)) { it / 28 }
+            enter = fadeIn(animationSpec = tween(durationMillis = 280)) +
+                slideInVertically(animationSpec = tween(durationMillis = 280)) { it / 32 }
         ) {
             Column(
                 modifier = modifier
@@ -285,12 +286,12 @@ fun HomeScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = DiggySpacing.md, vertical = 14.dp)
                     .testTag("home_screen_root"),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Matte Dark Hero Card (#18181B)
+                // 1. Premium 3D Gaming Knight Hero Card
                 HomeHeroCard()
 
-                // 2. White Chessboard & Stats Preview Card (#FFFFFF)
+                // 2. Chessboard & Stats Preview Card
                 HomePreviewCard(
                     data = previewData,
                     onClick = {
@@ -302,7 +303,7 @@ fun HomeScreen(
                     }
                 )
 
-                // 3. Dark Matte Combined Action Card (#18181B) with White Inputs & #7FA650 CTA
+                // 3. Main Action Card (Username Search + PGN Review)
                 HomeMainActionCard(
                     selectedPlatform = selectedPlatform,
                     onSelectPlatform = { selectedPlatform = it },
@@ -400,7 +401,7 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -408,88 +409,142 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHeroCard() {
-    DiggyCard(
-        darkMatte = true,
-        elevated = false,
-        borderColor = MatteDarkBorder,
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+    val isDark = LocalKnightScopeColors.current.isDark
+    Surface(
+        color = if (isDark) MatteDarkCard else LightGreenSurface,
+        shape = RoundedCornerShape(DiggySpacing.cardRadius),
+        border = BorderStroke(1.2.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8)),
+        shadowElevation = if (isDark) 6.dp else 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("home_header")
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    color = MatteDarkSecondary,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MatteDarkBorder)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_piece_wn),
-                        contentDescription = "Chess Analyzer knight emblem",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(24.dp)
+            // Background 3D Knight Artwork with Gradient Scrim
+            Image(
+                painter = painterResource(id = R.drawable.img_knight_hero_3d),
+                contentDescription = "3D Chess Knight Hero Artwork",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.35f),
+                                Color.Black.copy(alpha = 0.78f)
+                            )
+                        )
                     )
-                }
-                Text(
-                    text = "CHESS ANALYZER",
-                    fontFamily = NunitoFontFamily,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp,
-                    letterSpacing = 0.8.sp,
-                    color = OnMatteDark,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            )
 
-            Surface(
-                color = AccentGreen,
-                shape = RoundedCornerShape(999.dp)
+            // Foreground Content Layout
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
-                    modifier = Modifier
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                        .testTag("home_tagline_pill"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = OnAccentDark,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.6f))
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_piece_wn),
+                                contentDescription = "Knight emblem",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .padding(5.dp)
+                                    .size(20.dp)
+                            )
+                        }
+                        Text(
+                            text = "CHESS ANALYZER",
+                            fontFamily = InterFontFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            letterSpacing = 1.2.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+
+                    Surface(
+                        color = TrophyGold.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(999.dp),
+                        border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = "PRO 3D",
+                            fontFamily = InterFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = TrophyGold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(
+                        color = AccentGreen,
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
+                                .testTag("home_tagline_pill"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "Analyse your chess with AI",
+                                fontFamily = InterFontFamily,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
                     Text(
-                        text = "Analyse your chess with AI",
+                        text = "Stockfish 19 Engine with an AI Coach",
                         fontFamily = InterFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
-                        color = OnAccentDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.testTag("home_hero_subtitle")
                     )
                 }
             }
-
-            Text(
-                text = "Stockfish 19 Engine with an AI Coach",
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 13.5.sp,
-                color = OnMatteDarkMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.testTag("home_hero_subtitle")
-            )
         }
     }
 }
@@ -511,7 +566,7 @@ private fun HomePreviewCard(
         color = CardDark,
         shape = RoundedCornerShape(DiggySpacing.cardRadius),
         border = BorderStroke(1.dp, BorderSubtle),
-        shadowElevation = 3.dp,
+        shadowElevation = 4.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -638,9 +693,9 @@ private fun HomePreviewCard(
 
             // AI Coach tip banner
             Surface(
-                color = CardSurfaceElevated,
+                color = if (LocalKnightScopeColors.current.isDark) CardSurfaceElevated else LightBlueSurface,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderSubtle),
+                border = BorderStroke(1.dp, if (LocalKnightScopeColors.current.isDark) BorderSubtle else Color(0xFFCCE0F0)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -652,13 +707,13 @@ private fun HomePreviewCard(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(MatteDarkCard),
+                            .background(if (LocalKnightScopeColors.current.isDark) CardDark else Color.White),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SmartToy,
                             contentDescription = "AI Coach",
-                            tint = OnMatteDark,
+                            tint = if (LocalKnightScopeColors.current.isDark) OnMatteDark else AccentGreen,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -827,9 +882,9 @@ private fun HomeMainActionCard(
     onAnalyseClick: () -> Unit
 ) {
     DiggyCard(
-        darkMatte = true,
+        darkMatte = LocalKnightScopeColors.current.isDark,
         elevated = false,
-        borderColor = MatteDarkBorder,
+        borderColor = if (LocalKnightScopeColors.current.isDark) MatteDarkBorder else BorderSubtle,
         contentPadding = PaddingValues(16.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -847,8 +902,8 @@ private fun HomeMainActionCard(
                         Text(
                             text = "Search by Username",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OnMatteDark
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
                         )
                         PlatformPillToggle(
                             selectedPlatform = selectedPlatform,
@@ -865,8 +920,8 @@ private fun HomeMainActionCard(
                         Text(
                             text = "Search by Username",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OnMatteDark,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
@@ -881,9 +936,9 @@ private fun HomeMainActionCard(
                 }
             }
 
-            // Crisp White Username Input Box with Dark Text
+            // Username Input Box
             Surface(
-                color = Color.White,
+                color = InputBg,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
@@ -907,7 +962,7 @@ private fun HomeMainActionCard(
                                 text = "Enter ${selectedPlatform.label} username...",
                                 fontFamily = InterFontFamily,
                                 fontSize = 13.5.sp,
-                                color = Color(0xFF6B7280),
+                                color = InputHint,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -919,7 +974,7 @@ private fun HomeMainActionCard(
                             textStyle = TextStyle(
                                 fontFamily = InterFontFamily,
                                 fontSize = 14.sp,
-                                color = Color(0xFF111827)
+                                color = InputText
                             ),
                             cursorBrush = SolidColor(AccentGreen),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -945,7 +1000,7 @@ private fun HomeMainActionCard(
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Search ${selectedPlatform.label} username",
-                            tint = Color(0xFF111827),
+                            tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -958,24 +1013,24 @@ private fun HomeMainActionCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalDivider(
-                    color = MatteDarkBorder,
+                    color = LineSubtle,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "OR",
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     letterSpacing = 0.8.sp,
-                    color = OnMatteDarkMuted,
+                    color = TextMuted,
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
                 HorizontalDivider(
-                    color = MatteDarkBorder,
+                    color = LineSubtle,
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            // Bottom Section: "Review your game" + White PGN Textarea
+            // Bottom Section: "Review your game" + PGN Textarea
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -988,24 +1043,25 @@ private fun HomeMainActionCard(
                     Text(
                         text = "Review your game",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = OnMatteDark
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
                     )
                     Text(
                         text = "Paste a PGN to start",
                         style = MaterialTheme.typography.bodySmall,
-                        color = OnMatteDarkMuted
+                        color = TextMuted
                     )
                 }
+                val isDark = LocalKnightScopeColors.current.isDark
                 Surface(
-                    color = MatteDarkSecondary,
+                    color = if (isDark) MatteDarkSecondary else LightGreenSurface,
                     shape = RoundedCornerShape(999.dp),
-                    border = BorderStroke(1.dp, MatteDarkBorder)
+                    border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8))
                 ) {
                     Text(
                         text = "SF 19 + AI",
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         color = AccentGreen,
                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                     )
@@ -1013,7 +1069,7 @@ private fun HomeMainActionCard(
             }
 
             Surface(
-                color = Color.White,
+                color = InputBg,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
@@ -1030,7 +1086,7 @@ private fun HomeMainActionCard(
                             text = "1. e4 e5 2. Nf3 Nc6 ...",
                             fontFamily = JetBrainsMonoFontFamily,
                             fontSize = 13.sp,
-                            color = Color(0xFF6B7280)
+                            color = InputHint
                         )
                     }
                     BasicTextField(
@@ -1040,7 +1096,7 @@ private fun HomeMainActionCard(
                             fontFamily = JetBrainsMonoFontFamily,
                             fontSize = 13.5.sp,
                             lineHeight = 20.sp,
-                            color = Color(0xFF111827)
+                            color = InputText
                         ),
                         cursorBrush = SolidColor(AccentGreen),
                         modifier = Modifier
@@ -1056,11 +1112,11 @@ private fun HomeMainActionCard(
                     text = errorText,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFFFCA5A5)
+                    color = FeedbackDangerRed
                 )
             }
 
-            // Primary Green #7FA650 CTA Button
+            // Primary Green #81B64C CTA Button
             DiggyButton(
                 text = "Analyse Game",
                 onClick = onAnalyseClick,
@@ -1078,10 +1134,11 @@ private fun PlatformPillToggle(
     onSelectPlatform: (ChessPlatform) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = LocalKnightScopeColors.current.isDark
     Surface(
-        color = MatteDarkSecondary,
+        color = if (isDark) MatteDarkSecondary else SoftGreySurface,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
-        border = BorderStroke(1.dp, MatteDarkBorder),
+        border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else BorderSubtle),
         modifier = modifier.testTag("home_platform_toggle_row")
     ) {
         Row(
@@ -1105,9 +1162,10 @@ private fun PlatformPillToggle(
                     ) {
                         Text(
                             text = platform.label,
+                            fontFamily = InterFontFamily,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) OnAccentDark else OnMatteDarkMuted,
+                            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                            color = if (selected) Color.White else TextMuted,
                             maxLines = 1
                         )
                     }
