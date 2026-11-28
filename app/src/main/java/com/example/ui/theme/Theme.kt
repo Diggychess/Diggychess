@@ -71,7 +71,7 @@ private val KnightScopeShapes = Shapes(
 
 @Composable
 fun KnightScopeTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = true,
     pieceAnimations: Boolean = true,
     pieceStyle: PieceStyle = PieceStyle.NEO,
     board3dEnabled: Boolean = false,
@@ -79,8 +79,8 @@ fun KnightScopeTheme(
     hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val palette = if (darkTheme) DarkStudioPalette else LightClassicPalette
-    val colorScheme = if (darkTheme) KnightScopeDarkColorScheme else KnightScopeLightColorScheme
+    val palette = DarkStudioPalette
+    val colorScheme = KnightScopeDarkColorScheme
 
     CompositionLocalProvider(
         LocalKnightScopeColors provides palette,

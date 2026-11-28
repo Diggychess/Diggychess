@@ -4,8 +4,13 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -28,8 +33,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
@@ -45,10 +57,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -61,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.audio.rememberChessFeedback
 import com.example.chess.ChessBoard
 import com.example.chess.ChessPlatform
 import com.example.chess.GameAnalysisResult
@@ -84,8 +100,8 @@ private val PreviewBoardLight = Color(0xFFEEEED2)
 private val PreviewBoardDark = Color(0xFF769656)
 private val PreviewHighlightYellow = Color(0x8CF5C542)
 private val PreviewArrowYellow = Color(0xFFF5C542)
-private val PreviewDotBest = Color(0xFF7FA650)
-private val PreviewDotMistake = Color(0xFFF5A623)
+private val PreviewDotBest = Color(0xFF81B64C)
+private val PreviewDotMistake = Color(0xFFE6912C)
 private val PreviewDotBlunder = Color(0xFFCA3431)
 
 private data class HomePreviewData(
@@ -181,6 +197,13 @@ fun HomeScreen(
     onOpenPlatformImporter: () -> Unit,
     onTrySample: () -> Unit,
     onOpenLatestAnalysis: () -> Unit,
+    onNavigatePlay: () -> Unit = {},
+    onNavigatePuzzles: () -> Unit = {},
+    onNavigateExplorer: () -> Unit = {},
+    onNavigateTrainer: () -> Unit = {},
+    onNavigateLessons: () -> Unit = {},
+    onNavigateFriends: () -> Unit = {},
+    onNavigateHistory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -273,36 +296,42 @@ fun HomeScreen(
             .background(BgDark),
         contentAlignment = Alignment.TopCenter
     ) {
+        // Subtle Chessboard Atmospheric Background Texture
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val sq = 56.dp.toPx()
+            val cols = (size.width / sq).toInt() + 1
+            val rows = (size.height / sq).toInt() + 1
+            for (r in 0 until rows) {
+                for (c in 0 until cols) {
+                    if ((r + c) % 2 == 0) {
+                        drawRect(
+                            color = Color.White.copy(alpha = 0.025f),
+                            topLeft = Offset(c * sq, r * sq),
+                            size = Size(sq, sq)
+                        )
+                    }
+                }
+            }
+        }
+
         AnimatedVisibility(
             visible = contentVisible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 260)) +
-                slideInVertically(animationSpec = tween(durationMillis = 260)) { it / 28 }
+            enter = fadeIn(animationSpec = tween(durationMillis = 280)) +
+                slideInVertically(animationSpec = tween(durationMillis = 280)) { it / 28 }
         ) {
             Column(
                 modifier = modifier
                     .fillMaxWidth()
-                    .widthIn(max = 620.dp)
+                    .widthIn(max = 640.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = DiggySpacing.md, vertical = 14.dp)
                     .testTag("home_screen_root"),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Chess.com Inspired Light Hero Card (#E8F0DF)
-                HomeHeroCard()
+                // 1. Hero Header Banner with 3D Knight Artwork
+                ChessComAnalyzerHeroCard()
 
-                // 2. White Chessboard & Stats Preview Card (#FFFFFF)
-                HomePreviewCard(
-                    data = previewData,
-                    onClick = {
-                        if (previewData.isLiveGameData) {
-                            onOpenLatestAnalysis()
-                        } else {
-                            onTrySample()
-                        }
-                    }
-                )
-
-                // 3. Combined Action Card (Username Search + PGN Review)
+                // 2. Primary AI Analyzer Card AT THE TOP (Username Search + PGN Input + Analyse CTA)
                 HomeMainActionCard(
                     selectedPlatform = selectedPlatform,
                     onSelectPlatform = { selectedPlatform = it },
@@ -322,7 +351,7 @@ fun HomeScreen(
                     onAnalyseClick = ::submitPrimaryAction
                 )
 
-                // 4. Responsive Quick Action Buttons: Upload PGN, Share, Try Sample
+                // 3. Responsive Quick Action Strip: Upload PGN, Share, Try Sample
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                     if (maxWidth < 400.dp) {
                         Column(
@@ -400,99 +429,305 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                // 4. Chess.com Style "Game Review" Showcase Card
+                HomePreviewCard(
+                    data = previewData,
+                    onClick = {
+                        if (previewData.isLiveGameData) {
+                            onOpenLatestAnalysis()
+                        } else {
+                            onTrySample()
+                        }
+                    }
+                )
+
+                // 5. Chess.com Style "Play & Train" Navigation Grid
+                ChessComExploreGrid(
+                    onPlay = onNavigatePlay,
+                    onPuzzles = onNavigatePuzzles,
+                    onExplorer = onNavigateExplorer,
+                    onTrainer = onNavigateTrainer,
+                    onLessons = onNavigateLessons,
+                    onFriends = onNavigateFriends,
+                    onHistory = onNavigateHistory,
+                    onSample = onTrySample
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
 }
 
 @Composable
-private fun HomeHeroCard() {
-    val isDark = LocalKnightScopeColors.current.isDark
+private fun ChessComAnalyzerHeroCard() {
+    val infiniteTransition = rememberInfiniteTransition(label = "heroKnightFloat")
+    val knightFloat by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "knightFloatY"
+    )
+
     Surface(
-        color = if (isDark) MatteDarkCard else LightGreenSurface,
-        shape = RoundedCornerShape(DiggySpacing.cardRadius),
-        border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8)),
-        shadowElevation = if (isDark) 4.dp else 2.dp,
+        color = Color(0xFF211F1C),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Color(0xFF45423D)),
+        shadowElevation = 6.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("home_header")
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    color = if (isDark) MatteDarkSecondary else Color.White,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8))
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_piece_wn),
-                        contentDescription = "Chess Analyzer knight emblem",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(24.dp)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Image(
+                painter = painterResource(id = R.drawable.img_knight_hero_3d),
+                contentDescription = "3D Chess Knight Hero",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        translationY = knightFloat
+                        scaleX = 1.04f
+                        scaleY = 1.04f
+                    }
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xC81D1B18),
+                                Color(0xEB211F1C)
+                            )
+                        )
                     )
-                }
-                Text(
-                    text = "CHESS ANALYZER",
-                    fontFamily = InterFontFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
-                    letterSpacing = 0.8.sp,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            )
 
-            Surface(
-                color = AccentGreen,
-                shape = RoundedCornerShape(999.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                        .testTag("home_tagline_pill"),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Surface(
+                        color = AccentGreen.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.55f))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_piece_wn),
+                            contentDescription = "Chess Analyzer emblem",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(24.dp)
+                        )
+                    }
                     Text(
-                        text = "Analyse your chess with AI",
-                        fontFamily = InterFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 12.5.sp,
+                        text = "CHESS ANALYZER",
+                        fontFamily = CinzelFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        letterSpacing = 0.9.sp,
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
 
+                Surface(
+                    color = AccentGreen,
+                    shape = RoundedCornerShape(999.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .testTag("home_tagline_pill"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Analyse your chess with AI",
+                            fontFamily = InterFontFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Stockfish 19 Engine with an AI Coach",
+                    fontFamily = InterFontFamily,
+                    fontSize = 13.5.sp,
+                    color = Color(0xFFC8C5BE),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.testTag("home_hero_subtitle")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChessComExploreGrid(
+    onPlay: () -> Unit,
+    onPuzzles: () -> Unit,
+    onExplorer: () -> Unit,
+    onTrainer: () -> Unit,
+    onLessons: () -> Unit,
+    onFriends: () -> Unit,
+    onHistory: () -> Unit,
+    onSample: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "Stockfish 19 Engine with an AI Coach",
-                fontFamily = InterFontFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 13.5.sp,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.testTag("home_hero_subtitle")
+                text = "Play & Train",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
             )
+            Text(
+                text = "All Modes",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentGreen
+            )
+        }
+
+        val tiles = listOf(
+            HomeExploreTileData("Play Bot", "Stockfish Levels", Icons.Rounded.SmartToy, AccentGreen, "home_tile_play", onPlay),
+            HomeExploreTileData("Puzzles", "Daily & Tactics", Icons.Rounded.Extension, TrophyGold, "home_tile_puzzles", onPuzzles),
+            HomeExploreTileData("Openings", "Master DB & Lines", Icons.Rounded.Explore, ClassBrilliant, "home_tile_explorer", onExplorer),
+            HomeExploreTileData("Drill", "Opening Trainer", Icons.Rounded.FitnessCenter, ClassMistake, "home_tile_trainer", onTrainer),
+            HomeExploreTileData("Lessons", "Guided Tactics", Icons.Rounded.School, StudioCyan, "home_tile_lessons", onLessons),
+            HomeExploreTileData("Friends", "Online & Wi-Fi", Icons.Rounded.Group, Color(0xFFA855F7), "home_tile_friends", onFriends),
+            HomeExploreTileData("History", "Saved Reviews", Icons.Rounded.History, ClassGood, "home_tile_history", onHistory),
+            HomeExploreTileData("Sample", "Quick Demo", Icons.Rounded.PlayArrow, TrophyGold, "home_tile_sample", onSample)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            tiles.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    pair.forEach { item ->
+                        ChessComModeTile(
+                            data = item,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class HomeExploreTileData(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val accent: Color,
+    val testTag: String,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun ChessComModeTile(
+    data: HomeExploreTileData,
+    modifier: Modifier = Modifier
+) {
+    val feedback = rememberChessFeedback()
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "tileScale"
+    )
+
+    Surface(
+        onClick = {
+            feedback.onTap()
+            data.onClick()
+        },
+        interactionSource = interactionSource,
+        color = CardDark,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, BorderSubtle),
+        shadowElevation = 2.dp,
+        modifier = modifier
+            .heightIn(min = 66.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .testTag(data.testTag)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(data.accent.copy(alpha = 0.16f))
+                    .border(1.dp, data.accent.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = data.icon,
+                    contentDescription = data.title,
+                    tint = data.accent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text(
+                    text = data.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = data.subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -502,6 +737,7 @@ private fun HomePreviewCard(
     data: HomePreviewData,
     onClick: () -> Unit
 ) {
+    val feedback = rememberChessFeedback()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -514,7 +750,7 @@ private fun HomePreviewCard(
         color = CardDark,
         shape = RoundedCornerShape(DiggySpacing.cardRadius),
         border = BorderStroke(1.dp, BorderSubtle),
-        shadowElevation = 3.dp,
+        shadowElevation = 4.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -525,7 +761,10 @@ private fun HomePreviewCard(
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
-                onClick = onClick
+                onClick = {
+                    feedback.onTap()
+                    onClick()
+                }
             )
             .testTag("home_preview_card")
     ) {
@@ -533,28 +772,38 @@ private fun HomePreviewCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Top Preview Header & Status Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (data.isLiveGameData) "Last Analysed Game" else "Engine Breakdown",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
-                )
+                ) {
+                    Text(
+                        text = if (data.isLiveGameData) "Last Analysed Game" else "Game Review",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = null,
+                        tint = AccentGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
-                    color = if (data.isLiveGameData) AccentGreen.copy(alpha = 0.14f) else CardSurfaceElevated,
+                    color = if (data.isLiveGameData) AccentGreen.copy(alpha = 0.16f) else CardSurfaceElevated,
                     shape = RoundedCornerShape(999.dp),
                     border = BorderStroke(
                         1.dp,
-                        if (data.isLiveGameData) AccentGreen.copy(alpha = 0.35f) else BorderSubtle
+                        if (data.isLiveGameData) AccentGreen.copy(alpha = 0.45f) else BorderSubtle
                     )
                 ) {
                     Text(
@@ -570,7 +819,6 @@ private fun HomePreviewCard(
                 }
             }
 
-            // Eval bar + 8x8 mini board + Accuracy & Eval stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -581,7 +829,7 @@ private fun HomePreviewCard(
                         .width(10.dp)
                         .height(118.dp)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(MatteDarkCard)
+                        .background(Color(0xFF1A1816))
                         .border(1.dp, BorderSubtle, RoundedCornerShape(5.dp)),
                     contentAlignment = Alignment.BottomCenter
                 ) {
@@ -639,11 +887,10 @@ private fun HomePreviewCard(
                 }
             }
 
-            // AI Coach tip banner (Light blue #EAF1F7)
             Surface(
-                color = if (LocalKnightScopeColors.current.isDark) CardSurfaceElevated else LightBlueSurface,
+                color = LightBlueSurface,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, if (LocalKnightScopeColors.current.isDark) BorderSubtle else Color(0xFFCCE0F0)),
+                border = BorderStroke(1.dp, StudioCyan.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -653,16 +900,16 @@ private fun HomePreviewCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
-                            .background(if (LocalKnightScopeColors.current.isDark) CardDark else Color.White),
+                            .background(StudioCyan.copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SmartToy,
                             contentDescription = "AI Coach",
-                            tint = if (LocalKnightScopeColors.current.isDark) OnMatteDark else AccentGreen,
-                            modifier = Modifier.size(16.dp)
+                            tint = StudioCyan,
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                     Text(
@@ -676,7 +923,6 @@ private fun HomePreviewCard(
                 }
             }
 
-            // Legend dots row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -830,16 +1076,14 @@ private fun HomeMainActionCard(
     onAnalyseClick: () -> Unit
 ) {
     DiggyCard(
-        darkMatte = LocalKnightScopeColors.current.isDark,
         elevated = false,
-        borderColor = if (LocalKnightScopeColors.current.isDark) MatteDarkBorder else BorderSubtle,
+        borderColor = BorderSubtle,
         contentPadding = PaddingValues(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("home_review_white_card")
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Top Section: "Search by Username" + Chess.com / Lichess selector
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val stackSelector = maxWidth < 340.dp
                 if (stackSelector) {
@@ -884,9 +1128,8 @@ private fun HomeMainActionCard(
                 }
             }
 
-            // Crisp White Username Input Box with Dark Text
             Surface(
-                color = Color.White,
+                color = InputBg,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
@@ -948,14 +1191,13 @@ private fun HomeMainActionCard(
                         Icon(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = "Search ${selectedPlatform.label} username",
-                            tint = TextPrimary,
+                            tint = AccentGreen,
                             modifier = Modifier.size(22.dp)
                         )
                     }
                 }
             }
 
-            // Subtle "OR" divider
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -978,7 +1220,6 @@ private fun HomeMainActionCard(
                 )
             }
 
-            // Bottom Section: "Review your game" + White PGN Textarea
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1000,11 +1241,10 @@ private fun HomeMainActionCard(
                         color = TextMuted
                     )
                 }
-                val isDark = LocalKnightScopeColors.current.isDark
                 Surface(
-                    color = if (isDark) MatteDarkSecondary else LightGreenSurface,
+                    color = AccentGreen.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(999.dp),
-                    border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8))
+                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.4f))
                 ) {
                     Text(
                         text = "SF 19 + AI",
@@ -1017,12 +1257,12 @@ private fun HomeMainActionCard(
             }
 
             Surface(
-                color = Color.White,
+                color = InputBg,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 94.dp, max = 136.dp)
+                    .heightIn(min = 90.dp, max = 136.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -1049,7 +1289,7 @@ private fun HomeMainActionCard(
                         cursorBrush = SolidColor(AccentGreen),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 66.dp)
+                            .heightIn(min = 62.dp)
                             .testTag("home_pgn_input")
                     )
                 }
@@ -1064,7 +1304,6 @@ private fun HomeMainActionCard(
                 )
             }
 
-            // Primary Green #81B64C CTA Button
             DiggyButton(
                 text = "Analyse Game",
                 onClick = onAnalyseClick,
@@ -1082,11 +1321,10 @@ private fun PlatformPillToggle(
     onSelectPlatform: (ChessPlatform) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = LocalKnightScopeColors.current.isDark
     Surface(
-        color = if (isDark) MatteDarkSecondary else SoftGreySurface,
+        color = SoftGreySurface,
         shape = RoundedCornerShape(DiggySpacing.controlRadius),
-        border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else BorderSubtle),
+        border = BorderStroke(1.dp, BorderSubtle),
         modifier = modifier.testTag("home_platform_toggle_row")
     ) {
         Row(
@@ -1112,7 +1350,7 @@ private fun PlatformPillToggle(
                             text = platform.label,
                             fontFamily = InterFontFamily,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (selected) Color.White else TextMuted,
                             maxLines = 1
                         )

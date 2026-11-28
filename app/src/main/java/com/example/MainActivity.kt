@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
         com.example.audio.ChessSoundPlayer.ensureInit(applicationContext)
         val repository = KnightScopeRepository(applicationContext)
         setContent {
-            val isDarkMode by repository.darkModeFlow.collectAsStateWithLifecycle(initialValue = false)
+            val isDarkMode by repository.darkModeFlow.collectAsStateWithLifecycle(initialValue = true)
             val pieceAnimations by repository.pieceAnimationsFlow.collectAsStateWithLifecycle(initialValue = true)
             val pieceStyle by repository.pieceStyleFlow.collectAsStateWithLifecycle(initialValue = com.example.ui.theme.PieceStyle.NEO)
             val board3dEnabled by repository.board3dEnabledFlow.collectAsStateWithLifecycle(initialValue = false)

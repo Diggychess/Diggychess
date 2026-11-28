@@ -282,9 +282,9 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Rounded.DarkMode,
                     title = "Dark Theme",
-                    subtitle = if (state.isDarkMode) "Dark mode active" else "Light mode active",
-                    checked = state.isDarkMode,
-                    onCheckedChange = onSetDarkMode,
+                    subtitle = "Chess.com Charcoal Dark theme active",
+                    checked = true,
+                    onCheckedChange = { onSetDarkMode(true) },
                     testTag = "settings_dark_mode_switch"
                 )
 

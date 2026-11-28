@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,10 +20,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -147,55 +152,75 @@ fun AnalyzeScreen(
             }
         }
 
-        // Light-themed Chess.com & Lichess Username Importer Hero Card (#E8F0DF)
-        val isDark = LocalKnightScopeColors.current.isDark
+        // Chess.com & Lichess Username Importer Hero Card
         Surface(
-            color = if (isDark) MatteDarkCard else LightGreenSurface,
+            color = MatteDarkCard,
             shape = RoundedCornerShape(DiggySpacing.cardRadius),
-            border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8)),
-            shadowElevation = if (isDark) 4.dp else 2.dp,
+            border = BorderStroke(1.dp, BorderSubtle),
+            shadowElevation = 5.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_diggy_hero),
+                    contentDescription = "Chess Analyzer spotlight",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xEE1D1B18),
+                                    Color(0xD4211F1C),
+                                    Color(0x78211F1C)
+                                )
+                            )
+                        )
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Import from Chess.com & Lichess",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                    val prof = state.platformProfile
-                    val sub = if (prof != null) {
-                        val topStat = prof.stats.firstOrNull()
-                        "${prof.username} (${prof.platform.label})" +
-                            (topStat?.let { " · ${it.mode} ${it.rating}" } ?: "")
-                    } else {
-                        "Fetch live ratings & recent games by username."
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Import from Chess.com & Lichess",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        val prof = state.platformProfile
+                        val sub = if (prof != null) {
+                            val topStat = prof.stats.firstOrNull()
+                            "${prof.username} (${prof.platform.label})" +
+                                (topStat?.let { " · ${it.mode} ${it.rating}" } ?: "")
+                        } else {
+                            "Fetch live ratings & recent games by username."
+                        }
+                        Text(
+                            text = sub,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFD0CDC7),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Text(
-                        text = sub,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                    DiggyButton(
+                        text = "Import",
+                        onClick = onOpenImporter,
+                        variant = DiggyButtonVariant.PRIMARY,
+                        icon = Icons.Rounded.CloudDownload,
+                        testTag = "open_importer_button"
                     )
                 }
-                DiggyButton(
-                    text = "Import",
-                    onClick = onOpenImporter,
-                    variant = DiggyButtonVariant.PRIMARY,
-                    icon = Icons.Rounded.CloudDownload,
-                    testTag = "open_importer_button"
-                )
             }
         }
 

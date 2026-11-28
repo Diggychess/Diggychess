@@ -119,6 +119,10 @@ class UiRedesignBoundsTest {
         var searchedPlatform: ChessPlatform? = null
         var searchedUser: String? = null
 
+        var playedFromHome = false
+        var puzzlesFromHome = false
+        var explorerFromHome = false
+
         composeRule.setContent {
             KnightScopeTheme {
                 Box(
@@ -136,7 +140,10 @@ class UiRedesignBoundsTest {
                         onUploadPgn = { _, _ -> },
                         onOpenPlatformImporter = {},
                         onTrySample = {},
-                        onOpenLatestAnalysis = {}
+                        onOpenLatestAnalysis = {},
+                        onNavigatePlay = { playedFromHome = true },
+                        onNavigatePuzzles = { puzzlesFromHome = true },
+                        onNavigateExplorer = { explorerFromHome = true }
                     )
                 }
             }
@@ -146,8 +153,6 @@ class UiRedesignBoundsTest {
         assertNodeWithinRootWidth("home_header")
         assertNodeWithinRootWidth("home_tagline_pill")
         assertNodeWithinRootWidth("home_hero_subtitle")
-        assertNodeWithinRootWidth("home_preview_card")
-        assertNodeWithinRootWidth("home_preview_badge").assertTextContains("Sample Preview")
         assertNodeWithinRootWidth("home_review_white_card")
         assertNodeWithinRootWidth("home_platform_toggle_row")
         assertNodeWithinRootWidth("home_username_input")
@@ -157,6 +162,30 @@ class UiRedesignBoundsTest {
         assertNodeWithinRootWidth("home_upload_pgn_card", minHeightDp = 48.dp)
         assertNodeWithinRootWidth("home_share_card", minHeightDp = 48.dp)
         assertNodeWithinRootWidth("home_sample_card", minHeightDp = 48.dp)
+        assertNodeWithinRootWidth("home_preview_card")
+        assertNodeWithinRootWidth("home_preview_badge").assertTextContains("Sample Preview")
+        assertNodeWithinRootWidth("home_tile_play")
+        assertNodeWithinRootWidth("home_tile_puzzles")
+        assertNodeWithinRootWidth("home_tile_explorer")
+        assertNodeWithinRootWidth("home_tile_trainer")
+        assertNodeWithinRootWidth("home_tile_lessons")
+        assertNodeWithinRootWidth("home_tile_friends")
+        assertNodeWithinRootWidth("home_tile_history")
+        assertNodeWithinRootWidth("home_tile_sample")
+
+        // Verify Analyse card appears above Game Review preview card
+        val analyseTop = composeRule.onNodeWithTag("home_review_white_card").fetchSemanticsNode().boundsInRoot.top
+        val previewTop = composeRule.onNodeWithTag("home_preview_card").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Analyse card should appear above preview card", analyseTop < previewTop)
+
+        // Verify Home mode grid navigation triggers
+        composeRule.onNodeWithTag("home_tile_play").performScrollTo().performClick()
+        composeRule.onNodeWithTag("home_tile_puzzles").performScrollTo().performClick()
+        composeRule.onNodeWithTag("home_tile_explorer").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        assertTrue(playedFromHome)
+        assertTrue(puzzlesFromHome)
+        assertTrue(explorerFromHome)
 
         // Blank CTA shows inline validation
         composeRule.onNodeWithTag("home_analyse_game_button").performScrollTo().performClick()
@@ -662,9 +691,9 @@ class UiRedesignBoundsTest {
     }
 
     @Test
-    fun settingsScreen_defaultsToLightClassicAndTogglesDarkThemeCleanly() {
-        var darkMode by mutableStateOf(false)
-        var capturedIsDark = true
+    fun settingsScreen_defaultsToChessComDarkAndTogglesLightThemeCleanly() {
+        var darkMode by mutableStateOf(true)
+        var capturedIsDark = false
         var capturedBgArgb = 0
 
         composeRule.setContent {
@@ -694,8 +723,8 @@ class UiRedesignBoundsTest {
         }
         composeRule.waitForIdle()
 
-        assertFalse("Default palette should be LightClassicPalette", capturedIsDark)
-        assertEquals(0xFFF5F7F5.toInt(), capturedBgArgb)
+        assertTrue("Default palette should be Chess.com DarkStudioPalette", capturedIsDark)
+        assertEquals(0xFF302E2B.toInt(), capturedBgArgb)
         assertNodeWithinRootWidth("settings_dark_mode_switch")
         assertNodeWithinRootWidth("settings_theme_selector")
         assertNodeWithinRootWidth("settings_groq_key_input")
@@ -703,12 +732,12 @@ class UiRedesignBoundsTest {
         assertNodeWithinRootWidth("settings_backup_export", minHeightDp = 48.dp)
         assertNodeWithinRootWidth("settings_self_test_button", minHeightDp = 48.dp)
 
-        // Toggle Dark Theme switch ON and ensure palette switches without error
+        // Dark theme remains locked to Chess.com Charcoal Dark palette even if clicked
         composeRule.onNodeWithTag("settings_dark_mode_switch").performScrollTo().performClick()
         composeRule.waitForIdle()
-        assertTrue("Dark Theme toggle should switch palette to DarkStudioPalette", darkMode)
+        assertTrue("Theme should stay locked to DarkStudioPalette", darkMode)
         assertTrue(capturedIsDark)
-        assertEquals(0xFF111114.toInt(), capturedBgArgb)
+        assertEquals(0xFF302E2B.toInt(), capturedBgArgb)
     }
 
     @Test

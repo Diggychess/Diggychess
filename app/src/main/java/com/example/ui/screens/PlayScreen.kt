@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,15 +28,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.R
 import com.example.chess.EngineDifficulty
 import com.example.chess.MoveExplainer
 import com.example.chess.PieceColor
@@ -158,33 +163,133 @@ private fun PlayLobbyLayout(
                     onRetry = onRetryEngine
                 )
             }
-            // Main Play vs Computer Card
+            // Chess.com-style Featured Arena & Selected Bot Banner
+            val selectedAccent = when (state.difficulty) {
+                EngineDifficulty.EASY -> ClassBest
+                EngineDifficulty.MEDIUM -> AccentGreen
+                EngineDifficulty.HARD -> StudioCyan
+                EngineDifficulty.EXPERT -> TrophyGold
+            }
+            Surface(
+                color = MatteDarkCard,
+                shape = RoundedCornerShape(DiggySpacing.cardRadius),
+                border = BorderStroke(1.dp, BorderSubtle),
+                shadowElevation = 5.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.img_play_arena),
+                        contentDescription = "Play Stockfish arena",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xEB1D1B18),
+                                        Color(0xC9211F1C),
+                                        Color(0x77211F1C)
+                                    )
+                                )
+                            )
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(selectedAccent.copy(alpha = 0.20f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SmartToy,
+                                contentDescription = null,
+                                tint = selectedAccent,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Play Bots",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color.White
+                                )
+                                Surface(
+                                    color = selectedAccent.copy(alpha = 0.22f),
+                                    shape = RoundedCornerShape(999.dp),
+                                    border = BorderStroke(1.dp, selectedAccent.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "${state.difficulty.label} · ${state.difficulty.eloLabel}",
+                                        fontFamily = JetBrainsMonoFontFamily,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = selectedAccent,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = state.difficulty.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFD0CDC7),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 2x2 Chess.com Bot Picker Grid + Play As Color Card
             DiggyCard(elevated = false, contentPadding = PaddingValues(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SmartToy,
-                            contentDescription = null,
-                            tint = AccentGreen,
-                            modifier = Modifier.size(24.dp)
+                        Text(
+                            text = "Choose Opponent",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary
                         )
                         Text(
-                            text = "Play vs Computer",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary
+                            text = "Stockfish 19",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentGreen
                         )
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EngineDifficulty.entries.forEach { diff ->
-                            DifficultyLevelCard(
-                                difficulty = diff,
-                                selected = state.difficulty == diff,
-                                onClick = { onSelectDifficulty(diff) }
-                            )
+                        EngineDifficulty.entries.chunked(2).forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                pair.forEach { diff ->
+                                    DifficultyLevelCard(
+                                        difficulty = diff,
+                                        selected = state.difficulty == diff,
+                                        onClick = { onSelectDifficulty(diff) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -362,7 +467,8 @@ private fun PlayLobbyLayout(
 private fun DifficultyLevelCard(
     difficulty: EngineDifficulty,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val botAccent = when (difficulty) {
         EngineDifficulty.EASY -> ClassBest
@@ -372,48 +478,48 @@ private fun DifficultyLevelCard(
     }
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(DiggySpacing.controlRadius),
-        color = if (selected) AccentGreen.copy(alpha = 0.14f) else CardSurfaceElevated,
-        border = BorderStroke(1.dp, if (selected) AccentGreen else BorderSubtle),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) botAccent.copy(alpha = 0.16f) else CardSurfaceElevated,
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) botAccent else BorderSubtle),
+        modifier = modifier
+            .heightIn(min = 82.dp)
             .testTag("play_difficulty_${difficulty.id}")
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(botAccent.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.SmartToy,
-                    contentDescription = "${difficulty.label} robot",
-                    tint = botAccent,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(botAccent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = difficulty.label,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (selected) AccentGreen else TextPrimary
+                    Icon(
+                        imageVector = Icons.Rounded.SmartToy,
+                        contentDescription = "${difficulty.label} robot",
+                        tint = botAccent,
+                        modifier = Modifier.size(19.dp)
                     )
+                }
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = botAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
                     Surface(
-                        color = CardSurfaceElevated,
+                        color = SurfaceDark,
                         shape = RoundedCornerShape(6.dp),
                         border = BorderStroke(1.dp, BorderSubtle)
                     ) {
@@ -423,26 +529,32 @@ private fun DifficultyLevelCard(
                                 fontFamily = JetBrainsMonoFontFamily,
                                 fontFeatureSettings = "tnum"
                             ),
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextMuted,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
-                    text = difficulty.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
+                    text = difficulty.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selected) botAccent else TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
-                    contentDescription = "Selected",
-                    tint = AccentGreen,
-                    modifier = Modifier.size(22.dp)
+                Text(
+                    text = difficulty.eloLabel,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    maxLines = 1
                 )
             }
         }

@@ -362,12 +362,10 @@ class KnightScopeRepository(private val context: Context) {
         prefs[KEY_CONTACT_EMAIL] ?: ""
     }
 
-    val darkModeFlow: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_DARK_MODE] ?: false
-    }
+    val darkModeFlow: Flow<Boolean> = dataStore.data.map { true }
 
-    suspend fun setDarkMode(enabled: Boolean) {
-        dataStore.edit { it[KEY_DARK_MODE] = enabled }
+    suspend fun setDarkMode(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {
+        dataStore.edit { it[KEY_DARK_MODE] = true }
     }
 
     val pieceAnimationsFlow: Flow<Boolean> = dataStore.data.map { prefs ->

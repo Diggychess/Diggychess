@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,11 +18,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -110,17 +115,83 @@ fun PuzzlesScreen(
             .padding(horizontal = DiggySpacing.s2, vertical = DiggySpacing.s2),
         verticalArrangement = Arrangement.spacedBy(DiggySpacing.s2)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = stringResource(R.string.puzzles_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary
-            )
-            Text(
-                text = stringResource(R.string.puzzles_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted
-            )
+        // Chess.com Tactics Arena Hero Banner
+        Surface(
+            color = MatteDarkCard,
+            shape = RoundedCornerShape(DiggySpacing.cardRadius),
+            border = BorderStroke(1.dp, BorderSubtle),
+            shadowElevation = 5.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_tactics_arena),
+                    contentDescription = "Tactics arena",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xEE1D1B18),
+                                    Color(0xCC211F1C),
+                                    Color(0x70211F1C)
+                                )
+                            )
+                        )
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.puzzles_title),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White
+                        )
+                        Text(
+                            text = stringResource(R.string.puzzles_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFD0CDC7)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Surface(
+                        color = Color(0xCC262421),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.55f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "${state.ratingState.rating.roundToInt()}",
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TrophyGold
+                            )
+                            Text(
+                                text = "ELO · ${state.currentPuzzleStreak} streak",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // Daily Challenge Header Card

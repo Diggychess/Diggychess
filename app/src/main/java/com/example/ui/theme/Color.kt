@@ -12,11 +12,11 @@ data class KnightScopeColors(
     val surface: Color,
     val card: Color,
     val cardElevated: Color,
-    val accentGreen: Color,       // Primary green accent (#81B64C)
-    val accentGreenHover: Color,  // Bright Emerald highlight
-    val accentGreenDark: Color,   // Tactile 3D button lip & container shade
-    val studioCyan: Color,        // Semantic Info Blue
-    val trophyGold: Color,        // Warm Gold for trophies, best streaks & rewards
+    val accentGreen: Color,       // Signature Chess.com Green (#81B64C)
+    val accentGreenHover: Color,  // Bright Emerald highlight (#96CB5F)
+    val accentGreenDark: Color,   // Tactile 3D button bottom lip (#537A30)
+    val studioCyan: Color,        // Coach Blue (#4E9AF1)
+    val trophyGold: Color,        // Crown / Diamond Gold (#F5C542)
     val onAccent: Color,          // High-contrast ink on green buttons
     val textPrimary: Color,
     val textMuted: Color,         // Secondary text
@@ -25,56 +25,56 @@ data class KnightScopeColors(
     val lineSubtle: Color,
     val success: Color,           // #81B64C
     val danger: Color,            // Error / Blunder red
-    val lightGreen: Color = Color(0xFFE8F0DF),
-    val softGrey: Color = Color(0xFFF0F2EF),
-    val lightBlue: Color = Color(0xFFEAF1F7),
-    val matteDark: Color = Color(0xFF18181B),
-    val matteDarkSecondary: Color = Color(0xFF1F2937),
+    val lightGreen: Color = Color(0xFF283520),
+    val softGrey: Color = Color(0xFF383531),
+    val lightBlue: Color = Color(0xFF233040),
+    val matteDark: Color = Color(0xFF211F1C),
+    val matteDarkSecondary: Color = Color(0xFF2E2B28),
     val onMatteDark: Color = Color(0xFFFFFFFF),
-    val onMatteDarkMuted: Color = Color(0xFFA1A1AA),
-    val matteDarkBorder: Color = Color(0xFF27272A),
-    val inputBg: Color = Color(0xFFFFFFFF),
-    val inputText: Color = Color(0xFF25332B),
-    val inputHint: Color = Color(0xFF76847B),
-    val inputBorder: Color = Color(0xFFD2D8CF)
+    val onMatteDarkMuted: Color = Color(0xFFB3B0AA),
+    val matteDarkBorder: Color = Color(0xFF43403B),
+    val inputBg: Color = Color(0xFF1E1C19),
+    val inputText: Color = Color(0xFFFFFFFF),
+    val inputHint: Color = Color(0xFF9A968F),
+    val inputBorder: Color = Color(0xFF48443F)
 )
 
-// Optional Dark Mode Palette (Settings Dark Theme toggle) — aligned to Matte #18181B / #1F2937 / #81B64C
+// Signature Chess.com Warm Charcoal Dark Palette (Default)
 val DarkStudioPalette = KnightScopeColors(
     isDark = true,
-    bg = Color(0xFF111114),
-    bgRadialTop = Color(0xFF16161A),
-    surface = Color(0xFF18181B),
-    card = Color(0xFF18181B),
-    cardElevated = Color(0xFF1F2937),
+    bg = Color(0xFF302E2B),
+    bgRadialTop = Color(0xFF383531),
+    surface = Color(0xFF262421),
+    card = Color(0xFF262421),
+    cardElevated = Color(0xFF36332E),
     accentGreen = Color(0xFF81B64C),
-    accentGreenHover = Color(0xFF93C45E),
-    accentGreenDark = Color(0xFF659635),
-    studioCyan = Color(0xFF60A5FA),
+    accentGreenHover = Color(0xFF96CB5F),
+    accentGreenDark = Color(0xFF537A30),
+    studioCyan = Color(0xFF4E9AF1),
     trophyGold = Color(0xFFF5C542),
     onAccent = Color(0xFFFFFFFF),
-    textPrimary = Color(0xFFF9FAFB),
-    textMuted = Color(0xFFA1A1AA),
-    textDisabled = Color(0xFF71717A),
-    borderSubtle = Color(0xFF27272A),
-    lineSubtle = Color(0xFF27272A),
+    textPrimary = Color(0xFFFFFFFF),
+    textMuted = Color(0xFFB3B0AA),
+    textDisabled = Color(0xFF7A7771),
+    borderSubtle = Color(0xFF43403B),
+    lineSubtle = Color(0xFF3B3833),
     success = Color(0xFF81B64C),
-    danger = Color(0xFFEF4444),
-    lightGreen = Color(0xFF233527),
-    softGrey = Color(0xFF1F2937),
-    lightBlue = Color(0xFF1E293B),
-    matteDark = Color(0xFF18181B),
-    matteDarkSecondary = Color(0xFF1F2937),
+    danger = Color(0xFFEA4D44),
+    lightGreen = Color(0xFF283621),
+    softGrey = Color(0xFF36332E),
+    lightBlue = Color(0xFF233245),
+    matteDark = Color(0xFF211F1C),
+    matteDarkSecondary = Color(0xFF2E2B28),
     onMatteDark = Color(0xFFFFFFFF),
-    onMatteDarkMuted = Color(0xFFA1A1AA),
-    matteDarkBorder = Color(0xFF27272A),
-    inputBg = Color(0xFFFFFFFF),
-    inputText = Color(0xFF111827),
-    inputHint = Color(0xFF6B7280),
-    inputBorder = Color(0xFFD1D5DB)
+    onMatteDarkMuted = Color(0xFFB3B0AA),
+    matteDarkBorder = Color(0xFF43403B),
+    inputBg = Color(0xFF1E1C19),
+    inputText = Color(0xFFFFFFFF),
+    inputHint = Color(0xFF9A968F),
+    inputBorder = Color(0xFF48443F)
 )
 
-// Default Premium Light Palette (#F5F7F5 Canvas, #FFFFFF Cards, #E8F0DF Light Green, #F0F2EF Soft Grey, #EAF1F7 Light Blue, #81B64C Green, #25332B Text)
+// Optional Light Classic Palette (Settings Theme Toggle)
 val LightClassicPalette = KnightScopeColors(
     isDark = false,
     bg = Color(0xFFF5F7F5),
@@ -84,7 +84,7 @@ val LightClassicPalette = KnightScopeColors(
     cardElevated = Color(0xFFF0F2EF),
     accentGreen = Color(0xFF81B64C),
     accentGreenHover = Color(0xFF93C45E),
-    accentGreenDark = Color(0xFF659635),
+    accentGreenDark = Color(0xFF537A30),
     studioCyan = Color(0xFF2563EB),
     trophyGold = Color(0xFFD97706),
     onAccent = Color(0xFFFFFFFF),
@@ -109,7 +109,7 @@ val LightClassicPalette = KnightScopeColors(
     inputBorder = Color(0xFFD2D8CF)
 )
 
-val LocalKnightScopeColors = staticCompositionLocalOf { LightClassicPalette }
+val LocalKnightScopeColors = staticCompositionLocalOf { DarkStudioPalette }
 
 // Centralized Theme-Reactive Semantic Color Tokens
 val BgDark: Color @Composable @ReadOnlyComposable get() = LocalKnightScopeColors.current.bg
@@ -161,7 +161,7 @@ val ClassBook = Color(0xFFA88865)
 val ClassMiss = Color(0xFFFF7769)
 
 // Board Square Highlights & Overlays
-val HighlightLastMove = Color(0x66FFFF00) // rgba(255,255,0,0.4)
+val HighlightLastMove = Color(0x66FFFF00)
 val HighlightSelected = Color(0xB3BACB2B)
 val HighlightHint = Color(0x884C9AFF)
 val HighlightCorrect = Color(0x9981B64C)

@@ -66,8 +66,8 @@ private enum class KnightScopeDestination(
 ) {
     HOME("home", R.string.tab_home, Icons.Rounded.Home, "nav_home", true, "Core"),
     PLAY("play", R.string.tab_play, Icons.Rounded.SmartToy, "nav_play", true, "Core"),
-    ANALYSE("analyse", R.string.tab_analyse, Icons.Rounded.Analytics, "nav_analyse", true, "Core"),
     PUZZLES("puzzles", R.string.tab_puzzles, Icons.Rounded.Extension, "nav_puzzles", true, "Core"),
+    ANALYSE("analyse", R.string.tab_analyse, Icons.Rounded.Analytics, "nav_analyse", true, "Core"),
     HISTORY("history", R.string.tab_history, Icons.Rounded.History, "nav_history", true, "Core"),
     FRIENDS("friends", R.string.tab_friends, Icons.Rounded.Group, "nav_friends", false, "Play & Study"),
     EXPLORER("explorer", R.string.tab_explorer, Icons.Rounded.Explore, "nav_explorer", false, "Play & Study"),
@@ -327,6 +327,33 @@ fun KnightScopeApp(
                                         }
                                     },
                                     actions = {
+                                        Surface(
+                                            color = CardSurfaceElevated,
+                                            shape = RoundedCornerShape(999.dp),
+                                            border = BorderStroke(1.dp, BorderSubtle),
+                                            onClick = { navigateTo(KnightScopeDestination.PUZZLES.route) },
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.LocalFireDepartment,
+                                                    contentDescription = "Puzzle streak",
+                                                    tint = TrophyGold,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Text(
+                                                    text = "${puzzlesState.currentPuzzleStreak}",
+                                                    fontFamily = JetBrainsMonoFontFamily,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextPrimary
+                                                )
+                                            }
+                                        }
                                         IconButton(
                                             onClick = { navigateTo(KnightScopeDestination.SETTINGS.route) },
                                             modifier = Modifier
@@ -395,6 +422,27 @@ fun KnightScopeApp(
                                     },
                                     onOpenLatestAnalysis = {
                                         navigateTo(KnightScopeDestination.ANALYSE.route)
+                                    },
+                                    onNavigatePlay = {
+                                        navigateTo(KnightScopeDestination.PLAY.route)
+                                    },
+                                    onNavigatePuzzles = {
+                                        navigateTo(KnightScopeDestination.PUZZLES.route)
+                                    },
+                                    onNavigateExplorer = {
+                                        navigateTo(KnightScopeDestination.EXPLORER.route)
+                                    },
+                                    onNavigateTrainer = {
+                                        navigateTo(KnightScopeDestination.TRAINER.route)
+                                    },
+                                    onNavigateLessons = {
+                                        navigateTo(KnightScopeDestination.LESSONS.route)
+                                    },
+                                    onNavigateFriends = {
+                                        navigateTo(KnightScopeDestination.FRIENDS.route)
+                                    },
+                                    onNavigateHistory = {
+                                        navigateTo(KnightScopeDestination.HISTORY.route)
                                     }
                                 )
                             }
@@ -822,10 +870,17 @@ private fun DiggyBottomNavBar(
                         .testTag(tab.testTag)
                 ) {
                     Column(
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .width(26.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) AccentGreen else Color.Transparent)
+                        )
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
@@ -837,7 +892,7 @@ private fun DiggyBottomNavBar(
                                 imageVector = tab.icon,
                                 contentDescription = label,
                                 tint = iconTint,
-                                modifier = Modifier.size(23.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                         Text(
