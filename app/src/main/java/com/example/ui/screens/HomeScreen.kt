@@ -45,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -276,8 +275,8 @@ fun HomeScreen(
     ) {
         AnimatedVisibility(
             visible = contentVisible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 280)) +
-                slideInVertically(animationSpec = tween(durationMillis = 280)) { it / 32 }
+            enter = fadeIn(animationSpec = tween(durationMillis = 260)) +
+                slideInVertically(animationSpec = tween(durationMillis = 260)) { it / 28 }
         ) {
             Column(
                 modifier = modifier
@@ -286,12 +285,12 @@ fun HomeScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = DiggySpacing.md, vertical = 14.dp)
                     .testTag("home_screen_root"),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. Premium 3D Gaming Knight Hero Card
+                // 1. Chess.com Inspired Light Hero Card (#E8F0DF)
                 HomeHeroCard()
 
-                // 2. Chessboard & Stats Preview Card
+                // 2. White Chessboard & Stats Preview Card (#FFFFFF)
                 HomePreviewCard(
                     data = previewData,
                     onClick = {
@@ -303,7 +302,7 @@ fun HomeScreen(
                     }
                 )
 
-                // 3. Main Action Card (Username Search + PGN Review)
+                // 3. Combined Action Card (Username Search + PGN Review)
                 HomeMainActionCard(
                     selectedPlatform = selectedPlatform,
                     onSelectPlatform = { selectedPlatform = it },
@@ -401,7 +400,7 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }
@@ -413,138 +412,87 @@ private fun HomeHeroCard() {
     Surface(
         color = if (isDark) MatteDarkCard else LightGreenSurface,
         shape = RoundedCornerShape(DiggySpacing.cardRadius),
-        border = BorderStroke(1.2.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8)),
-        shadowElevation = if (isDark) 6.dp else 3.dp,
+        border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8)),
+        shadowElevation = if (isDark) 4.dp else 2.dp,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("home_header")
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Background 3D Knight Artwork with Gradient Scrim
-            Image(
-                painter = painterResource(id = R.drawable.img_knight_hero_3d),
-                contentDescription = "3D Chess Knight Hero Artwork",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.35f),
-                                Color.Black.copy(alpha = 0.78f)
-                            )
-                        )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    color = if (isDark) MatteDarkSecondary else Color.White,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, if (isDark) MatteDarkBorder else Color(0xFFD6E4C8))
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_piece_wn),
+                        contentDescription = "Chess Analyzer knight emblem",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(24.dp)
                     )
-            )
+                }
+                Text(
+                    text = "CHESS ANALYZER",
+                    fontFamily = InterFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    letterSpacing = 0.8.sp,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
-            // Foreground Content Layout
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
+            Surface(
+                color = AccentGreen,
+                shape = RoundedCornerShape(999.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .testTag("home_tagline_pill"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            color = Color.Black.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.6f))
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_piece_wn),
-                                contentDescription = "Knight emblem",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .padding(5.dp)
-                                    .size(20.dp)
-                            )
-                        }
-                        Text(
-                            text = "CHESS ANALYZER",
-                            fontFamily = InterFontFamily,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                            letterSpacing = 1.2.sp,
-                            color = Color.White,
-                            maxLines = 1
-                        )
-                    }
-
-                    Surface(
-                        color = TrophyGold.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, TrophyGold.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = "PRO 3D",
-                            fontFamily = InterFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = TrophyGold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Surface(
-                        color = AccentGreen,
-                        shape = RoundedCornerShape(999.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 5.dp)
-                                .testTag("home_tagline_pill"),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = "Analyse your chess with AI",
-                                fontFamily = InterFontFamily,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.sp,
-                                color = Color.White,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
                     Text(
-                        text = "Stockfish 19 Engine with an AI Coach",
+                        text = "Analyse your chess with AI",
                         fontFamily = InterFontFamily,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.testTag("home_hero_subtitle")
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.5.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Text(
+                text = "Stockfish 19 Engine with an AI Coach",
+                fontFamily = InterFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 13.5.sp,
+                color = TextMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("home_hero_subtitle")
+            )
         }
     }
 }
@@ -566,7 +514,7 @@ private fun HomePreviewCard(
         color = CardDark,
         shape = RoundedCornerShape(DiggySpacing.cardRadius),
         border = BorderStroke(1.dp, BorderSubtle),
-        shadowElevation = 4.dp,
+        shadowElevation = 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -691,7 +639,7 @@ private fun HomePreviewCard(
                 }
             }
 
-            // AI Coach tip banner
+            // AI Coach tip banner (Light blue #EAF1F7)
             Surface(
                 color = if (LocalKnightScopeColors.current.isDark) CardSurfaceElevated else LightBlueSurface,
                 shape = RoundedCornerShape(12.dp),
@@ -936,9 +884,9 @@ private fun HomeMainActionCard(
                 }
             }
 
-            // Username Input Box
+            // Crisp White Username Input Box with Dark Text
             Surface(
-                color = InputBg,
+                color = Color.White,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
@@ -1030,7 +978,7 @@ private fun HomeMainActionCard(
                 )
             }
 
-            // Bottom Section: "Review your game" + PGN Textarea
+            // Bottom Section: "Review your game" + White PGN Textarea
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1069,7 +1017,7 @@ private fun HomeMainActionCard(
             }
 
             Surface(
-                color = InputBg,
+                color = Color.White,
                 shape = RoundedCornerShape(DiggySpacing.controlRadius),
                 border = BorderStroke(1.dp, InputBorder),
                 modifier = Modifier
